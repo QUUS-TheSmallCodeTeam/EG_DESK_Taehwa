@@ -1,0 +1,122 @@
+# Taehwatrans Website .gitignore
+
+taehwa8161/
+
+.kiro/
+.claude/
+# CRITICAL: Database files (NEVER upload these)
+*.dump
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+DataBackup/
+database_backups/
+
+# Exception: Allow demo initialization SQL for Hugging Face Spaces
+!init-db.sql
+!init-sqlite.sql
+!Dockerfile.sqlite
+
+# Database connection files (may contain sensitive credentials)
+**/config.php
+**/db_config.php
+**/database.php
+**/connection.php
+
+# Cafe24 hosting specific files
+.htaccess.backup
+.htaccess_*
+cpanel_logs/
+error_logs/
+access_logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Large media files (consider using Git LFS for these)
+# Note: These are now tracked by Git LFS via .gitattributes
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# PHP session files
+/tmp/
+/sessions/
+
+# Upload directories (if they contain user uploads)
+/uploads/
+/user_files/
+
+# Cache directories
+/cache/
+/tmp_cache/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Composer (if used)
+/vendor/
+composer.lock
+
+# Node modules (if any frontend build tools are added)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build files
+/dist/
+/build/ 
+
+#etc
+.bash*
+.ftp*
+.lastlogin
+.logincount
+.my.cnf
+.shelldenied
+.zshrc
+
+# Media files are now tracked by Git LFS (see .gitattributes)
+# Removed from .gitignore to allow LFS tracking
+
+# zipped files
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.lzma
+*.tar.lz
+*.tar.lz4
+*.tar.zst
+
+# Admin panel (large template system)
+www/fnf-admin/
+
+# E-book/Catalog system (large flipbook files - backup purpose only)
+www/ebook/
+www/en_v1/ebook/

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>EG-Desk 시작 화면</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: #f7f8f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #4a5568;
+            margin-bottom: 16px;
+        }
+        .desc {
+            font-size: 1.1rem;
+            color: #6b7280;
+            margin-bottom: 32px;
+        }
+        .main-btn {
+            background: linear-gradient(90deg, #6b7280 60%, #4a5568 100%);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            padding: 14px 36px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(107,114,128,0.12);
+            transition: background 0.2s;
+        }
+        .main-btn:hover {
+            background: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="title">EG-Desk: 태화</div>
+    <div class="desc">AI 기반 자동 블로그 워크플로우<br>시작하려면 아래 버튼을 클릭하세요.</div>
+    <button class="main-btn workspace-btn" data-workspace="blog">블로그 자동화 시작</button>
+    <script>
+        // 페이지 로드 완료시 로그
+        console.log('start.html 로드 완료');
+    </script>
+</body>
+</html> 
