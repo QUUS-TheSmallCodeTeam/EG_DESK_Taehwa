@@ -3,14 +3,31 @@ const { exec } = require('child_process');
 const path = require('path');
 const Store = require('electron-store');
 
+// Import modular components
+const WebContentsManager = require('./modules/WebContentsManager');
+
 // Initialize store for local data
 const store = new Store();
+
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('💥 [FATAL] Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 [FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+app.on('render-process-gone', (event, webContents, details) => {
+  console.error('💥 [FATAL] Render process gone:', details);
+});
 
 class EGDeskTaehwa {
   constructor() {
     this.mainWindow = null;
-    this.browserView = null;
+    this.webContentsManager = new WebContentsManager();
     this.currentWorkspace = 'start';
+    this.currentTabId = null;
     this.setupApp();
   }
 
@@ -52,7 +69,7 @@ class EGDeskTaehwa {
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: true,
-        sandbox: true
+        sandbox: false  // Allow JavaScript execution in renderer
       },
       show: false
     });
@@ -60,12 +77,15 @@ class EGDeskTaehwa {
     // Load the overlay UI (EG-Desk interface)
     this.mainWindow.loadFile('index.html');
 
-    // Create browser view for website content
-    this.createBrowserView();
+    // Initialize WebContentsManager for website content
+    this.initializeWebContentsManager();
 
     this.mainWindow.once('ready-to-show', () => {
-      console.log('🎉 Main Window 표시 준비 완료');
+      console.log('🎉 Main Window 표시 준비 완룼');
       this.mainWindow.show();
+      
+      // Temporarily enable dev tools to debug renderer issues
+      this.mainWindow.webContents.openDevTools();
     });
 
     this.mainWindow.webContents.once('did-finish-load', () => {
@@ -74,77 +94,74 @@ class EGDeskTaehwa {
 
     this.mainWindow.on('closed', () => {
       console.log('❌ Main Window 닫힘');
+      this.webContentsManager.destroy();
       this.mainWindow = null;
-      this.browserView = null;
+    });
+    
+    // Updated crash handlers - use render-process-gone (crashed is deprecated)
+    this.mainWindow.webContents.on('render-process-gone', (event, details) => {
+      console.error('💥 [CRASH] Render process gone:', details);
+      console.error('💥 [CRASH] Reason:', details.reason);
+      console.error('💥 [CRASH] Exit code:', details.exitCode);
+    });
+    
+    this.mainWindow.on('unresponsive', () => {
+      console.error('💥 [CRASH] Window became unresponsive!');
     });
 
     console.log('📱 Main Window 생성 완료');
   }
 
-  createBrowserView() {
-    console.log('🌐 Browser View 생성');
-    this.browserView = new BrowserView({
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true
-      }
-    });
-
-    // Initially hidden - shown when blog workspace is active
-    this.mainWindow.setBrowserView(null);
+  initializeWebContentsManager() {
+    console.log('🌐 WebContentsManager 초기화');
+    this.webContentsManager.initialize(this.mainWindow);
+    
+    // Resize handling is now done by BrowserTabComponent
+    // this.mainWindow.on('resize', () => {
+    //   if (this.currentWorkspace === 'blog') {
+    //     this.webContentsManager.updateWebContentsViewBounds();
+    //   }
+    // });
   }
 
-  setupBlogWorkspace() {
+  async setupBlogWorkspace() {
     console.log('🚀 블로그 워크스페이스 설정');
-    if (!this.browserView) {
-      this.createBrowserView();
-    }
-
-    // Set browser view for the main window
-    this.mainWindow.setBrowserView(this.browserView);
     
-    // Position browser view (accounting for header + controls + terminal)
-    const bounds = this.mainWindow.getBounds();
-    this.browserView.setBounds({
-      x: 0,
-      y: 100, // Header (60px) + Controls (40px)
-      width: Math.floor(bounds.width * 0.7), // 70% width for browser
-      height: bounds.height - 100 // Full height minus header/controls
-    });
-
-    // Load default WordPress URL
-    this.browserView.webContents.loadURL('https://m8chaa.mycafe24.com/');
-
-    // Set up browser navigation events
-    this.setupBrowserEvents();
+    try {
+      // Create and switch to a new tab with default WordPress URL
+      const tabId = await this.webContentsManager.createTab('https://m8chaa.mycafe24.com/');
+      await this.webContentsManager.switchTab(tabId);
+      this.currentTabId = tabId;
+      
+      // Don't update bounds immediately - let BrowserTabComponent handle it
+      console.log(`[EGDeskTaehwa] Blog workspace ready with tab ${tabId} - bounds will be updated by BrowserTabComponent`);
+    } catch (error) {
+      console.error('[EGDeskTaehwa] Failed to setup blog workspace:', error);
+    }
   }
 
   hideBrowserView() {
     console.log('🙈 Browser View 숨김');
-    if (this.browserView) {
-      this.mainWindow.setBrowserView(null);
-    }
+    this.mainWindow.setBrowserView(null);
+    this.currentTabId = null;
   }
 
-  setupBrowserEvents() {
-    if (!this.browserView) return;
-
-    const webContents = this.browserView.webContents;
-
-    webContents.on('did-navigate', (event, url) => {
-      console.log('🧭 Browser 네비게이션:', url);
-      this.mainWindow.webContents.send('browser-navigated', url);
+  setupWebContentsEvents() {
+    // WebContentsManager handles browser events internally
+    // Set up communication between main process and renderer
+    this.webContentsManager.on('navigation', (data) => {
+      console.log('🧭 Browser 네비게이션:', data.url);
+      this.mainWindow.webContents.send('browser-navigated', data);
     });
 
-    webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-      console.error('❌ Browser 로드 실패:', errorDescription);
-      this.mainWindow.webContents.send('browser-load-failed', errorDescription);
+    this.webContentsManager.on('loading-failed', (data) => {
+      console.error('❌ Browser 로드 실패:', data.errorDescription);
+      this.mainWindow.webContents.send('browser-load-failed', data);
     });
 
-    webContents.on('did-finish-load', () => {
+    this.webContentsManager.on('loading-finished', (data) => {
       console.log('✅ Browser 로드 완료');
-      this.mainWindow.webContents.send('browser-load-finished');
+      this.mainWindow.webContents.send('browser-load-finished', data);
     });
   }
 
@@ -250,13 +267,13 @@ class EGDeskTaehwa {
     });
 
     // Workspace switching
-    ipcMain.handle('switch-workspace', (event, workspace) => {
+    ipcMain.handle('switch-workspace', async (event, workspace) => {
       console.log(`[MAIN] IPC switch-workspace received: ${workspace}`);
       this.currentWorkspace = workspace;
       
       if (workspace === 'blog') {
         console.log('[MAIN] Setting up blog workspace');
-        this.setupBlogWorkspace();
+        await this.setupBlogWorkspace();
       } else {
         console.log('[MAIN] Hiding browser view');
         this.hideBrowserView();
@@ -266,16 +283,12 @@ class EGDeskTaehwa {
       return { success: true, workspace };
     });
 
-    // Browser navigation APIs (for BrowserView)
+    // Browser navigation APIs (via WebContentsManager)
     ipcMain.handle('browser-load-url', async (event, url) => {
       console.log(`[MAIN] IPC browser-load-url: ${url}`);
-      if (!this.browserView) {
-        console.error('[MAIN] Browser view not available for loadURL');
-        throw new Error('Browser view not available');
-      }
       
       try {
-        await this.browserView.webContents.loadURL(url);
+        await this.webContentsManager.loadURL(url);
         console.log(`[MAIN] Browser URL loaded: ${url}`);
         return { success: true, url };
       } catch (error) {
@@ -284,57 +297,61 @@ class EGDeskTaehwa {
       }
     });
 
-    ipcMain.handle('browser-go-back', (event) => {
+    ipcMain.handle('browser-go-back', async (event) => {
       console.log('[MAIN] IPC browser-go-back');
-      if (!this.browserView) return false;
-      
-      if (this.browserView.webContents.canGoBack()) {
-        this.browserView.webContents.goBack();
-        return true;
-      }
-      return false;
+      return await this.webContentsManager.goBack();
     });
 
-    ipcMain.handle('browser-go-forward', (event) => {
+    ipcMain.handle('browser-go-forward', async (event) => {
       console.log('[MAIN] IPC browser-go-forward');
-      if (!this.browserView) return false;
-      
-      if (this.browserView.webContents.canGoForward()) {
-        this.browserView.webContents.goForward();
-        return true;
-      }
-      return false;
+      return await this.webContentsManager.goForward();
     });
 
-    ipcMain.handle('browser-reload', (event) => {
+    ipcMain.handle('browser-reload', async (event) => {
       console.log('[MAIN] IPC browser-reload');
-      if (!this.browserView) return false;
-      
-      this.browserView.webContents.reload();
-      return true;
+      return await this.webContentsManager.reload();
     });
 
     ipcMain.handle('browser-can-go-back', (event) => {
-      if (!this.browserView) return false;
-      return this.browserView.webContents.canGoBack();
+      const state = this.webContentsManager.getNavigationState();
+      return state.canGoBack;
     });
 
     ipcMain.handle('browser-can-go-forward', (event) => {
-      if (!this.browserView) return false;
-      return this.browserView.webContents.canGoForward();
+      const state = this.webContentsManager.getNavigationState();
+      return state.canGoForward;
     });
 
     ipcMain.handle('browser-get-url', (event) => {
-      if (!this.browserView) return 'about:blank';
-      return this.browserView.webContents.getURL();
+      const state = this.webContentsManager.getNavigationState();
+      return state.url;
     });
 
-    // Window resize handler for browser view
-    ipcMain.handle('resize-browser-view', (event, bounds) => {
-      if (!this.browserView) return;
-      
-      console.log(`[MAIN] Resizing browser view: ${JSON.stringify(bounds)}`);
-      this.browserView.setBounds(bounds);
+    // WebContentsManager API access
+    ipcMain.handle('browser-execute-script', async (event, script) => {
+      console.log('[MAIN] IPC browser-execute-script');
+      try {
+        return await this.webContentsManager.executeScript(script);
+      } catch (error) {
+        console.error('[MAIN] Script execution failed:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('browser-get-navigation-state', (event) => {
+      return this.webContentsManager.getNavigationState();
+    });
+
+    // BrowserView bounds update
+    ipcMain.handle('browser-update-bounds', (event, bounds) => {
+      console.log(`[MAIN] IPC browser-update-bounds:`, bounds);
+      try {
+        this.webContentsManager.updateWebContentsViewBounds(bounds);
+        return { success: true };
+      } catch (error) {
+        console.error(`[MAIN] Failed to update browser bounds:`, error);
+        throw error;
+      }
     });
 
     // Command execution
@@ -378,20 +395,8 @@ class EGDeskTaehwa {
       this.mainWindow.close();
     });
 
-    // Window resize event to adjust browser view
-    this.mainWindow.on('resize', () => {
-      if (this.browserView && this.currentWorkspace === 'blog') {
-        const bounds = this.mainWindow.getBounds();
-        const newBounds = {
-          x: 0,
-          y: 100,
-          width: Math.floor(bounds.width * 0.7),
-          height: bounds.height - 100
-        };
-        console.log(`[MAIN] Window resized, adjusting browser view to: ${JSON.stringify(newBounds)}`);
-        this.browserView.setBounds(newBounds);
-      }
-    });
+    // Set up WebContentsManager events
+    this.setupWebContentsEvents();
   }
 }
 

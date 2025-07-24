@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Workspace management
   switchWorkspace: (workspace) => ipcRenderer.invoke('switch-workspace', workspace),
 
-  // Browser control APIs (for BrowserView)
+  // Browser control APIs (via WebContentsManager)
   browser: {
     loadURL: (url) => ipcRenderer.invoke('browser-load-url', url),
     goBack: () => ipcRenderer.invoke('browser-go-back'),
@@ -15,7 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     canGoBack: () => ipcRenderer.invoke('browser-can-go-back'),
     canGoForward: () => ipcRenderer.invoke('browser-can-go-forward'),
     getCurrentURL: () => ipcRenderer.invoke('browser-get-url'),
-    resizeView: (bounds) => ipcRenderer.invoke('resize-browser-view', bounds)
+    getNavigationState: () => ipcRenderer.invoke('browser-get-navigation-state'),
+    executeScript: (script) => ipcRenderer.invoke('browser-execute-script', script),
+    updateBounds: (bounds) => ipcRenderer.invoke('browser-update-bounds', bounds)
   },
 
   // Browser event listeners

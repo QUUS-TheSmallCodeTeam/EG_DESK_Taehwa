@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; script-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self';">
     <title>EG-Desk:태화</title>
     <style>
         /* Import Google Fonts with fallback */
@@ -183,134 +183,53 @@
             display: flex;
         }
 
-        /* Browser Controls - Modern Style */
-        #browser-controls {
-            height: 52px;
-            display: flex;
-            align-items: center;
-            background: var(--secondary-bg);
-            border-bottom: 1px solid var(--border);
-            padding: 0 20px;
-            gap: 12px;
-        }
 
-        .control-group {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            background: var(--tertiary-bg);
+        /* Component Container Styles */
+        .component-container {
+            background: white;
             border-radius: 8px;
-            padding: 4px;
-        }
-
-        #browser-controls button {
-            width: 36px;
-            height: 36px;
-            border: none;
-            background: transparent;
-            color: var(--text-secondary);
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-            font-size: 16px;
-            font-weight: 500;
-        }
-
-        #browser-controls button:hover {
-            background: var(--accent-bg);
-            color: var(--text-primary);
-            transform: scale(1.05);
-        }
-
-        #browser-controls button:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        #address-bar {
-            flex-grow: 1;
-            background: var(--tertiary-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 16px;
-            font-size: 13px;
-            color: var(--text-primary);
-            margin: 0 16px;
-            font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
-            transition: all 0.2s ease;
-        }
-
-        #address-bar:focus {
-            outline: none;
-            border-color: var(--accent-bg);
-            box-shadow: 0 0 0 2px rgba(206, 212, 218, 0.3);
-            background: var(--secondary-bg);
-        }
-
-        #go-btn {
-            background: var(--gradient-primary) !important;
-            color: white !important;
-            padding: 0 20px !important;
-            width: auto !important;
-            font-weight: 600;
-            border-radius: 10px !important;
-            height: 40px !important;
-        }
-
-        #go-btn:hover {
-            box-shadow: var(--shadow) !important;
-            transform: scale(1.02) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
         /* Workspace Layout */
         #workspace-layout {
             display: flex;
             flex-grow: 1;
-            height: calc(100vh - 80px);
+            height: calc(100vh - 28px);
+            gap: 16px;
+            padding: 16px;
+            background: var(--primary-bg);
         }
 
-        #browser-container {
+        #browser-component-container {
             flex: 7;
-            background: var(--secondary-bg);
-            position: relative;
-            border-right: 1px solid var(--border);
+            min-width: 0;
         }
 
-        #browser-placeholder {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--secondary-bg);
-            border: 2px dashed var(--border);
-            border-radius: 16px;
-            margin: 16px;
-            width: calc(100% - 32px);
-            height: calc(100% - 32px);
+        #chat-component-container {
+            flex: 3;
+            min-width: 280px;
         }
 
-        .placeholder-content {
-            text-align: center;
-            color: var(--text-muted);
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            #workspace-layout {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            #browser-component-container {
+                flex: 1;
+                min-height: 400px;
+            }
+            
+            #chat-component-container {
+                flex: 0 0 200px;
+                min-width: 0;
+            }
         }
 
-        .placeholder-content h3 {
-            font-size: 1.6rem;
-            margin-bottom: 16px;
-            color: var(--text-secondary);
-            font-weight: 600;
-        }
-
-        .placeholder-content p {
-            margin: 10px 0;
-            font-size: 15px;
-            line-height: 1.6;
-        }
 
         /* Resizer */
         #resizer {
@@ -536,54 +455,27 @@
 
     <!-- Blog Automation Workspace -->
     <div id="main-content">
-        <div id="browser-controls">
-            <div class="control-group">
-                <button id="back-btn" title="뒤로가기">←</button>
-                <button id="forward-btn" title="앞으로가기">→</button>
-                <button id="reload-btn" title="새로고침">↻</button>
-            </div>
-            <input type="text" id="address-bar" placeholder="URL을 입력하세요..." value="https://m8chaa.mycafe24.com/">
-            <button id="go-btn">이동</button>
-        </div>
         <div id="workspace-layout">
-            <div id="browser-container">
-                <div id="browser-placeholder">
-                    <div class="placeholder-content">
-                        <h3>🌐 브라우저 영역</h3>
-                        <p>웹사이트 컨텐츠가 이 영역에 표시됩니다</p>
-                        <p>EG-Desk가 브라우저 컨텍스트를 지능적으로 제어합니다</p>
-                        <p>AI 에이전트가 페이지 분석 및 자동화를 수행합니다</p>
-                    </div>
-                </div>
+            <div id="browser-component-container" class="component-container">
+                <!-- BrowserTabComponent will be rendered here -->
             </div>
-            <div id="resizer"></div>
-            <div id="terminal-container">
-                <div id="terminal-header">
-                    <div class="terminal-icon">🤖</div>
-                    <span>AI Agent Terminal</span>
-                </div>
-                <div id="terminal-output">
-                    <div class="output-line"><span class="status-indicator success"></span>EG-Desk:태화 AI Agent 시스템 온라인</div>
-                    <div class="output-line"><span class="status-indicator info"></span>브라우저 컨텍스트 분석 준비 완료</div>
-                    <div class="output-line"><span class="status-indicator success"></span>Claude AI 연동 활성화됨</div>
-                    <div class="output-line"><span class="status-indicator info"></span>WordPress API 연결 대기중</div>
-                    <div class="output-line"></div>
-                    <div class="success-line">💡 사용 가능한 명령어:</div>
-                    <div class="output-line">  • claude "현재 페이지 SEO 분석해줘"</div>
-                    <div class="output-line">  • claude "블로그 글 작성: 로고스키 코일 기술"</div>
-                    <div class="output-line">  • claude "이 페이지 성능 최적화 제안"</div>
-                    <div class="output-line">  • claude "콘텐츠 자동 번역 실행"</div>
-                    <div class="output-line">  • claude "WordPress 게시물 자동 업로드"</div>
-                    <div class="output-line"></div>
-                </div>
-                <div id="terminal-input-container">
-                    <span id="terminal-prompt">AI-Agent $</span>
-                    <input type="text" id="terminal-input" placeholder="AI 에이전트와 대화하기..." />
-                </div>
+            <div id="chat-component-container" class="component-container">
+                <!-- ChatComponent will be rendered here -->
             </div>
         </div>
     </div>
 
+    <!-- Load modules first -->
+    <script src="./modules/WebContentsManager.js"></script>
+    
+    <!-- Load components -->
+    <script src="./components/ChatComponent.js"></script>
+    <script src="./components/BrowserTabComponent.js"></script>
+    
+    <!-- Load workspace manager -->
+    <script src="./modules/WorkspaceManager.js"></script>
+    
+    <!-- Load main renderer -->
     <script src="./renderer.js"></script>
 </body>
 </html>

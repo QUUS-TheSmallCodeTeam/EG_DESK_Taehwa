@@ -1,29 +1,75 @@
+// Global error handlers for renderer
+window.addEventListener('error', (event) => {
+    console.error('💥 [RENDERER CRASH] Global error:', event.error);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('💥 [RENDERER CRASH] Unhandled promise rejection:', event.reason);
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[RENDERER] DOMContentLoaded: Initializing EG-Desk');
 
-    if (!window.electronAPI) {
-        console.error('[RENDERER] FATAL: electronAPI is not available on window object!');
-        return;
-    }
-    console.log('[RENDERER] electronAPI loaded successfully:', Object.keys(window.electronAPI));
+    try {
+        if (!window.electronAPI) {
+            console.error('[RENDERER] FATAL: electronAPI is not available on window object!');
+            return;
+        }
+        console.log('[RENDERER] electronAPI loaded successfully:', Object.keys(window.electronAPI));
+    
+    // Wait a bit for all scripts to load
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Check if all components are loaded
+    console.log('[RENDERER] Component availability check:');
+    console.log('  BrowserTabComponent:', typeof window.BrowserTabComponent);
+    console.log('  ChatComponent:', typeof window.ChatComponent);
+    console.log('  WorkspaceManager:', typeof window.WorkspaceManager);
 
-    // Centralized workspace switching logic
+    // Initialize WorkspaceManager if available
+    if (typeof window.WorkspaceManager !== 'undefined') {
+        console.log('[RENDERER] Creating WebContentsManager proxy...');
+        const webContentsManagerProxy = createWebContentsManagerProxy();
+        
+        console.log('[RENDERER] Creating WorkspaceManager instance...');
+        window.workspaceManager = new WorkspaceManager(webContentsManagerProxy);
+        
+        console.log('[RENDERER] Initializing WorkspaceManager...');
+        await window.workspaceManager.initialize();
+        console.log('[RENDERER] WorkspaceManager initialized successfully');
+    } else {
+        console.warn('[RENDERER] WorkspaceManager not available, using fallback mode');
+        console.log('[RENDERER] Available classes:', Object.keys(window).filter(k => k.includes('Manager') || k.includes('Component')));
+    }
+
+    // Centralized workspace switching logic using WorkspaceManager
     window.switchWorkspace = async function(workspace) {
         console.log(`[RENDERER] switchWorkspace called for: ${workspace}`);
         
         try {
-            if (!window.electronAPI.switchWorkspace) {
-                console.error('[RENDERER] electronAPI.switchWorkspace function not found!');
-                throw new Error('switchWorkspace API not available');
+            // Notify main process about workspace switch
+            if (window.electronAPI.switchWorkspace) {
+                const result = await window.electronAPI.switchWorkspace(workspace);
+                console.log(`[RENDERER] Main process workspace switch result:`, result);
             }
-
-            console.log(`[RENDERER] Sending IPC message 'switch-workspace' to main process with workspace: ${workspace}`);
-            const result = await window.electronAPI.switchWorkspace(workspace);
-            console.log(`[RENDERER] Received response from main process for 'switch-workspace':`, result);
-
-            if (!result || !result.success) {
-                console.error(`[RENDERER] Workspace switch failed in main process for: ${workspace}`);
-                return;
+            
+            // Use WorkspaceManager if available
+            if (window.workspaceManager) {
+                console.log(`[RENDERER] Using WorkspaceManager to switch to: ${workspace}`);
+                await window.workspaceManager.switchToWorkspace(workspace);
+                console.log(`[RENDERER] WorkspaceManager switched to: ${workspace}`);
+                
+                // Debug: Check if components were created
+                if (workspace === 'blog') {
+                    const browserComponent = window.workspaceManager.getBrowserComponent();
+                    const chatComponent = window.workspaceManager.getChatComponent();
+                    console.log(`[RENDERER] Components after switch:`, {
+                        browserComponent: !!browserComponent,
+                        chatComponent: !!chatComponent
+                    });
+                }
+            } else {
+                console.warn('[RENDERER] WorkspaceManager not available, using fallback');
             }
             
             // Update UI based on the new workspace
@@ -104,152 +150,119 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[RENDERER] Initializing with start workspace.');
     updateUIForWorkspace('start');
 
-    console.log('[RENDERER] EG-Desk initialization complete.');
+        console.log('[RENDERER] EG-Desk initialization complete.');
+    } catch (error) {
+        console.error('💥 [RENDERER CRASH] Initialization failed:', error);
+        // Try to send error to main process
+        if (window.electronAPI?.log?.error) {
+            window.electronAPI.log.error(`Renderer crash: ${error.message}`);
+        }
+    }
+
+    // DEBUGGING: Fallback function removed for crash testing
+    
+    // Create a proxy for WebContentsManager that uses electronAPI
+    function createWebContentsManagerProxy() {
+        return {
+            // Proxy methods to electronAPI
+            async createTab(url) {
+                // In the proxy, we don't actually create tabs
+                // The main process handles this
+                return 'proxy-tab-' + Date.now();
+            },
+            
+            async switchTab(tabId) {
+                // Tab switching is handled by main process
+                return { id: tabId };
+            },
+            
+            async loadURL(url, tabId) {
+                return await window.electronAPI.browser.loadURL(url);
+            },
+            
+            async goBack(tabId) {
+                return await window.electronAPI.browser.goBack();
+            },
+            
+            async goForward(tabId) {
+                return await window.electronAPI.browser.goForward();
+            },
+            
+            async reload(tabId) {
+                return await window.electronAPI.browser.reload();
+            },
+            
+            async getNavigationState(tabId) {
+                try {
+                    return await window.electronAPI.browser.getNavigationState();
+                } catch (error) {
+                    console.warn('[RENDERER] getNavigationState failed:', error);
+                    return {
+                        canGoBack: false,
+                        canGoForward: false,
+                        isLoading: false,
+                        url: 'about:blank',
+                        title: 'No Tab'
+                    };
+                }
+            },
+            
+            async executeScript(script, tabId) {
+                return await window.electronAPI.browser.executeScript(script);
+            },
+            
+            // Event system proxy
+            on(event, handler) {
+                // Map to electronAPI events
+                switch (event) {
+                    case 'navigation':
+                        window.electronAPI.onBrowserNavigated((evt, data) => {
+                            handler({ tabId: 'proxy-tab', url: data.url || data, type: 'navigate' });
+                        });
+                        break;
+                    case 'loading-finished':
+                        window.electronAPI.onBrowserLoadFinished((evt, data) => {
+                            handler({ tabId: 'proxy-tab', title: data?.title });
+                        });
+                        break;
+                    case 'loading-failed':
+                        window.electronAPI.onBrowserLoadFailed((evt, error) => {
+                            handler({ tabId: 'proxy-tab', errorDescription: error });
+                        });
+                        break;
+                }
+            },
+            
+            getCurrentTab() {
+                return { id: 'proxy-tab' };
+            },
+            
+            // Add missing updateWebContentsViewBounds method
+            updateWebContentsViewBounds(preciseBounds) {
+                console.log(`[WebContentsManagerProxy] updateWebContentsViewBounds called with:`, preciseBounds);
+                if (window.electronAPI?.browser?.updateBounds) {
+                    return window.electronAPI.browser.updateBounds(preciseBounds);
+                } else {
+                    console.warn(`[WebContentsManagerProxy] updateBounds not available in electronAPI.browser`);
+                    return Promise.resolve();
+                }
+            }
+        };
+    }
 
     // Blog workspace specific initializations
     async function initializeBlogWorkspace() {
-        console.log('[RENDERER] Initializing Blog Workspace UI components...');
+        console.log('[RENDERER] Initializing Blog Workspace with components...');
         
-        const addressBar = document.getElementById('address-bar');
-        const goButton = document.getElementById('go-btn');
-        const backButton = document.getElementById('back-btn');
-        const forwardButton = document.getElementById('forward-btn');
-        const reloadButton = document.getElementById('reload-btn');
-
-        // Setup navigation handlers only once
-        if (!goButton.dataset.initialized) {
-            goButton.addEventListener('click', () => loadURL(addressBar.value));
-            addressBar.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadURL(addressBar.value); });
-            backButton.addEventListener('click', () => window.electronAPI.browser.goBack());
-            forwardButton.addEventListener('click', () => window.electronAPI.browser.goForward());
-            reloadButton.addEventListener('click', () => window.electronAPI.browser.reload());
-            goButton.dataset.initialized = 'true';
-            console.log('[RENDERER] Blog navigation handlers attached.');
-        }
-
-        // Setup browser event listeners
-        window.electronAPI.onBrowserNavigated((event, url) => {
-            console.log(`[RENDERER] Browser navigated to: ${url}`);
-            updateNavigationState();
-            addTerminalLine(`Navigated to: ${url}`, 'output');
-        });
-
-        window.electronAPI.onBrowserLoadFinished(() => {
-            console.log('[RENDERER] Browser finished loading.');
-            updateNavigationState();
-            addTerminalLine('Page load complete!', 'output');
-        });
-
-        window.electronAPI.onBrowserLoadFailed((event, error) => {
-            console.error(`[RENDERER] Browser load failed: ${error}`);
-            addTerminalLine(`Failed to load page: ${error}`, 'error');
-        });
-
-        await updateNavigationState();
-        initializeTerminal();
-        initializeResizer();
-        console.log('[RENDERER] Blog Workspace UI initialization complete.');
+        // The WorkspaceManager already handles BrowserTabComponent and ChatComponent initialization
+        // We just need to set up terminal functionality
+        initializeTerminalFromIndex();
+        console.log('[RENDERER] Blog Workspace initialization complete - components handled by WorkspaceManager.');
     }
 
-    async function loadURL(url) {
-        console.log(`[RENDERER] Attempting to load URL: ${url}`);
-        if (!url) return;
-        let fullUrl = url.includes('://') ? url : 'https://' + url;
-        
-        try {
-            const result = await window.electronAPI.browser.loadURL(fullUrl);
-            if (result.success) {
-                document.getElementById('address-bar').value = fullUrl;
-                addTerminalLine(`Loading: ${fullUrl}`, 'output');
-            }
-        } catch (error) {
-            console.error(`[RENDERER] Failed to load URL: ${error.message}`);
-            addTerminalLine(`Error loading URL: ${error.message}`, 'error');
-        }
-    }
-
-    async function updateNavigationState() {
-        try {
-            const [canGoBack, canGoForward, currentURL] = await Promise.all([
-                window.electronAPI.browser.canGoBack(),
-                window.electronAPI.browser.canGoForward(),
-                window.electronAPI.browser.getCurrentURL()
-            ]);
-
-            document.getElementById('back-btn').disabled = !canGoBack;
-            document.getElementById('forward-btn').disabled = !canGoForward;
-            if (currentURL !== 'about:blank') {
-                document.getElementById('address-bar').value = currentURL;
-            }
-            console.log(`[RENDERER] Nav state updated: back=${canGoBack}, forward=${canGoForward}, url=${currentURL}`);
-        } catch (error) {
-            console.error('[RENDERER] Failed to update navigation state:', error);
-        }
-    }
-
-    function initializeTerminal() {
-        const terminalInput = document.getElementById('terminal-input');
-        if (terminalInput && !terminalInput.dataset.initialized) {
-            terminalInput.addEventListener('keydown', async (e) => {
-                if (e.key === 'Enter' && terminalInput.value.trim()) {
-                    const command = terminalInput.value.trim();
-                    addTerminalLine(`$ ${command}`, 'command');
-                    terminalInput.value = '';
-                    try {
-                        const result = await window.electronAPI.command.execute(command);
-                        if (result.success && result.data) {
-                            result.data.split('\n').forEach(line => addTerminalLine(line, 'output'));
-                        } else if (!result.success) {
-                            addTerminalLine(`Error: ${result.error}`, 'error');
-                        }
-                    } catch (error) {
-                        addTerminalLine(`Execution failed: ${error.message}`, 'error');
-                    }
-                }
-            });
-            terminalInput.dataset.initialized = 'true';
-            console.log('[RENDERER] Terminal initialized.');
-        }
-    }
-
-    function addTerminalLine(text, type = 'output') {
-        const output = document.getElementById('terminal-output');
-        if (output) {
-            const line = document.createElement('div');
-            line.className = `${type}-line`;
-            line.textContent = text;
-            output.appendChild(line);
-            output.scrollTop = output.scrollHeight;
-        }
-    }
-
-    function initializeResizer() {
-        const resizer = document.getElementById('resizer');
-        if (resizer && !resizer.dataset.initialized) {
-            const browserContainer = document.getElementById('browser-container');
-            const terminalContainer = document.getElementById('terminal-container');
-            
-            const handleMouseMove = (e) => {
-                const totalWidth = resizer.parentElement.offsetWidth;
-                const browserWidth = e.clientX;
-                if (browserWidth > 300 && totalWidth - browserWidth > 200) {
-                    browserContainer.style.width = `${browserWidth}px`;
-                    terminalContainer.style.width = `${totalWidth - browserWidth - resizer.offsetWidth}px`;
-                }
-            };
-
-            const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove);
-                document.removeEventListener('mouseup', handleMouseUp);
-            };
-
-            resizer.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-            });
-            resizer.dataset.initialized = 'true';
-            console.log('[RENDERER] Resizer initialized.');
-        }
+    function initializeTerminalFromIndex() {
+        // Terminal functionality is now handled by ChatComponent
+        // This function is kept for compatibility but WorkspaceManager handles the actual initialization
+        console.log('[RENDERER] Terminal initialization delegated to ChatComponent via WorkspaceManager');
     }
 });
