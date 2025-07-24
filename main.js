@@ -85,7 +85,7 @@ class EGDeskTaehwa {
       this.mainWindow.show();
       
       // Temporarily enable dev tools to debug renderer issues
-      this.mainWindow.webContents.openDevTools();
+      // this.mainWindow.webContents.openDevTools();
     });
 
     this.mainWindow.webContents.once('did-finish-load', () => {
