@@ -81,7 +81,7 @@ class EGDeskTaehwa {
     this.initializeWebContentsManager();
 
     this.mainWindow.once('ready-to-show', () => {
-      console.log('🎉 Main Window 표시 준비 완룼');
+      console.log('🎉 Main Window 표시 준비 완료');
       this.mainWindow.show();
       
       // Temporarily enable dev tools to debug renderer issues
