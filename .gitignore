@@ -3,7 +3,7 @@
 taehwa8161/
 
 .kiro/
-.claude/
+# .claude/
 # CRITICAL: Database files (NEVER upload these)
 *.dump
 *.sql
