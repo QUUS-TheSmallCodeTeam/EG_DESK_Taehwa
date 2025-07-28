@@ -90,14 +90,11 @@ class WebContentsManager extends events.EventEmitter {
         if (this.mainWindow.contentView) {
           this.mainWindow.contentView.addChildView(newView);
           console.log(`[WebContentsManager] Added WebContentsView: ${tabId}`);
-          setTimeout(() => {
-            if (this.lastRequestedBounds) {
-              console.log(`[WebContentsManager] Applying delayed bounds:`, this.lastRequestedBounds);
-              this.setWebContentsViewBounds(newView, this.lastRequestedBounds);
-            } else {
-              this.setWebContentsViewBounds(newView);
-            }
-          }, 100);
+          console.log(`[WebContentsManager] Waiting for precise bounds from BrowserTabComponent...`);
+          if (typeof newView.setVisible === "function") {
+            newView.setVisible(false);
+            console.log(`[WebContentsManager] WebContentsView initially hidden to prevent flicker`);
+          }
         } else {
           console.error(`[WebContentsManager] mainWindow.contentView not available`);
           throw new Error("MainWindow contentView API not available");
@@ -287,6 +284,10 @@ class WebContentsManager extends events.EventEmitter {
       this.lastRequestedBounds = estimatedBounds;
     }
     this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
+    if (typeof webContentsView.setVisible === "function") {
+      webContentsView.setVisible(true);
+      console.log("[WebContentsManager] WebContentsView made visible after bounds applied");
+    }
   }
   /**
    * Set up WebContents event handlers

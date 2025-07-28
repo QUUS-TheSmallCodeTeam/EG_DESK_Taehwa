@@ -458,17 +458,26 @@ class BrowserTabComponent {
 
     const bounds = this.calculateWebContentsViewBounds();
     if (!bounds) {
-      if (retryCount < 3) {
-        console.warn(`[BrowserTabComponent] Could not calculate bounds, retrying in 100ms (attempt ${retryCount + 1}/3)`);
+      if (retryCount < 5) { // Increase retries
+        console.warn(`[BrowserTabComponent] Could not calculate bounds, retrying in 200ms (attempt ${retryCount + 1}/5)`);
         setTimeout(() => {
           this.updateWebContentsViewBounds(retryCount + 1);
-        }, 100);
+        }, 200); // Increase delay to allow more time for DOM readiness
         return;
       } else {
-        console.warn('[BrowserTabComponent] Failed to calculate bounds after 3 attempts, using fallback');
+        console.warn('[BrowserTabComponent] Failed to calculate bounds after 5 attempts, using fallback');
         this.webContentsManager.updateWebContentsViewBounds();
         return;
       }
+    }
+
+    // Check if DOM is ready before updating bounds
+    if (document.readyState !== 'complete') {
+      console.warn('[BrowserTabComponent] Document not fully ready, delaying bounds update');
+      setTimeout(() => {
+        this.updateWebContentsViewBounds(retryCount);
+      }, 100);
+      return;
     }
 
     console.log(`[BrowserTabComponent] Sending precise bounds to WebContentsManager:`, bounds);

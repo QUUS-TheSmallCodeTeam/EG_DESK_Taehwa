@@ -113,16 +113,14 @@ class WebContentsManager extends EventEmitter {
           this.mainWindow.contentView.addChildView(newView);
           console.log(`[WebContentsManager] Added WebContentsView: ${tabId}`);
           
-          // In Electron 37+, WebContentsView should automatically fill contentView
-          // But we need to wait for the bounds to be properly set
-          setTimeout(() => {
-            if (this.lastRequestedBounds) {
-              console.log(`[WebContentsManager] Applying delayed bounds:`, this.lastRequestedBounds);
-              this.setWebContentsViewBounds(newView, this.lastRequestedBounds);
-            } else {
-              this.setWebContentsViewBounds(newView);
-            }
-          }, 100);
+          // Don't set bounds immediately - wait for precise bounds from BrowserTabComponent
+          console.log(`[WebContentsManager] Waiting for precise bounds from BrowserTabComponent...`);
+          
+          // Hide the view initially to prevent flicker
+          if (typeof newView.setVisible === 'function') {
+            newView.setVisible(false);
+            console.log(`[WebContentsManager] WebContentsView initially hidden to prevent flicker`);
+          }
         } else {
           console.error(`[WebContentsManager] mainWindow.contentView not available`);
           throw new Error('MainWindow contentView API not available');
@@ -356,6 +354,12 @@ class WebContentsManager extends EventEmitter {
 
     // Set the bounds on the view
     this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
+    
+    // Show the view after bounds are applied
+    if (typeof webContentsView.setVisible === 'function') {
+      webContentsView.setVisible(true);
+      console.log('[WebContentsManager] WebContentsView made visible after bounds applied');
+    }
   }
 
   /**
