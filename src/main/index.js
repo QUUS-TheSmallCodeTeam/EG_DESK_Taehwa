@@ -164,11 +164,6 @@ class EGDeskTaehwa {
             this.mainWindow.contentView.removeChildView(currentView);
             console.log('🙈 Successfully removed WebContentsView with contentView');
           }
-          // Fallback to setBrowserView(null) for Electron 28.x
-          else if (typeof this.mainWindow.setBrowserView === 'function') {
-            this.mainWindow.setBrowserView(null);
-            console.log('🙈 Successfully removed WebContentsView with setBrowserView');
-          }
         }
       } catch (error) {
         console.error('🙈 Failed to remove WebContentsView:', error);

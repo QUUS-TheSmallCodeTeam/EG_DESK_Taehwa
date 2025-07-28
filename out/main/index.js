@@ -345,9 +345,6 @@ class WebContentsManager extends events.EventEmitter {
         if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
           this.mainWindow.contentView.removeChildView(webContentsView);
           console.log(`[WebContentsManager] Removed view from window with contentView: ${tabId}`);
-        } else if (typeof this.mainWindow.setBrowserView === "function") {
-          this.mainWindow.setBrowserView(null);
-          console.log(`[WebContentsManager] Removed view from window with setBrowserView: ${tabId}`);
         }
       } catch (e) {
         console.warn(`[WebContentsManager] Could not remove view from window:`, e.message);
@@ -517,9 +514,6 @@ class EGDeskTaehwa {
           if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
             this.mainWindow.contentView.removeChildView(currentView);
             console.log("🙈 Successfully removed WebContentsView with contentView");
-          } else if (typeof this.mainWindow.setBrowserView === "function") {
-            this.mainWindow.setBrowserView(null);
-            console.log("🙈 Successfully removed WebContentsView with setBrowserView");
           }
         }
       } catch (error) {

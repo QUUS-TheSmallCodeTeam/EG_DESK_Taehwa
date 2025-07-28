@@ -18,9 +18,7 @@ import QualityChecker from './core/content-system/QualityChecker.js';
 import GlobalStateManager from './core/state-management/GlobalStateManager.js';
 import EventBus from './core/state-management/EventBus.js';
 
-// Browser Control Modules
-import WebContentsManager from './browser-control/WebContentsManager.js';
-import BrowserController from './browser-control/BrowserController.js';
+// Browser Control - No longer needed in renderer, handled by main process
 
 // Blog Automation Modules
 import WPApiClient from './blog-automation/wordpress/WPApiClient.js';
@@ -43,7 +41,6 @@ class EGDeskCore extends EventEmitter {
     this.initializationOrder = [
       'eventBus',
       'globalStateManager',
-      'webContentsManager',
       'claudeIntegration',
       'conversationManager',
       'taskExecutor',
@@ -52,7 +49,6 @@ class EGDeskCore extends EventEmitter {
       'seoOptimizer',
       'qualityChecker',
       'wpApiClient',
-      'browserController',
       'workspaceManager'
     ];
   }
