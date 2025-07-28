@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self';">
+    <title>EG-Desk:태화</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        /* Import Google Fonts with fallback */
+        :root {
+            --primary-bg: #f8f9fa;
+            --secondary-bg: #e9ecef;
+            --tertiary-bg: #dee2e6;
+            --accent-bg: #ced4da;
+            --accent-hover: #adb5bd;
+            --success: #28a745;
+            --warning: #ffc107;
+            --error: #dc3545;
+            --text-primary: #212529;
+            --text-secondary: #495057;
+            --text-muted: #6c757d;
+            --border: #dee2e6;
+            --border-light: #e9ecef;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+            --gradient-primary: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            --gradient-secondary: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            font-feature-settings: 'liga' 1, 'kern' 1;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* App Header - Native Title Bar */
+        #app-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 28px;
+            background: transparent;
+            display: flex;
+            align-items: stretch;
+            padding: 0 0 0 80px;
+            -webkit-app-region: drag;
+            z-index: 1000;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo {
+            display: none;
+        }
+        .workspace-tabs {
+            display: none;
+            -webkit-app-region: no-drag;
+            height: 100%;
+        }
+        .workspace-tabs.show {
+            display: flex;
+        }
+        .tab {
+            min-width: 150px;
+            max-width: 200px;
+            height: 100%;
+            padding: 0 12px;
+            cursor: pointer;
+            background: rgba(233, 236, 239, 0.8);
+            border-right: 1px solid rgba(222, 226, 230, 0.5);
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            transition: all 0.2s ease;
+            -webkit-app-region: no-drag;
+            backdrop-filter: blur(10px);
+        }
+        .tab:hover {
+            background: rgba(222, 226, 230, 0.9);
+            color: var(--text-primary);
+        }
+        .tab.active {
+            background: rgba(248, 249, 250, 0.95);
+            color: var(--text-primary);
+            z-index: 1;
+        }
+        /* Start Screen - Clean Design */
+        #start-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: var(--primary-bg);
+            position: relative;
+            padding-top: 28px;
+        }
+        .start-content {
+            text-align: center;
+            max-width: 600px;
+            padding: 0 32px;
+        }
+        .start-title {
+            font-size: 3rem;
+            font-weight: 300;
+            margin-bottom: 48px;
+            color: var(--text-primary);
+            line-height: 1.2;
+        }
+        .workspace-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .workspace-btn {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 400;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            background: white;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            min-width: 160px;
+        }
+        .workspace-btn:hover {
+            background: var(--secondary-bg);
+            border-color: var(--accent-bg);
+        }
+        .workspace-btn.primary {
+            background: var(--text-primary);
+            color: white;
+            border-color: var(--text-primary);
+        }
+        .workspace-btn.primary:hover {
+            background: var(--text-secondary);
+        }
+        /* Blog Workspace */
+        #main-content {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--primary-bg);
+            padding-top: 28px;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        #main-content.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+        /* Component Container Styles */
+        .component-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        /* Workspace Layout */
+        #workspace-layout {
+            display: flex;
+            flex-grow: 1;
+            height: calc(100vh - 28px);
+            gap: 16px;
+            padding: 16px;
+            background: var(--primary-bg);
+        }
+        #browser-component-container {
+            flex: 7;
+            min-width: 0;
+        }
+        #chat-component-container {
+            flex: 3;
+            min-width: 280px;
+        }
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            #workspace-layout {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            #browser-component-container {
+                flex: 1;
+                min-height: 400px;
+            }
+            
+            #chat-component-container {
+                flex: 0 0 200px;
+                min-width: 0;
+            }
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .animate-slide-in {
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .start-title { font-size: 3rem; }
+            .workspace-buttons { flex-direction: column; align-items: center; }
+        }
+        @media (max-width: 768px) {
+            #app-header { padding-left: 20px; }
+            .start-title { font-size: 2.5rem; }
+            .start-desc { font-size: 1rem; }
+        }
+    </style>
+  <script type="module" crossorigin src="./assets/index-Ddpyfy9z.js"></script>
+</head>
+<body>
+    <div id="app-header">
+        <div class="logo">
+            <div class="logo-icon">🚀</div>
+            <span>EG-Desk:태화</span>
+        </div>
+        <div class="workspace-tabs">
+            <div class="tab" data-workspace="start">
+                <span>🏠</span> <span>시작 화면</span>
+            </div>
+            <div class="tab" data-workspace="blog">
+                <span>🤖</span> <span>블로그 자동화</span>
+            </div>
+            <div class="tab" data-workspace="future">
+                <span>⚡</span> <span>워크스페이스 3</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="animate-fade-in">
+        <div class="start-content">
+            <h1 class="start-title">EG-Desk:태화</h1>
+            <div class="workspace-buttons">
+                <button class="workspace-btn primary" data-workspace="blog">
+                    🤖 블로그 자동화 시작
+                </button>
+                <button class="workspace-btn" data-workspace="future">
+                    ⚡ 고급 워크스페이스
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blog Automation Workspace -->
+    <div id="main-content">
+        <div id="workspace-layout">
+            <div id="browser-component-container" class="component-container">
+                <!-- BrowserTabComponent will be rendered here -->
+            </div>
+            <div id="chat-component-container" class="component-container">
+                <!-- ChatComponent will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Vite will automatically inject the script tag for index.js -->
+</body>
+</html> 

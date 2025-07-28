@@ -1,10 +1,14 @@
-const { app, BrowserWindow, BrowserView, ipcMain, Menu } = require('electron');
-const { exec } = require('child_process');
-const path = require('path');
-const Store = require('electron-store');
+import { app, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
+import { exec } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import Store from 'electron-store';
+
+// ES6 module equivalent of __dirname
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Import modular components
-const WebContentsManager = require('./modules/WebContentsManager');
+import WebContentsManager from './modules/WebContentsManager.js';
 
 // Initialize store for local data
 const store = new Store();
@@ -67,15 +71,24 @@ class EGDeskTaehwa {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
+        preload: path.join(__dirname, '../preload/index.js'),
         webSecurity: true,
         sandbox: false  // Allow JavaScript execution in renderer
       },
       show: false
     });
 
-    // Load the overlay UI (EG-Desk interface)
-    this.mainWindow.loadFile('index.html');
+    // Load the renderer process
+    if (process.env.VITE_DEV_SERVER_URL) {
+      // In development, load from vite dev server
+      this.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    } else if (!app.isPackaged) {
+      // Development mode fallback - load from default vite dev server
+      this.mainWindow.loadURL('http://localhost:5173');
+    } else {
+      // In production, load the built file
+      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    }
 
     // Initialize WebContentsManager for website content
     this.initializeWebContentsManager();
@@ -142,7 +155,13 @@ class EGDeskTaehwa {
 
   hideBrowserView() {
     console.log('🙈 Browser View 숨김');
-    this.mainWindow.setBrowserView(null);
+    // Remove all WebContentsViews from contentView
+    if (this.currentTabId && this.webContentsManager) {
+      const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
+      if (currentView && this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
+        this.mainWindow.contentView.removeChildView(currentView);
+      }
+    }
     this.currentTabId = null;
   }
 

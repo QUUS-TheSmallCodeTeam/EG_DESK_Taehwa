@@ -1,12 +1,12 @@
-# EG-Desk:태화 프로젝트 개발 가이드
+# CLAUDE Integration Guide - Taehwa Project
 
-## 프로젝트 개요
+## Project Overview
 
-**EG-Desk:태화**는 태화트랜스(전기센서 제조업체)를 위한 AI 기반 자동 블로그 워크플로우 시스템입니다. Electron 프레임워크 기반으로 구축된 데스크톱 애플리케이션으로, 완전히 로컬에서 실행되며 외부 서버 의존성이 없습니다.
+**EG-Desk:Taehwa** is an AI-powered blog automation workflow system for Taehwa Trans (electrical sensor manufacturer). Built on Electron framework as a desktop application, it runs completely locally without external server dependencies.
 
-### 현재 구현 목표: PRD Stage 1 - 블로그 자동화 시스템
+### Current Implementation Goal: Modular Workspace Switching UI
 
-**목표**: WordPress REST API를 통한 콘텐츠 게시 자동화 및 범용 EG-Desk 플랫폼의 핵심 모듈 구축
+**Objective**: Building a robust workspace switching interface with integrated browser tabs and AI chat terminal using Electron's BrowserView API for optimal performance and stability.
 
 ## 핵심 기술스택 & 아키텍처
 
@@ -314,28 +314,201 @@ store.set('seo.keywords', koreanKeywords);
 - ⏳ WordPress API 게시 성공률 95% 이상
 - ⏳ 생성 콘텐츠 평균 SEO 점수 80점 이상
 
-## 다음 개발 스텝
+## 완성된 모듈러 아키텍처 (2024년 업데이트)
 
-### 즉시 구현 필요 (우선순위 HIGH)
-1. **WebContentsManager 클래스 구현**
-   - 다중 브라우저 탭 관리
-   - executeJavaScript() 래퍼 함수
-   - 탭 간 전환 및 상태 관리
+### ✅ 구현 완료된 핵심 모듈
 
-2. **블로그 관리 워크스페이스 UI 완성**
-   - 70% 브라우저 영역: webView 컴포넌트
-   - 30% 채팅 영역: AI 명령 입력 인터페이스
-   - 상단 탭 바: 다중 WordPress 페이지 관리
+#### 1. Electron-Vite 기반 프로젝트 구조
+```
+src/
+├── main/                      # 메인 프로세스
+│   ├── index.js              # Electron 메인 엔트리
+│   └── preload.js            # 프리로드 스크립트
+├── renderer/                  # 렌더러 프로세스
+│   ├── components/           # UI 컴포넌트
+│   │   ├── BrowserTabComponent.js    # 브라우저 탭 UI
+│   │   ├── ChatComponent.js          # AI 채팅 인터페이스
+│   │   └── UIManager.js              # 통합 UI 관리자
+│   └── modules/              # 핵심 모듈
+│       ├── browser-control/          # 브라우저 제어
+│       │   ├── WebContentsManager.js
+│       │   └── BrowserController.js
+│       ├── core/                     # 핵심 시스템
+│       │   ├── ai-agent/            # AI 에이전트
+│       │   │   ├── ClaudeIntegration.js
+│       │   │   ├── ConversationManager.js
+│       │   │   └── TaskExecutor.js
+│       │   ├── content-system/      # 콘텐츠 시스템
+│       │   │   ├── ContentGenerator.js
+│       │   │   ├── TemplateManager.js
+│       │   │   ├── SEOOptimizer.js
+│       │   │   └── QualityChecker.js
+│       │   └── state-management/    # 상태 관리
+│       │       ├── GlobalStateManager.js
+│       │       └── EventBus.js
+│       ├── blog-automation/         # 블로그 자동화
+│       │   └── wordpress/
+│       │       └── WPApiClient.js
+│       └── WorkspaceManager.js      # 워크스페이스 관리
+└── preload/                   # 프리로드 스크립트
+    └── index.js
+```
 
-3. **WordPress API 클라이언트 기본 구현**
-   - GET /wp-json/wp/v2/posts (기존 포스트 조회)
-   - POST /wp-json/wp/v2/posts (새 포스트 생성)
-   - 인증 시스템 (Application Passwords)
+#### 2. UIManager - 통합 UI 관리 시스템
 
-### 중기 개발 목표 (우선순위 MEDIUM)
-1. **Claude Code CLI 통합**
-2. **콘텐츠 생성 엔진**  
-3. **한국어 SEO 최적화**
+**핵심 기능**:
+- **모듈러 테마 시스템**: 다크/라이트 테마, 동적 테마 전환
+- **반응형 레이아웃**: 화면 크기에 따른 적응적 UI
+- **애니메이션 시스템**: 부드러운 전환 효과 및 마이크로 인터랙션
+- **키보드 단축키**: 효율적인 워크플로우를 위한 단축키 시스템
+- **알림 시스템**: 토스트, 모달, 인라인 알림 관리
+- **워크스페이스 전환**: 매끄러운 워크스페이스 간 전환
+
+```javascript
+// UIManager 통합 예시
+class UIManager {
+  constructor() {
+    this.theme = new ThemeManager();
+    this.layout = new LayoutManager();
+    this.animations = new AnimationManager();
+    this.shortcuts = new ShortcutManager();
+    this.notifications = new NotificationManager();
+    this.workspace = new WorkspaceUIManager();
+  }
+  
+  async initialize() {
+    await this.theme.loadTheme();
+    this.layout.setupResponsiveLayout();
+    this.shortcuts.registerGlobalShortcuts();
+    this.setupEventListeners();
+  }
+}
+```
+
+#### 3. 완성된 브라우저 제어 모듈
+
+```javascript
+// WebContentsManager - 완전 구현됨
+class WebContentsManager {
+  constructor() {
+    this.tabs = new Map();        // 탭 인스턴스 관리
+    this.activeTabId = null;      // 활성 탭 추적
+    this.eventEmitter = new EventEmitter();
+  }
+  
+  // ✅ 구현 완료된 메서드들
+  async createTab(url, options = {}) { /* 탭 생성 */ }
+  async switchTab(tabId) { /* 탭 전환 */ }
+  async executeJavaScript(tabId, script) { /* 스크립트 실행 */ }
+  async closeTab(tabId) { /* 탭 닫기 */ }
+  getTabInfo(tabId) { /* 탭 정보 조회 */ }
+}
+```
+
+#### 4. AI 에이전트 시스템
+
+```javascript
+// ClaudeIntegration - Claude AI 통합
+class ClaudeIntegration {
+  constructor() {
+    this.conversationManager = new ConversationManager();
+    this.taskExecutor = new TaskExecutor();
+  }
+  
+  // ✅ 구현된 Claude API 통합
+  async sendMessage(message, context = {}) { /* Claude API 호출 */ }
+  async executeTask(taskDescription) { /* 작업 실행 */ }
+  async generateContent(prompt, type = 'blog') { /* 콘텐츠 생성 */ }
+}
+```
+
+#### 5. WordPress 통합 모듈
+
+```javascript
+// WPApiClient - WordPress REST API 클라이언트
+class WPApiClient {
+  constructor(siteUrl, credentials) {
+    this.baseUrl = `${siteUrl}/wp-json/wp/v2`;
+    this.auth = credentials;
+  }
+  
+  // ✅ 구현된 WordPress API 메서드
+  async createPost(postData) { /* 포스트 생성 */ }
+  async updatePost(postId, postData) { /* 포스트 업데이트 */ }
+  async uploadMedia(file) { /* 미디어 업로드 */ }
+  async getSiteInfo() { /* 사이트 정보 조회 */ }
+}
+```
+
+#### 6. 글로벌 상태 관리
+
+```javascript
+// GlobalStateManager - 애플리케이션 상태 관리
+class GlobalStateManager {
+  constructor() {
+    this.state = {
+      workspace: { current: null, history: [] },
+      browser: { tabs: [], activeTab: null },
+      ai: { conversation: null, context: {} },
+      ui: { theme: 'dark', layout: 'default' }
+    };
+    this.eventBus = new EventBus();
+  }
+  
+  // ✅ 완전한 상태 관리 시스템
+  getState(path) { /* 상태 조회 */ }
+  setState(path, value) { /* 상태 업데이트 */ }
+  subscribe(path, callback) { /* 상태 변경 구독 */ }
+}
+```
+
+### 🎯 모듈 간 통합 아키텍처
+
+#### UIManager와 핵심 모듈 통합
+```javascript
+// 워크스페이스에서의 모듈 통합 예시
+class WorkspaceManager {
+  constructor() {
+    this.uiManager = new UIManager();
+    this.stateManager = new GlobalStateManager();
+    this.browserControl = new WebContentsManager();
+    this.aiAgent = new ClaudeIntegration();
+    this.wpClient = new WPApiClient();
+  }
+  
+  async initializeBlogWorkspace() {
+    // UI 시스템 초기화
+    await this.uiManager.initialize();
+    
+    // 브라우저 탭 생성
+    const tabId = await this.browserControl.createTab('https://wordpress-site.com');
+    
+    // AI 채팅 인터페이스 활성화
+    this.uiManager.workspace.activateChatInterface();
+    
+    // 상태 동기화
+    this.stateManager.setState('workspace.current', 'blog-automation');
+  }
+}
+```
+
+### 🚀 현재 구현 상태 요약
+
+#### ✅ 완료된 기능
+1. **모듈러 아키텍처**: electron-vite 기반 완전 분리된 모듈 구조
+2. **UI 관리 시스템**: 테마, 레이아웃, 애니메이션, 알림 통합 관리
+3. **브라우저 제어**: 다중 탭 관리, 스크립트 실행, 이벤트 처리
+4. **AI 에이전트**: Claude 통합, 대화 관리, 작업 실행
+5. **WordPress 통합**: REST API 클라이언트, 인증, CRUD 작업
+6. **상태 관리**: 글로벌 상태, 이벤트 버스, 반응형 상태 업데이트
+7. **콘텐츠 시스템**: 생성, 템플릿, SEO 최적화, 품질 검사
+
+#### 🔄 다음 개발 단계
+1. **모듈 간 통합 테스트**: 전체 워크플로우 검증
+2. **사용자 테스트**: 실제 블로그 자동화 시나리오 테스트
+3. **성능 최적화**: 메모리 사용량, 응답 시간 개선
+4. **에러 처리 강화**: 복구 메커니즘, 로깅 시스템
+5. **문서화**: 사용자 가이드, API 문서 작성
 
 ## 개발 시 주의사항
 

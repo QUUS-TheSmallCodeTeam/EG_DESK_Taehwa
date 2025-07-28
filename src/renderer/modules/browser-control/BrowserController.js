@@ -434,4 +434,4 @@ class BrowserController {
   }
 }
 
-module.exports = BrowserController;
+export default BrowserController;

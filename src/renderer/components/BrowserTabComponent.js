@@ -165,6 +165,7 @@ class BrowserTabComponent {
         background: white;
         border-radius: 0.5rem; /* 8px */
         box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.1); /* 0 2px 8px */
+        border: 2px solid #007bff; /* Blue border for differentiation */
         overflow: hidden;
       }
 
@@ -717,9 +718,5 @@ class BrowserTabComponent {
   }
 }
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = BrowserTabComponent;
-} else {
-  window.BrowserTabComponent = BrowserTabComponent;
-}
+// ES6 export
+export default BrowserTabComponent;

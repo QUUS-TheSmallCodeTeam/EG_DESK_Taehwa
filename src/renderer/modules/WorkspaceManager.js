@@ -5,6 +5,9 @@
  * like BrowserTabComponent and ChatComponent for scalable workspace architecture.
  */
 
+import BrowserTabComponent from '../components/BrowserTabComponent.js';
+import ChatComponent from '../components/ChatComponent.js';
+
 class WorkspaceManager {
   constructor(webContentsManager) {
     this.webContentsManager = webContentsManager;
@@ -70,7 +73,7 @@ class WorkspaceManager {
   }
 
   /**
-   * Switch to a workspace
+   * Switch to a workspace with animation coordination
    */
   async switchToWorkspace(workspaceId) {
     if (!this.workspaces.has(workspaceId)) {
@@ -79,17 +82,34 @@ class WorkspaceManager {
 
     console.log(`[WorkspaceManager] Switching to workspace: ${workspaceId}`);
 
-    // Deactivate current workspace
-    if (this.currentWorkspace) {
-      await this.deactivateWorkspace(this.currentWorkspace);
+    try {
+      // Pause any component-level animations during workspace switch
+      this.pauseComponentAnimations();
+
+      // Deactivate current workspace
+      if (this.currentWorkspace) {
+        await this.deactivateWorkspace(this.currentWorkspace);
+      }
+
+      // Small delay to ensure clean state before activation
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Activate new workspace
+      await this.activateWorkspace(workspaceId);
+      this.currentWorkspace = workspaceId;
+
+      // Resume component animations after workspace is fully loaded
+      setTimeout(() => {
+        this.resumeComponentAnimations();
+      }, 100);
+
+      console.log(`[WorkspaceManager] Successfully switched to: ${workspaceId}`);
+      return { success: true, workspace: workspaceId };
+    } catch (error) {
+      // Ensure animations are resumed even on error
+      this.resumeComponentAnimations();
+      throw error;
     }
-
-    // Activate new workspace
-    await this.activateWorkspace(workspaceId);
-    this.currentWorkspace = workspaceId;
-
-    console.log(`[WorkspaceManager] Successfully switched to: ${workspaceId}`);
-    return { success: true, workspace: workspaceId };
   }
 
   /**
@@ -171,18 +191,16 @@ class WorkspaceManager {
     switch (type) {
       case 'browser':
         console.log(`[WorkspaceManager] 🌐 Attempting to create browser component...`);
-        console.log(`[WorkspaceManager] window.BrowserTabComponent available:`, typeof window.BrowserTabComponent);
+        console.log(`[WorkspaceManager] BrowserTabComponent available:`, typeof BrowserTabComponent);
         console.log(`[WorkspaceManager] webContentsManager available:`, !!this.webContentsManager);
         
-        if (typeof window.BrowserTabComponent === 'undefined') {
-          console.error('[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if script is loaded');
-          console.log('[WorkspaceManager] Available window objects:', Object.keys(window).filter(k => k.includes('Component')));
-          console.log('[WorkspaceManager] All window properties containing "Browser":', Object.keys(window).filter(k => k.includes('Browser')));
+        if (typeof BrowserTabComponent === 'undefined') {
+          console.error('[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if import is loaded');
           return null;
         }
         
         console.log(`[WorkspaceManager] 🏗️ Creating BrowserTabComponent for container: ${containerId}`);
-        const browserComponent = new window.BrowserTabComponent(containerId, this.webContentsManager);
+        const browserComponent = new BrowserTabComponent(containerId, this.webContentsManager);
         console.log(`[WorkspaceManager] ✅ BrowserTabComponent instance created`);
         
         try {
@@ -207,12 +225,12 @@ class WorkspaceManager {
         }
 
       case 'chat':
-        if (typeof window.ChatComponent === 'undefined') {
+        if (typeof ChatComponent === 'undefined') {
           console.error('[WorkspaceManager] ChatComponent not available');
           return null;
         }
         
-        const chatComponent = new window.ChatComponent(containerId, componentConfig);
+        const chatComponent = new ChatComponent(containerId, componentConfig);
         await chatComponent.initialize();
         return chatComponent;
 
@@ -345,9 +363,74 @@ class WorkspaceManager {
   }
 
   /**
+   * Pause component-level animations during workspace transitions
+   */
+  pauseComponentAnimations() {
+    console.log('[WorkspaceManager] 🚫 Pausing component animations during workspace transition');
+    
+    // Get all active components and pause their animations
+    this.components.forEach((workspaceComponents, workspaceKey) => {
+      workspaceComponents.forEach((component, containerId) => {
+        if (component.pauseAnimations && typeof component.pauseAnimations === 'function') {
+          try {
+            component.pauseAnimations();
+            console.log(`[WorkspaceManager] Paused animations for component: ${containerId}`);
+          } catch (error) {
+            console.warn(`[WorkspaceManager] Failed to pause animations for ${containerId}:`, error);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Resume component-level animations after workspace transitions
+   */
+  resumeComponentAnimations() {
+    console.log('[WorkspaceManager] ▶️ Resuming component animations after workspace transition');
+    
+    // Get all active components and resume their animations
+    this.components.forEach((workspaceComponents, workspaceKey) => {
+      workspaceComponents.forEach((component, containerId) => {
+        if (component.resumeAnimations && typeof component.resumeAnimations === 'function') {
+          try {
+            component.resumeAnimations();
+            console.log(`[WorkspaceManager] Resumed animations for component: ${containerId}`);
+          } catch (error) {
+            console.warn(`[WorkspaceManager] Failed to resume animations for ${containerId}:`, error);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Clear all component animations to prevent conflicts
+   */
+  clearComponentAnimations() {
+    console.log('[WorkspaceManager] 🧹 Clearing all component animations');
+    
+    this.components.forEach((workspaceComponents, workspaceKey) => {
+      workspaceComponents.forEach((component, containerId) => {
+        if (component.clearAnimations && typeof component.clearAnimations === 'function') {
+          try {
+            component.clearAnimations();
+            console.log(`[WorkspaceManager] Cleared animations for component: ${containerId}`);
+          } catch (error) {
+            console.warn(`[WorkspaceManager] Failed to clear animations for ${containerId}:`, error);
+          }
+        }
+      });
+    });
+  }
+
+  /**
    * Destroy workspace manager
    */
   destroy() {
+    // Clear all animations before destroying
+    this.clearComponentAnimations();
+    
     // Deactivate current workspace
     if (this.currentWorkspace) {
       this.deactivateWorkspace(this.currentWorkspace);
@@ -370,9 +453,5 @@ class WorkspaceManager {
   }
 }
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = WorkspaceManager;
-} else {
-  window.WorkspaceManager = WorkspaceManager;
-}
+// ES6 export
+export default WorkspaceManager;

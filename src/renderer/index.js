@@ -1,3 +1,11 @@
+// Import modules
+import BrowserTabComponent from './components/BrowserTabComponent.js';
+import ChatComponent from './components/ChatComponent.js';
+import WorkspaceManager from './modules/WorkspaceManager.js';
+import WebContentsManager from './modules/browser-control/WebContentsManager.js';
+import UIManager from './ui/UIManager.js';
+import EGDeskCore from './modules/EGDeskCore.js';
+
 // Global error handlers for renderer
 window.addEventListener('error', (event) => {
     console.error('💥 [RENDERER CRASH] Global error:', event.error);
@@ -20,14 +28,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wait a bit for all scripts to load
     await new Promise(resolve => setTimeout(resolve, 100));
     
+    // Initialize UI Manager first
+    console.log('[RENDERER] Initializing UI Manager...');
+    window.uiManager = new UIManager({
+        theme: 'light-grey',
+        animations: true
+    });
+    await window.uiManager.initialize();
+    
+    // Set up UIManager event listeners
+    window.uiManager.addEventListener('workspace-switched', (event) => {
+        const data = event.detail;
+        console.log('[RENDERER] UIManager workspace switched:', data.workspace);
+        
+        // Trigger blog workspace initialization if needed
+        if (data.workspace === 'blog') {
+            setTimeout(() => {
+                initializeBlogWorkspace();
+            }, 100);
+        }
+    });
+    
+    console.log('[RENDERER] UI Manager initialized successfully');
+    
     // Check if all components are loaded
     console.log('[RENDERER] Component availability check:');
-    console.log('  BrowserTabComponent:', typeof window.BrowserTabComponent);
-    console.log('  ChatComponent:', typeof window.ChatComponent);
-    console.log('  WorkspaceManager:', typeof window.WorkspaceManager);
+    console.log('  BrowserTabComponent:', typeof BrowserTabComponent);
+    console.log('  ChatComponent:', typeof ChatComponent);
+    console.log('  WorkspaceManager:', typeof WorkspaceManager);
+    console.log('  UIManager:', typeof UIManager);
 
-    // Initialize WorkspaceManager if available
-    if (typeof window.WorkspaceManager !== 'undefined') {
+    // Initialize WorkspaceManager (now imported)
+    if (WorkspaceManager) {
         console.log('[RENDERER] Creating WebContentsManager proxy...');
         const webContentsManagerProxy = createWebContentsManagerProxy();
         
@@ -42,41 +74,158 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('[RENDERER] Available classes:', Object.keys(window).filter(k => k.includes('Manager') || k.includes('Component')));
     }
 
-    // Centralized workspace switching logic using WorkspaceManager
+    // Enhanced workspace switching logic with improved logging and error handling
     window.switchWorkspace = async function(workspace) {
-        console.log(`[RENDERER] switchWorkspace called for: ${workspace}`);
+        const switchId = `switch-${Date.now()}`;
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 🚀 Starting workspace switch to: ${workspace}`);
         
         try {
-            // Notify main process about workspace switch
-            if (window.electronAPI.switchWorkspace) {
-                const result = await window.electronAPI.switchWorkspace(workspace);
-                console.log(`[RENDERER] Main process workspace switch result:`, result);
-            }
-            
-            // Use WorkspaceManager if available
-            if (window.workspaceManager) {
-                console.log(`[RENDERER] Using WorkspaceManager to switch to: ${workspace}`);
-                await window.workspaceManager.switchToWorkspace(workspace);
-                console.log(`[RENDERER] WorkspaceManager switched to: ${workspace}`);
-                
-                // Debug: Check if components were created
-                if (workspace === 'blog') {
-                    const browserComponent = window.workspaceManager.getBrowserComponent();
-                    const chatComponent = window.workspaceManager.getChatComponent();
-                    console.log(`[RENDERER] Components after switch:`, {
-                        browserComponent: !!browserComponent,
-                        chatComponent: !!chatComponent
-                    });
-                }
-            } else {
-                console.warn('[RENDERER] WorkspaceManager not available, using fallback');
-            }
-            
-            // Update UI based on the new workspace
-            updateUIForWorkspace(workspace);
-            
+            await executeWorkspaceSwitch(workspace, switchId);
+            console.log(`[WORKSPACE-SWITCH:${switchId}] ✅ Successfully switched to workspace: ${workspace}`);
         } catch (error) {
-            console.error(`[RENDERER] Error during workspace switch for '${workspace}':`, error);
+            console.error(`[WORKSPACE-SWITCH:${switchId}] ❌ Failed to switch to workspace '${workspace}':`, error);
+            await handleWorkspaceSwitchError(workspace, error, switchId);
+        }
+    };
+
+    /**
+     * Executes the core workspace switching logic
+     * @param {string} workspace - Target workspace name
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function executeWorkspaceSwitch(workspace, switchId) {
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 📋 Executing switch sequence for: ${workspace}`);
+        
+        // Step 1: Update UI with animations
+        await updateUIForWorkspaceSwitch(workspace, switchId);
+        
+        // Step 2: Notify main process
+        await notifyMainProcessWorkspaceSwitch(workspace, switchId);
+        
+        // Step 3: Handle workspace-specific logic
+        await handleWorkspaceSpecificLogic(workspace, switchId);
+        
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 🎯 All switch steps completed for: ${workspace}`);
+    }
+
+    /**
+     * Updates UI for workspace switch with proper logging
+     * @param {string} workspace - Target workspace name
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function updateUIForWorkspaceSwitch(workspace, switchId) {
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 🎨 Updating UI for workspace: ${workspace}`);
+        
+        if (window.uiManager) {
+            console.log(`[WORKSPACE-SWITCH:${switchId}] Using UIManager for animated transition`);
+            await window.uiManager.switchWorkspace(workspace);
+            console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager transition completed`);
+        } else {
+            console.log(`[WORKSPACE-SWITCH:${switchId}] Using fallback UI update (no UIManager)`);
+            updateUIForWorkspace(workspace);
+            console.log(`[WORKSPACE-SWITCH:${switchId}] Fallback UI update completed`);
+        }
+    }
+
+    /**
+     * Notifies main process about workspace switch
+     * @param {string} workspace - Target workspace name
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function notifyMainProcessWorkspaceSwitch(workspace, switchId) {
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 📡 Notifying main process of workspace switch`);
+        
+        if (window.electronAPI?.switchWorkspace) {
+            const result = await window.electronAPI.switchWorkspace(workspace);
+            console.log(`[WORKSPACE-SWITCH:${switchId}] Main process response:`, result);
+        } else {
+            console.warn(`[WORKSPACE-SWITCH:${switchId}] electronAPI.switchWorkspace not available`);
+        }
+    }
+
+    /**
+     * Handles workspace-specific initialization logic
+     * @param {string} workspace - Target workspace name
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function handleWorkspaceSpecificLogic(workspace, switchId) {
+        console.log(`[WORKSPACE-SWITCH:${switchId}] 🔧 Handling workspace-specific logic for: ${workspace}`);
+        
+        if (workspace === 'start') {
+            console.log(`[WORKSPACE-SWITCH:${switchId}] Start workspace selected, no WorkspaceManager needed`);
+            return;
+        }
+        
+        if (!window.workspaceManager) {
+            console.warn(`[WORKSPACE-SWITCH:${switchId}] WorkspaceManager not available for workspace: ${workspace}`);
+            return;
+        }
+        
+        console.log(`[WORKSPACE-SWITCH:${switchId}] Activating WorkspaceManager for: ${workspace}`);
+        await window.workspaceManager.switchToWorkspace(workspace);
+        console.log(`[WORKSPACE-SWITCH:${switchId}] WorkspaceManager activation completed`);
+        
+        // Log component status for debugging
+        await logWorkspaceComponentStatus(workspace, switchId);
+    }
+
+    /**
+     * Logs the status of workspace components for debugging
+     * @param {string} workspace - Current workspace name
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function logWorkspaceComponentStatus(workspace, switchId) {
+        if (workspace === 'blog' && window.workspaceManager) {
+            const browserComponent = window.workspaceManager.getBrowserComponent();
+            const chatComponent = window.workspaceManager.getChatComponent();
+            
+            const componentStatus = {
+                browserComponent: {
+                    exists: !!browserComponent,
+                    type: browserComponent?.constructor?.name || 'unknown'
+                },
+                chatComponent: {
+                    exists: !!chatComponent,
+                    type: chatComponent?.constructor?.name || 'unknown'
+                }
+            };
+            
+            console.log(`[WORKSPACE-SWITCH:${switchId}] 🔍 Blog workspace component status:`, componentStatus);
+        }
+    }
+
+    /**
+     * Handles errors during workspace switching
+     * @param {string} workspace - Target workspace name
+     * @param {Error} error - The error that occurred
+     * @param {string} switchId - Unique identifier for this switch operation
+     */
+    async function handleWorkspaceSwitchError(workspace, error, switchId) {
+        console.error(`[WORKSPACE-SWITCH:${switchId}] 💥 Error details:`, {
+            workspace,
+            errorMessage: error.message,
+            errorStack: error.stack,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Show user-friendly error notification
+        if (window.uiManager?.showNotification) {
+            const errorMessage = `워크스페이스 전환 실패: ${error.message}`;
+            console.log(`[WORKSPACE-SWITCH:${switchId}] 📢 Showing error notification to user`);
+            window.uiManager.showNotification(errorMessage, 'error');
+        } else {
+            console.warn(`[WORKSPACE-SWITCH:${switchId}] Unable to show error notification (no UIManager)`);
+        }
+        
+        // Attempt recovery by falling back to start workspace
+        if (workspace !== 'start') {
+            console.log(`[WORKSPACE-SWITCH:${switchId}] 🔄 Attempting recovery by switching to start workspace`);
+            try {
+                await executeWorkspaceSwitch('start', `${switchId}-recovery`);
+                console.log(`[WORKSPACE-SWITCH:${switchId}] ✅ Recovery successful`);
+            } catch (recoveryError) {
+                console.error(`[WORKSPACE-SWITCH:${switchId}] 💀 Recovery failed:`, recoveryError);
+            }
         }
     };
 
@@ -121,6 +270,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Event delegation for dynamic content
     document.addEventListener('click', (event) => {
         const target = event.target;
+        console.log(`[CLICK-DEBUG] Click detected on:`, {
+            tagName: target.tagName,
+            className: target.className,
+            id: target.id,
+            dataset: target.dataset
+        });
 
         // Handle tab clicks
         if (target.matches('.tab, .tab *')) {
@@ -138,12 +293,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             event.preventDefault();
             const button = target.closest('.workspace-btn');
             const workspace = button.dataset.workspace;
+            console.log(`[CLICK-DEBUG] Button found:`, {
+                button: button,
+                workspace: workspace,
+                dataset: button.dataset
+            });
             if (workspace) {
                 console.log(`[RENDERER] Workspace button clicked: ${workspace}`);
                 switchWorkspace(workspace);
+            } else {
+                console.error(`[CLICK-DEBUG] No workspace found on button:`, button);
             }
             return; // Stop further execution
         }
+        
+        console.log(`[CLICK-DEBUG] Click not handled, target:`, target);
     });
 
     // Initial setup

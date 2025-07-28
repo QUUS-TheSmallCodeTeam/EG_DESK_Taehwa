@@ -5,7 +5,8 @@
  * Manages webContents instances, browser navigation, and tab control
  * for the EG-Desk:태화 platform
  * 
- * Updated to use WebContentsView (BrowserView is deprecated)
+ * Updated to use WebContentsView (BrowserView is deprecated since Electron 29.0.0)
+ * WebContentsView is the new recommended way to embed web content
  */
 
 class WebContentsManager {
@@ -46,11 +47,11 @@ class WebContentsManager {
       return null;
     }
     
-    const { BrowserView } = require('electron');
+    const { WebContentsView } = require('electron');
     
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    const browserView = new BrowserView({
+    const webContentsView = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -60,7 +61,7 @@ class WebContentsManager {
       }
     });
 
-    this.webContentsViews.set(tabId, browserView);
+    this.webContentsViews.set(tabId, webContentsView);
     this.activeTabs.set(tabId, {
       id: tabId,
       url: url,
@@ -71,13 +72,13 @@ class WebContentsManager {
       created: Date.now()
     });
 
-    // Set up event handlers for this BrowserView
-    this.setupWebContentsViewEvents(tabId, browserView);
+    // Set up event handlers for this WebContentsView
+    this.setupWebContentsViewEvents(tabId, webContentsView);
 
     // Load the initial URL if provided
     if (url && url !== 'about:blank') {
       try {
-        await browserView.webContents.loadURL(url);
+        await webContentsView.webContents.loadURL(url);
         console.log(`[WebContentsManager] Loading initial URL: ${url} in tab ${tabId}`);
       } catch (error) {
         console.error(`[WebContentsManager] Failed to load initial URL ${url}:`, error);
@@ -89,7 +90,7 @@ class WebContentsManager {
   }
 
   /**
-   * Switch to a specific tab
+   * Switch to a specific tab using WebContentsView
    * @param {string} tabId - Tab to switch to
    */
   async switchTab(tabId) {
@@ -97,15 +98,21 @@ class WebContentsManager {
       throw new Error(`Tab ${tabId} not found`);
     }
 
-    const browserView = this.webContentsViews.get(tabId);
+    const webContentsView = this.webContentsViews.get(tabId);
     
-    // Hide current tab if any
+    // Hide current tab if any (using the new contentView API)
     if (this.currentTabId && this.currentTabId !== tabId) {
-      this.mainWindow.setBrowserView(null);
+      const currentView = this.webContentsViews.get(this.currentTabId);
+      if (currentView && this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
+        this.mainWindow.contentView.removeChildView(currentView);
+      }
     }
 
-    // Show the requested tab
-    this.mainWindow.setBrowserView(browserView);
+    // Show the requested tab (using the new WebContentsView API)
+    if (this.mainWindow.contentView && !this.mainWindow.contentView.children.includes(webContentsView)) {
+      this.mainWindow.contentView.addChildView(webContentsView);
+    }
+    
     this.currentTabId = tabId;
 
     // Bounds will be updated by BrowserTabComponent when it's ready
@@ -122,7 +129,7 @@ class WebContentsManager {
   }
 
   /**
-   * Close a tab
+   * Close a tab using WebContentsView
    * @param {string} tabId - Tab to close
    */
   async closeTab(tabId) {
@@ -130,20 +137,22 @@ class WebContentsManager {
       throw new Error(`Tab ${tabId} not found`);
     }
 
-    const browserView = this.webContentsViews.get(tabId);
+    const webContentsView = this.webContentsViews.get(tabId);
     
     // If this is the current tab, hide it
     if (this.currentTabId === tabId) {
-      this.mainWindow.setBrowserView(null);
+      if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
+        this.mainWindow.contentView.removeChildView(webContentsView);
+      }
       this.currentTabId = null;
     }
 
     // Critical: Proper cleanup to prevent memory leaks
-    if (browserView) {
+    if (webContentsView) {
       // First close the webContents explicitly
-      browserView.webContents.close();
+      webContentsView.webContents.close();
       // Then destroy it
-      browserView.webContents.destroy();
+      webContentsView.webContents.destroy();
     }
     
     this.webContentsViews.delete(tabId);
@@ -444,9 +453,5 @@ class WebContentsManager {
   }
 }
 
-// Export for both Node.js and browser environments
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = WebContentsManager;
-} else {
-  window.WebContentsManager = WebContentsManager;
-}
+// ES6 export
+export default WebContentsManager;

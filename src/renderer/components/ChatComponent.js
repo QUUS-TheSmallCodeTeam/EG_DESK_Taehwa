@@ -119,6 +119,7 @@ class ChatComponent {
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 2px solid #7c3aed; /* Purple border for differentiation */
         overflow: hidden;
       }
 
@@ -684,9 +685,5 @@ class ChatComponent {
   }
 }
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ChatComponent;
-} else {
-  window.ChatComponent = ChatComponent;
-}
+// ES6 export
+export default ChatComponent;
