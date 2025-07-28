@@ -12,6 +12,9 @@ class WebContentsManager extends events.EventEmitter {
     this.webContentsViews = /* @__PURE__ */ new Map();
     this.currentTabId = null;
     this.isInitialized = false;
+    this.boundsUpdateTimeout = null;
+    this.lastRequestedBounds = null;
+    this.preloadedSession = null;
   }
   /**
    * Initialize WebContentsManager with main window
@@ -50,7 +53,19 @@ class WebContentsManager extends events.EventEmitter {
           // Additional settings for better web content loading
           webgl: true,
           plugins: true,
-          javascript: true
+          javascript: true,
+          // Performance optimizations
+          spellcheck: false,
+          // Disable spellcheck for faster loading
+          defaultEncoding: "utf-8",
+          // Preload optimizations
+          preload: null,
+          // No preload script needed for web content
+          // Network optimizations
+          enableWebSQL: false,
+          // Faster startup
+          nodeIntegrationInWorker: false,
+          nodeIntegrationInSubFrames: false
         }
       });
       console.log(`[WebContentsManager] Created WebContentsView for tab: ${tabId}`);
@@ -256,13 +271,16 @@ class WebContentsManager extends events.EventEmitter {
     }
   }
   /**
-   * Update WebContentsView bounds to match browser viewport area
+   * Update WebContentsView bounds to match browser viewport area (Debounced)
    * Note: WebContentsView in Electron 37+ uses automatic positioning within contentView
    */
   updateWebContentsViewBounds(preciseBounds = null) {
     if (!this.currentTabId || !this.webContentsViews.has(this.currentTabId)) {
       console.log("[WebContentsManager] No active tab to update bounds");
       return;
+    }
+    if (this.boundsUpdateTimeout) {
+      clearTimeout(this.boundsUpdateTimeout);
     }
     const webContentsView = this.webContentsViews.get(this.currentTabId);
     if (preciseBounds) {
@@ -283,10 +301,22 @@ class WebContentsManager extends events.EventEmitter {
       console.log("[WebContentsManager] Estimated default bounds:", estimatedBounds);
       this.lastRequestedBounds = estimatedBounds;
     }
-    this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
-    if (typeof webContentsView.setVisible === "function") {
-      webContentsView.setVisible(true);
-      console.log("[WebContentsManager] WebContentsView made visible after bounds applied");
+    this.boundsUpdateTimeout = setTimeout(() => {
+      this.applyBoundsToView(webContentsView, this.lastRequestedBounds);
+    }, 16);
+  }
+  /**
+   * Apply bounds to WebContentsView with optimizations
+   */
+  applyBoundsToView(webContentsView, bounds) {
+    try {
+      this.setWebContentsViewBounds(webContentsView, bounds);
+      if (typeof webContentsView.setVisible === "function") {
+        webContentsView.setVisible(true);
+        console.log("[WebContentsManager] WebContentsView made visible after bounds applied");
+      }
+    } catch (error) {
+      console.error("[WebContentsManager] Failed to apply bounds to view:", error);
     }
   }
   /**

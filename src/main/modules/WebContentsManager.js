@@ -16,6 +16,13 @@ class WebContentsManager extends EventEmitter {
     this.webContentsViews = new Map();
     this.currentTabId = null;
     this.isInitialized = false;
+    
+    // Performance optimization: Bounds debouncing
+    this.boundsUpdateTimeout = null;
+    this.lastRequestedBounds = null;
+    
+    // Performance optimization: Preloaded sessions for faster loading
+    this.preloadedSession = null;
   }
 
   /**
@@ -40,7 +47,7 @@ class WebContentsManager extends EventEmitter {
     console.log(`[WebContentsManager] Creating tab: ${tabId} with URL: ${url}`);
 
     try {
-      // Create WebContentsView (Electron 37+)
+      // Create WebContentsView (Electron 37+) with performance optimizations
       const webContentsView = new WebContentsView({
         webPreferences: {
           nodeIntegration: false,
@@ -57,7 +64,17 @@ class WebContentsManager extends EventEmitter {
           // Additional settings for better web content loading
           webgl: true,
           plugins: true,
-          javascript: true
+          javascript: true,
+          // Performance optimizations
+          spellcheck: false, // Disable spellcheck for faster loading
+          defaultEncoding: 'utf-8',
+          // Preload optimizations
+          preload: null, // No preload script needed for web content
+          // Network optimizations
+          enableWebSQL: false,
+          // Faster startup
+          nodeIntegrationInWorker: false,
+          nodeIntegrationInSubFrames: false
         }
       });
       console.log(`[WebContentsManager] Created WebContentsView for tab: ${tabId}`);
@@ -323,13 +340,18 @@ class WebContentsManager extends EventEmitter {
   }
 
   /**
-   * Update WebContentsView bounds to match browser viewport area
+   * Update WebContentsView bounds to match browser viewport area (Debounced)
    * Note: WebContentsView in Electron 37+ uses automatic positioning within contentView
    */
   updateWebContentsViewBounds(preciseBounds = null) {
     if (!this.currentTabId || !this.webContentsViews.has(this.currentTabId)) {
       console.log('[WebContentsManager] No active tab to update bounds');
       return;
+    }
+
+    // Clear any pending bounds update to debounce rapid calls
+    if (this.boundsUpdateTimeout) {
+      clearTimeout(this.boundsUpdateTimeout);
     }
 
     const webContentsView = this.webContentsViews.get(this.currentTabId);
@@ -352,13 +374,27 @@ class WebContentsManager extends EventEmitter {
       this.lastRequestedBounds = estimatedBounds;
     }
 
-    // Set the bounds on the view
-    this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
-    
-    // Show the view after bounds are applied
-    if (typeof webContentsView.setVisible === 'function') {
-      webContentsView.setVisible(true);
-      console.log('[WebContentsManager] WebContentsView made visible after bounds applied');
+    // Debounce bounds updates to improve performance
+    this.boundsUpdateTimeout = setTimeout(() => {
+      this.applyBoundsToView(webContentsView, this.lastRequestedBounds);
+    }, 16); // ~60fps debounce
+  }
+
+  /**
+   * Apply bounds to WebContentsView with optimizations
+   */
+  applyBoundsToView(webContentsView, bounds) {
+    try {
+      // Set the bounds on the view
+      this.setWebContentsViewBounds(webContentsView, bounds);
+      
+      // Show the view after bounds are applied
+      if (typeof webContentsView.setVisible === 'function') {
+        webContentsView.setVisible(true);
+        console.log('[WebContentsManager] WebContentsView made visible after bounds applied');
+      }
+    } catch (error) {
+      console.error('[WebContentsManager] Failed to apply bounds to view:', error);
     }
   }
 
