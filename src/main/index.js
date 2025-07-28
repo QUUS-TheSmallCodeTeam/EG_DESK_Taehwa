@@ -82,12 +82,11 @@ class EGDeskTaehwa {
     if (process.env.VITE_DEV_SERVER_URL) {
       // In development, load from vite dev server
       this.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    } else if (!app.isPackaged) {
-      // Development mode fallback - load from default vite dev server
-      this.mainWindow.loadURL('http://localhost:5173');
     } else {
-      // In production, load the built file
-      this.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+      // In production or preview mode, load the built file
+      const rendererPath = path.join(__dirname, '../renderer/index.html');
+      console.log(`🔍 Loading renderer from: ${rendererPath}`);
+      this.mainWindow.loadFile(rendererPath);
     }
 
     // Initialize WebContentsManager for website content
@@ -153,13 +152,26 @@ class EGDeskTaehwa {
     }
   }
 
-  hideBrowserView() {
-    console.log('🙈 Browser View 숨김');
-    // Remove all WebContentsViews from contentView
+  hideWebContentsView() {
+    console.log('🙈 WebContents View 숨김');
+    // Remove all WebContentsViews with proper API fallback
     if (this.currentTabId && this.webContentsManager) {
-      const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
-      if (currentView && this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
-        this.mainWindow.contentView.removeChildView(currentView);
+      try {
+        const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
+        if (currentView) {
+          // Try new contentView API first (Electron 30+)
+          if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
+            this.mainWindow.contentView.removeChildView(currentView);
+            console.log('🙈 Successfully removed WebContentsView with contentView');
+          }
+          // Fallback to setBrowserView(null) for Electron 28.x
+          else if (typeof this.mainWindow.setBrowserView === 'function') {
+            this.mainWindow.setBrowserView(null);
+            console.log('🙈 Successfully removed WebContentsView with setBrowserView');
+          }
+        }
+      } catch (error) {
+        console.error('🙈 Failed to remove WebContentsView:', error);
       }
     }
     this.currentTabId = null;
@@ -181,6 +193,16 @@ class EGDeskTaehwa {
     this.webContentsManager.on('loading-finished', (data) => {
       console.log('✅ Browser 로드 완료');
       this.mainWindow.webContents.send('browser-load-finished', data);
+    });
+
+    this.webContentsManager.on('loading-started', (data) => {
+      console.log('🔄 Browser 로드 시작');
+      this.mainWindow.webContents.send('browser-load-started', data);
+    });
+
+    this.webContentsManager.on('loading-stopped', (data) => {
+      console.log('⏹️ Browser 로드 중지');
+      this.mainWindow.webContents.send('browser-load-stopped', data);
     });
   }
 
@@ -294,8 +316,8 @@ class EGDeskTaehwa {
         console.log('[MAIN] Setting up blog workspace');
         await this.setupBlogWorkspace();
       } else {
-        console.log('[MAIN] Hiding browser view');
-        this.hideBrowserView();
+        console.log('[MAIN] Hiding web contents view');
+        this.hideWebContentsView();
       }
       
       console.log(`[MAIN] Workspace switched to ${workspace}`);
@@ -303,32 +325,58 @@ class EGDeskTaehwa {
     });
 
     // Browser navigation APIs (via WebContentsManager)
-    ipcMain.handle('browser-load-url', async (event, url) => {
-      console.log(`[MAIN] IPC browser-load-url: ${url}`);
+    ipcMain.handle('browser-create-tab', async (event, { url, options }) => {
+      console.log(`[MAIN] IPC browser-create-tab: ${url}`);
       
       try {
-        await this.webContentsManager.loadURL(url);
+        const tabId = await this.webContentsManager.createTab(url, options);
+        console.log(`[MAIN] Browser tab created: ${tabId}`);
+        return { success: true, tabId, url };
+      } catch (error) {
+        console.error(`[MAIN] Browser tab creation failed: ${error}`);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('browser-switch-tab', async (event, { tabId }) => {
+      console.log(`[MAIN] IPC browser-switch-tab: ${tabId}`);
+      
+      try {
+        const result = await this.webContentsManager.switchTab(tabId);
+        console.log(`[MAIN] Browser tab switched: ${tabId}`);
+        return result;
+      } catch (error) {
+        console.error(`[MAIN] Browser tab switch failed: ${error}`);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('browser-load-url', async (event, { url, tabId }) => {
+      console.log(`[MAIN] IPC browser-load-url: ${url} in tab: ${tabId || 'current'}`);
+      
+      try {
+        const result = await this.webContentsManager.loadURL(url, tabId);
         console.log(`[MAIN] Browser URL loaded: ${url}`);
-        return { success: true, url };
+        return result;
       } catch (error) {
         console.error(`[MAIN] Browser URL load failed: ${error}`);
         throw error;
       }
     });
 
-    ipcMain.handle('browser-go-back', async (event) => {
-      console.log('[MAIN] IPC browser-go-back');
-      return await this.webContentsManager.goBack();
+    ipcMain.handle('browser-go-back', async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-go-back for tab: ${tabId || 'current'}`);
+      return await this.webContentsManager.goBack(tabId);
     });
 
-    ipcMain.handle('browser-go-forward', async (event) => {
-      console.log('[MAIN] IPC browser-go-forward');
-      return await this.webContentsManager.goForward();
+    ipcMain.handle('browser-go-forward', async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-go-forward for tab: ${tabId || 'current'}`);
+      return await this.webContentsManager.goForward(tabId);
     });
 
-    ipcMain.handle('browser-reload', async (event) => {
-      console.log('[MAIN] IPC browser-reload');
-      return await this.webContentsManager.reload();
+    ipcMain.handle('browser-reload', async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-reload for tab: ${tabId || 'current'}`);
+      return await this.webContentsManager.reload(tabId);
     });
 
     ipcMain.handle('browser-can-go-back', (event) => {
@@ -347,21 +395,35 @@ class EGDeskTaehwa {
     });
 
     // WebContentsManager API access
-    ipcMain.handle('browser-execute-script', async (event, script) => {
-      console.log('[MAIN] IPC browser-execute-script');
+    ipcMain.handle('browser-execute-script', async (event, { script, tabId }) => {
+      console.log(`[MAIN] IPC browser-execute-script in tab: ${tabId || 'current'}`);
       try {
-        return await this.webContentsManager.executeScript(script);
+        return await this.webContentsManager.executeScript(script, tabId);
       } catch (error) {
         console.error('[MAIN] Script execution failed:', error);
         throw error;
       }
     });
 
-    ipcMain.handle('browser-get-navigation-state', (event) => {
-      return this.webContentsManager.getNavigationState();
+    ipcMain.handle('browser-get-navigation-state', (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-get-navigation-state for tab: ${tabId || 'current'}`);
+      return this.webContentsManager.getNavigationState(tabId);
     });
 
-    // BrowserView bounds update
+    ipcMain.handle('browser-close-tab', async (event, { tabId }) => {
+      console.log(`[MAIN] IPC browser-close-tab: ${tabId}`);
+      
+      try {
+        this.webContentsManager.closeTab(tabId);
+        console.log(`[MAIN] Browser tab closed: ${tabId}`);
+        return { success: true, tabId };
+      } catch (error) {
+        console.error(`[MAIN] Browser tab close failed: ${error}`);
+        throw error;
+      }
+    });
+
+    // WebContentsView bounds update
     ipcMain.handle('browser-update-bounds', (event, bounds) => {
       console.log(`[MAIN] IPC browser-update-bounds:`, bounds);
       try {

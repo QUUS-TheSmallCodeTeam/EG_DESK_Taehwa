@@ -235,7 +235,7 @@
             .start-desc { font-size: 1rem; }
         }
     </style>
-  <script type="module" crossorigin src="./assets/index-Ddpyfy9z.js"></script>
+  <script type="module" crossorigin src="./assets/index-D-0xk8TX.js"></script>
 </head>
 <body>
     <div id="app-header">
@@ -276,9 +276,53 @@
         <div id="workspace-layout">
             <div id="browser-component-container" class="component-container">
                 <!-- BrowserTabComponent will be rendered here -->
+<div class="browser-tab-component" style="border: 2px solid #007bff; border-radius: 8px; height: 100%; background: white; display: flex; flex-direction: column;">
+                    <div class="browser-controls" style="display: flex; align-items: center; padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; gap: 12px; flex-shrink: 0;">
+                        <div class="control-group" style="display: flex; gap: 4px; background: #e9ecef; border-radius: 6px; padding: 4px;">
+                            <button class="nav-btn" style="width: 32px; height: 32px; border: none; background: transparent; border-radius: 4px; cursor: pointer;" disabled>←</button>
+                            <button class="nav-btn" style="width: 32px; height: 32px; border: none; background: transparent; border-radius: 4px; cursor: pointer;" disabled>→</button>
+                            <button class="nav-btn" style="width: 32px; height: 32px; border: none; background: transparent; border-radius: 4px; cursor: pointer;">↻</button>
+                        </div>
+                        <div class="address-group" style="display: flex; flex: 1; gap: 8px; align-items: center;">
+                            <input type="text" class="address-bar" placeholder="URL을 입력하세요..." value="https://m8chaa.mycafe24.com/" style="flex: 1; height: 36px; border: 1px solid #ced4da; border-radius: 6px; padding: 0 12px; font-family: monospace; background: white;"/>
+                            <button class="go-btn" style="height: 36px; padding: 0 16px; border: none; background: #007bff; color: white; border-radius: 6px; cursor: pointer;">이동</button>
+                        </div>
+                    </div>
+                    <div class="browser-viewport" id="browser-viewport-area" style="flex: 1; background: #f8f9fa; position: relative; overflow: hidden;">
+                        <div class="placeholder-content" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #6c757d; z-index: 1;">
+                            <h3>🌐 브라우저 탭</h3>
+                            <p>웹사이트가 이 영역에 표시됩니다</p>
+                            <p>URL을 입력하거나 이동 버튼을 클릭하세요</p>
+                        </div>
+                        <!-- WebContentsView will be positioned here -->
+                    </div>
+                </div>
             </div>
             <div id="chat-component-container" class="component-container">
                 <!-- ChatComponent will be rendered here -->
+                <div class="chat-component" style="border: 2px solid #7c3aed; border-radius: 8px; height: 100%; background: white; display: flex; flex-direction: column;">
+                    <div class="chat-header" style="display: flex; align-items: center; padding: 12px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; font-size: 14px; gap: 10px;">
+                        <div class="chat-icon">🤖</div>
+                        <span class="chat-title">AI Agent Terminal</span>
+                        <div class="chat-status">
+                            <div class="status-dot online" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);"></div>
+                        </div>
+                    </div>
+                    <div class="chat-output" style="flex: 1; padding: 16px; overflow-y: auto; font-family: monospace; font-size: 13px; line-height: 1.6; background: #fafafa; color: #374151;">
+                        <div class="message welcome" style="color: #3b82f6; margin-bottom: 8px;">EG-Desk:태화 AI Agent 시스템 온라인</div>
+                        <div class="message success" style="color: #10b981; margin-left: 16px; margin-bottom: 8px;">Claude AI 연동 활성화됨</div>
+                        <div class="message system" style="color: #6b7280; font-style: italic; margin-left: 16px; margin-bottom: 8px;">WordPress API 연결 대기중</div>
+                        <div class="message output" style="color: #374151; margin-left: 16px; margin-bottom: 8px;"></div>
+                        <div class="message system" style="color: #6b7280; font-style: italic; margin-left: 16px; margin-bottom: 8px;">💡 예시 명령어:</div>
+                        <div class="message output" style="color: #374151; margin-left: 16px; margin-bottom: 8px;">  claude "현재 페이지 SEO 분석해줘"</div>
+                        <div class="message output" style="color: #374151; margin-left: 16px; margin-bottom: 8px;">  claude "블로그 글 작성: 로고스키 코일 기술"</div>
+                        <div class="message output" style="color: #374151; margin-left: 16px; margin-bottom: 8px;">  help (도움말)</div>
+                    </div>
+                    <div class="chat-input-container" style="display: flex; align-items: center; padding: 12px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; gap: 8px;">
+                        <span class="chat-prompt" style="color: #10b981; font-family: monospace; font-size: 13px; font-weight: 600;">AI-Agent $</span>
+                        <input type="text" class="chat-input" placeholder="AI 에이전트와 대화하기..." style="flex: 1; border: none; background: transparent; color: #374151; font-size: 13px; font-family: monospace; outline: none; padding: 8px 0;"/>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

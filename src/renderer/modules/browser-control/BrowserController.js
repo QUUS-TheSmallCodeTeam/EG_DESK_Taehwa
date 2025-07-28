@@ -114,7 +114,7 @@ class BrowserController {
     this.webContentsManager.on('tab-switched', (data) => {
       this.updateAddressBar(data.tab.url);
       this.updateNavigationButtons();
-      this.showBrowserView();
+      this.showWebContentsView();
     });
   }
 
@@ -128,7 +128,7 @@ class BrowserController {
       console.log('[BrowserController] Navigating to:', validatedUrl);
       
       await this.webContentsManager.loadURL(validatedUrl);
-      this.showBrowserView();
+      this.showWebContentsView();
       
     } catch (error) {
       console.error('[BrowserController] Navigation failed:', error);
@@ -248,7 +248,7 @@ class BrowserController {
     }
   }
 
-  showBrowserView() {
+  showWebContentsView() {
     if (this.elements.browserPlaceholder) {
       this.elements.browserPlaceholder.classList.add('hidden');
     }
@@ -257,7 +257,7 @@ class BrowserController {
     }
   }
 
-  hideBrowserView() {
+  hideWebContentsView() {
     if (this.elements.browserPlaceholder) {
       this.elements.browserPlaceholder.classList.remove('hidden');
     }

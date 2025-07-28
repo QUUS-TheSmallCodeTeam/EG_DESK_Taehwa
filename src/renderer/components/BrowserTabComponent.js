@@ -74,7 +74,7 @@ class BrowserTabComponent {
       setTimeout(() => {
         try {
           console.log(`[BrowserTabComponent] 📐 Attempting bounds calculation...`);
-          this.updateBrowserViewBounds();
+          this.updateWebContentsViewBounds();
           console.log(`[BrowserTabComponent] ✅ Initial bounds update completed`);
         } catch (boundsError) {
           console.error(`[BrowserTabComponent] ❌ Initial bounds calculation failed:`, boundsError);
@@ -259,7 +259,7 @@ class BrowserTabComponent {
         flex: 1;
         position: relative;
         background: #f8f9fa;
-        /* Remove padding so BrowserView can fill the entire area */
+        /* Remove padding so WebContentsView can fill the entire area */
         padding: 0;
         box-sizing: border-box;
       }
@@ -411,9 +411,9 @@ class BrowserTabComponent {
   }
 
   /**
-   * Calculate precise bounds for BrowserView based on actual DOM elements
+   * Calculate precise bounds for WebContentsView based on actual DOM elements
    */
-  calculateBrowserViewBounds() {
+  calculateWebContentsViewBounds() {
     const viewport = this.container.querySelector('.browser-viewport');
     if (!viewport) {
       console.warn(`[BrowserTabComponent] .browser-viewport not found in container ${this.containerId}`);
@@ -428,7 +428,7 @@ class BrowserTabComponent {
 
     const viewportRect = viewport.getBoundingClientRect();
     
-    // BrowserView should fill the entire .browser-viewport area exactly
+    // WebContentsView should fill the entire .browser-viewport area exactly
     const bounds = {
       x: Math.round(viewportRect.left),
       y: Math.round(viewportRect.top),
@@ -451,17 +451,17 @@ class BrowserTabComponent {
   }
 
   /**
-   * Update BrowserView bounds to match the viewport area
+   * Update WebContentsView bounds to match the viewport area
    */
-  updateBrowserViewBounds(retryCount = 0) {
+  updateWebContentsViewBounds(retryCount = 0) {
     if (!this.currentTabId) return;
 
-    const bounds = this.calculateBrowserViewBounds();
+    const bounds = this.calculateWebContentsViewBounds();
     if (!bounds) {
       if (retryCount < 3) {
         console.warn(`[BrowserTabComponent] Could not calculate bounds, retrying in 100ms (attempt ${retryCount + 1}/3)`);
         setTimeout(() => {
-          this.updateBrowserViewBounds(retryCount + 1);
+          this.updateWebContentsViewBounds(retryCount + 1);
         }, 100);
         return;
       } else {
@@ -489,16 +489,16 @@ class BrowserTabComponent {
       this.hidePlaceholder();
       this.updateNavigationButtons();
       
-      // Update BrowserView bounds after DOM is fully ready
+      // Update WebContentsView bounds after DOM is fully ready
       setTimeout(() => {
-        this.updateBrowserViewBounds();
+        this.updateWebContentsViewBounds();
       }, 200);
       
       // Also update bounds on window resize
       if (typeof window !== 'undefined') {
         window.addEventListener('resize', () => {
           setTimeout(() => {
-            this.updateBrowserViewBounds();
+            this.updateWebContentsViewBounds();
           }, 100);
         });
       }

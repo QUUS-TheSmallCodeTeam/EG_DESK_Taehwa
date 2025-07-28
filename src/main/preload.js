@@ -3,12 +3,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
+  // General IPC invoke method for direct access
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  
+  // Event listener methods
+  on: (channel, callback) => ipcRenderer.on(channel, callback),
+  off: (channel, callback) => ipcRenderer.off(channel, callback),
+  
   // Workspace management
   switchWorkspace: (workspace) => ipcRenderer.invoke('switch-workspace', workspace),
 
-  // Browser control APIs (via WebContentsManager)
+  // Browser control APIs (via WebContentsManager) - Legacy support
   browser: {
-    loadURL: (url) => ipcRenderer.invoke('browser-load-url', url),
+    loadURL: (url) => ipcRenderer.invoke('browser-load-url', { url }),
     goBack: () => ipcRenderer.invoke('browser-go-back'),
     goForward: () => ipcRenderer.invoke('browser-go-forward'),
     reload: () => ipcRenderer.invoke('browser-reload'),
@@ -16,7 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     canGoForward: () => ipcRenderer.invoke('browser-can-go-forward'),
     getCurrentURL: () => ipcRenderer.invoke('browser-get-url'),
     getNavigationState: () => ipcRenderer.invoke('browser-get-navigation-state'),
-    executeScript: (script) => ipcRenderer.invoke('browser-execute-script', script),
+    executeScript: (script) => ipcRenderer.invoke('browser-execute-script', { script }),
     updateBounds: (bounds) => ipcRenderer.invoke('browser-update-bounds', bounds)
   },
 

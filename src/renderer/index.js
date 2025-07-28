@@ -60,11 +60,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize WorkspaceManager (now imported)
     if (WorkspaceManager) {
-        console.log('[RENDERER] Creating WebContentsManager proxy...');
-        const webContentsManagerProxy = createWebContentsManagerProxy();
+        console.log('[RENDERER] Creating WebContentsManager instance...');
+        const webContentsManager = new WebContentsManager();
+        await webContentsManager.initialize();
         
         console.log('[RENDERER] Creating WorkspaceManager instance...');
-        window.workspaceManager = new WorkspaceManager(webContentsManagerProxy);
+        window.workspaceManager = new WorkspaceManager(webContentsManager);
         
         console.log('[RENDERER] Initializing WorkspaceManager...');
         await window.workspaceManager.initialize();

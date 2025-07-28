@@ -1,11 +1,12 @@
 /**
  * WebContentsManager - Main Process Browser Management
  * 
- * Manages BrowserView instances for embedded web content in the main process.
- * Uses BrowserView API for better compatibility.
+ * Manages WebContentsView instances for embedded web content in the main process.
+ * Uses WebContentsView API (BrowserView is deprecated since Electron 30.0.0).
+ * Updated for Electron 37+ with proper WebContentsView support.
  */
 
-import { BrowserView } from 'electron';
+import { WebContentsView } from 'electron';
 import { EventEmitter } from 'events';
 
 class WebContentsManager extends EventEmitter {
@@ -27,7 +28,7 @@ class WebContentsManager extends EventEmitter {
   }
 
   /**
-   * Create a new tab with BrowserView
+   * Create a new tab with WebContentsView
    */
   async createTab(url = 'about:blank') {
     if (!this.isInitialized) {
@@ -39,24 +40,36 @@ class WebContentsManager extends EventEmitter {
     console.log(`[WebContentsManager] Creating tab: ${tabId} with URL: ${url}`);
 
     try {
-      // Create BrowserView
-      const browserView = new BrowserView({
+      // Create WebContentsView (Electron 37+)
+      const webContentsView = new WebContentsView({
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          webSecurity: true,
-          sandbox: true
+          webSecurity: false, // Disable web security for development
+          sandbox: false, // Disable sandbox for better compatibility
+          // Handle certificate errors and improve SSL handling
+          allowRunningInsecureContent: true, // Allow insecure content
+          experimentalFeatures: false,
+          // Improve rendering performance
+          enableRemoteModule: false,
+          // Better resource management
+          backgroundThrottling: false,
+          // Additional settings for better web content loading
+          webgl: true,
+          plugins: true,
+          javascript: true
         }
       });
+      console.log(`[WebContentsManager] Created WebContentsView for tab: ${tabId}`);
 
       // Set up event handlers
-      this.setupWebContentsEvents(browserView, tabId);
+      this.setupWebContentsEvents(webContentsView, tabId);
 
       // Store the view
-      this.webContentsViews.set(tabId, browserView);
+      this.webContentsViews.set(tabId, webContentsView);
 
       // Load URL
-      await browserView.webContents.loadURL(url);
+      await webContentsView.webContents.loadURL(url);
 
       console.log(`[WebContentsManager] Tab created successfully: ${tabId}`);
       this.emit('tab-created', { tabId, url });
@@ -81,46 +94,43 @@ class WebContentsManager extends EventEmitter {
     try {
       const newView = this.webContentsViews.get(tabId);
       
-      // Remove previous view if exists
+      // Remove previous view if exists (Electron 37+ WebContentsView API)
       if (this.currentTabId && this.webContentsViews.has(this.currentTabId)) {
         const oldView = this.webContentsViews.get(this.currentTabId);
         try {
-          // Try different methods to remove the old view
-          if (this.mainWindow.removeBrowserView) {
-            this.mainWindow.removeBrowserView(oldView);
-            console.log(`[WebContentsManager] Removed old view with removeBrowserView: ${this.currentTabId}`);
-          } else if (this.mainWindow.contentView && this.mainWindow.contentView.removeChildView) {
+          if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(oldView)) {
             this.mainWindow.contentView.removeChildView(oldView);
-            console.log(`[WebContentsManager] Removed old view with removeChildView: ${this.currentTabId}`);
-          } else {
-            console.log(`[WebContentsManager] No method available to remove old view`);
+            console.log(`[WebContentsManager] Removed old view: ${this.currentTabId}`);
           }
         } catch (e) {
           console.warn(`[WebContentsManager] Could not remove old view:`, e.message);
         }
       }
       
-      // Add new view using available methods
+      // Add new view (Electron 37+ WebContentsView API)
       try {
-        if (this.mainWindow.addBrowserView) {
-          this.mainWindow.addBrowserView(newView);
-          console.log(`[WebContentsManager] Added view with addBrowserView: ${tabId}`);
-        } else if (this.mainWindow.contentView && this.mainWindow.contentView.addChildView) {
+        if (this.mainWindow.contentView) {
           this.mainWindow.contentView.addChildView(newView);
-          console.log(`[WebContentsManager] Added view with addChildView: ${tabId}`);
-        } else if (this.mainWindow.setContentView) {
-          this.mainWindow.setContentView(newView);
-          console.log(`[WebContentsManager] Set view as contentView: ${tabId}`);
+          console.log(`[WebContentsManager] Added WebContentsView: ${tabId}`);
+          
+          // In Electron 37+, WebContentsView should automatically fill contentView
+          // But we need to wait for the bounds to be properly set
+          setTimeout(() => {
+            if (this.lastRequestedBounds) {
+              console.log(`[WebContentsManager] Applying delayed bounds:`, this.lastRequestedBounds);
+              this.setWebContentsViewBounds(newView, this.lastRequestedBounds);
+            } else {
+              this.setWebContentsViewBounds(newView);
+            }
+          }, 100);
         } else {
-          throw new Error('No method available to add WebContentsView to window');
+          console.error(`[WebContentsManager] mainWindow.contentView not available`);
+          throw new Error('MainWindow contentView API not available');
         }
       } catch (addError) {
         console.error(`[WebContentsManager] Failed to add view to window:`, addError);
         throw addError;
       }
-
-      // Update bounds to fit the browser viewport area
-      this.updateWebContentsViewBounds();
 
       this.currentTabId = tabId;
       
@@ -262,9 +272,13 @@ class WebContentsManager extends EventEmitter {
     const webContentsView = this.webContentsViews.get(targetTabId);
     const webContents = webContentsView.webContents;
     
+    // Use new navigation API for Electron 37+
+    const canGoBack = webContents.navigationHistory ? webContents.navigationHistory.canGoBack() : webContents.canGoBack();
+    const canGoForward = webContents.navigationHistory ? webContents.navigationHistory.canGoForward() : webContents.canGoForward();
+    
     return {
-      canGoBack: webContents.canGoBack(),
-      canGoForward: webContents.canGoForward(),
+      canGoBack,
+      canGoForward,
       isLoading: webContents.isLoading(),
       url: webContents.getURL(),
       title: webContents.getTitle()
@@ -272,7 +286,47 @@ class WebContentsManager extends EventEmitter {
   }
 
   /**
+   * Set explicit bounds for WebContentsView (Electron 37+)
+   */
+  setWebContentsViewBounds(webContentsView, preciseBounds = null) {
+    let targetBounds;
+    
+    if (preciseBounds) {
+      targetBounds = preciseBounds;
+      console.log('[WebContentsManager] Using precise bounds for view:', targetBounds);
+    } else {
+      // Calculate default bounds that fill most of the window
+      const windowBounds = this.mainWindow.getBounds();
+      
+      targetBounds = {
+        x: 0,
+        y: 0,
+        width: windowBounds.width,
+        height: windowBounds.height
+      };
+      
+      console.log('[WebContentsManager] Using full window bounds for view:', targetBounds);
+    }
+    
+    try {
+      // In Electron 37+, WebContentsView should automatically size to its parent
+      // But we can try to set bounds if the method exists
+      if (typeof webContentsView.setBounds === 'function') {
+        webContentsView.setBounds(targetBounds);
+        console.log('[WebContentsManager] Explicit bounds set for WebContentsView:', targetBounds);
+      } else {
+        console.log('[WebContentsManager] WebContentsView bounds managed automatically, target bounds:', targetBounds);
+        // Store the bounds for later use if needed
+        this.lastRequestedBounds = targetBounds;
+      }
+    } catch (error) {
+      console.warn('[WebContentsManager] Failed to set explicit bounds:', error.message);
+    }
+  }
+
+  /**
    * Update WebContentsView bounds to match browser viewport area
+   * Note: WebContentsView in Electron 37+ uses automatic positioning within contentView
    */
   updateWebContentsViewBounds(preciseBounds = null) {
     if (!this.currentTabId || !this.webContentsViews.has(this.currentTabId)) {
@@ -282,51 +336,26 @@ class WebContentsManager extends EventEmitter {
 
     const webContentsView = this.webContentsViews.get(this.currentTabId);
     
-    let targetBounds;
-    
     if (preciseBounds) {
+      console.log('[WebContentsManager] Precise bounds received from component:', preciseBounds);
       // Use precise bounds from BrowserTabComponent
-      targetBounds = preciseBounds;
-      console.log('[WebContentsManager] Using precise bounds from component:', targetBounds);
+      this.lastRequestedBounds = preciseBounds;
     } else {
-      // Calculate bounds for browser viewport area
-      // The browser-viewport-area should be positioned within the browser component
+      // Calculate bounds for reference
       const windowBounds = this.mainWindow.getBounds();
-      
-      // Rough estimate: browser viewport is in the browser component area
-      // This will be overridden by precise bounds from the renderer
-      targetBounds = {
+      const estimatedBounds = {
         x: 20, // Left margin + border
         y: 140, // Title bar + header + browser controls
         width: Math.max(windowBounds.width - 320, 400), // Leave space for chat
         height: Math.max(windowBounds.height - 200, 300) // Leave space for controls
       };
       
-      console.log('[WebContentsManager] Using calculated default bounds:', targetBounds);
+      console.log('[WebContentsManager] Estimated default bounds:', estimatedBounds);
+      this.lastRequestedBounds = estimatedBounds;
     }
-    
-    // Check if WebContentsView has setBounds method
-    if (typeof webContentsView.setBounds === 'function') {
-      try {
-        webContentsView.setBounds(targetBounds);
-        console.log('[WebContentsManager] ✅ WebContentsView bounds set successfully');
-      } catch (error) {
-        console.error('[WebContentsManager] ❌ Failed to set WebContentsView bounds:', error);
-      }
-    } else {
-      console.log('[WebContentsManager] ⚠️ WebContentsView.setBounds not available');
-      console.log('[WebContentsManager] Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(webContentsView)));
-      
-      // Try alternative method if available
-      if (webContentsView.webContents && typeof webContentsView.webContents.setSize === 'function') {
-        try {
-          webContentsView.webContents.setSize(targetBounds.width, targetBounds.height);
-          console.log('[WebContentsManager] Used webContents.setSize as fallback');
-        } catch (error) {
-          console.error('[WebContentsManager] Fallback setSize also failed:', error);
-        }
-      }
-    }
+
+    // Set the bounds on the view
+    this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
   }
 
   /**
@@ -361,6 +390,29 @@ class WebContentsManager extends EventEmitter {
       console.log(`[WebContentsManager] Tab ${tabId} title updated: ${title}`);
       this.emit('title-updated', { tabId, title });
     });
+
+    // Handle certificate errors - more permissive for development
+    webContents.on('certificate-error', (event, url, error, certificate, callback) => {
+      console.warn(`[WebContentsManager] Certificate error for ${url}: ${error}`);
+      
+      // For development, allow most certificate errors
+      // In production, this should be more restrictive
+      event.preventDefault();
+      callback(true); // Accept the certificate
+      
+      console.log(`[WebContentsManager] Certificate error bypassed for: ${url}`);
+    });
+
+    // Handle loading states
+    webContents.on('did-start-loading', () => {
+      console.log(`[WebContentsManager] Tab ${tabId} started loading`);
+      this.emit('loading-started', { tabId });
+    });
+
+    webContents.on('did-stop-loading', () => {
+      console.log(`[WebContentsManager] Tab ${tabId} stopped loading`);
+      this.emit('loading-stopped', { tabId });
+    });
   }
 
   /**
@@ -377,8 +429,20 @@ class WebContentsManager extends EventEmitter {
     
     // Remove from main window if it's the current tab
     if (this.currentTabId === tabId) {
-      // For Electron v30+, we need to set contentView to null or another view
-      // Since we don't have another view, we'll just clear the current tab reference
+      try {
+        // Try new contentView API first (Electron 30+)
+        if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
+          this.mainWindow.contentView.removeChildView(webContentsView);
+          console.log(`[WebContentsManager] Removed view from window with contentView: ${tabId}`);
+        }
+        // Fallback to setBrowserView(null) for Electron 28.x
+        else if (typeof this.mainWindow.setBrowserView === 'function') {
+          this.mainWindow.setBrowserView(null);
+          console.log(`[WebContentsManager] Removed view from window with setBrowserView: ${tabId}`);
+        }
+      } catch (e) {
+        console.warn(`[WebContentsManager] Could not remove view from window:`, e.message);
+      }
       this.currentTabId = null;
     }
 

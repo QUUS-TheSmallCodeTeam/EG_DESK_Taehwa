@@ -22,7 +22,7 @@ class WebContentsManager extends events.EventEmitter {
     this.isInitialized = true;
   }
   /**
-   * Create a new tab with BrowserView
+   * Create a new tab with WebContentsView
    */
   async createTab(url2 = "about:blank") {
     if (!this.isInitialized) {
@@ -31,17 +31,32 @@ class WebContentsManager extends events.EventEmitter {
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
     console.log(`[WebContentsManager] Creating tab: ${tabId} with URL: ${url2}`);
     try {
-      const browserView = new electron.BrowserView({
+      const webContentsView = new electron.WebContentsView({
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          webSecurity: true,
-          sandbox: true
+          webSecurity: false,
+          // Disable web security for development
+          sandbox: false,
+          // Disable sandbox for better compatibility
+          // Handle certificate errors and improve SSL handling
+          allowRunningInsecureContent: true,
+          // Allow insecure content
+          experimentalFeatures: false,
+          // Improve rendering performance
+          enableRemoteModule: false,
+          // Better resource management
+          backgroundThrottling: false,
+          // Additional settings for better web content loading
+          webgl: true,
+          plugins: true,
+          javascript: true
         }
       });
-      this.setupWebContentsEvents(browserView, tabId);
-      this.webContentsViews.set(tabId, browserView);
-      await browserView.webContents.loadURL(url2);
+      console.log(`[WebContentsManager] Created WebContentsView for tab: ${tabId}`);
+      this.setupWebContentsEvents(webContentsView, tabId);
+      this.webContentsViews.set(tabId, webContentsView);
+      await webContentsView.webContents.loadURL(url2);
       console.log(`[WebContentsManager] Tab created successfully: ${tabId}`);
       this.emit("tab-created", { tabId, url: url2 });
       return tabId;
@@ -63,37 +78,34 @@ class WebContentsManager extends events.EventEmitter {
       if (this.currentTabId && this.webContentsViews.has(this.currentTabId)) {
         const oldView = this.webContentsViews.get(this.currentTabId);
         try {
-          if (this.mainWindow.removeBrowserView) {
-            this.mainWindow.removeBrowserView(oldView);
-            console.log(`[WebContentsManager] Removed old view with removeBrowserView: ${this.currentTabId}`);
-          } else if (this.mainWindow.contentView && this.mainWindow.contentView.removeChildView) {
+          if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(oldView)) {
             this.mainWindow.contentView.removeChildView(oldView);
-            console.log(`[WebContentsManager] Removed old view with removeChildView: ${this.currentTabId}`);
-          } else {
-            console.log(`[WebContentsManager] No method available to remove old view`);
+            console.log(`[WebContentsManager] Removed old view: ${this.currentTabId}`);
           }
         } catch (e) {
           console.warn(`[WebContentsManager] Could not remove old view:`, e.message);
         }
       }
       try {
-        if (this.mainWindow.addBrowserView) {
-          this.mainWindow.addBrowserView(newView);
-          console.log(`[WebContentsManager] Added view with addBrowserView: ${tabId}`);
-        } else if (this.mainWindow.contentView && this.mainWindow.contentView.addChildView) {
+        if (this.mainWindow.contentView) {
           this.mainWindow.contentView.addChildView(newView);
-          console.log(`[WebContentsManager] Added view with addChildView: ${tabId}`);
-        } else if (this.mainWindow.setContentView) {
-          this.mainWindow.setContentView(newView);
-          console.log(`[WebContentsManager] Set view as contentView: ${tabId}`);
+          console.log(`[WebContentsManager] Added WebContentsView: ${tabId}`);
+          setTimeout(() => {
+            if (this.lastRequestedBounds) {
+              console.log(`[WebContentsManager] Applying delayed bounds:`, this.lastRequestedBounds);
+              this.setWebContentsViewBounds(newView, this.lastRequestedBounds);
+            } else {
+              this.setWebContentsViewBounds(newView);
+            }
+          }, 100);
         } else {
-          throw new Error("No method available to add WebContentsView to window");
+          console.error(`[WebContentsManager] mainWindow.contentView not available`);
+          throw new Error("MainWindow contentView API not available");
         }
       } catch (addError) {
         console.error(`[WebContentsManager] Failed to add view to window:`, addError);
         throw addError;
       }
-      this.updateWebContentsViewBounds();
       this.currentTabId = tabId;
       console.log(`[WebContentsManager] Switched to tab: ${tabId}`);
       this.emit("tab-switched", { tabId });
@@ -206,16 +218,49 @@ class WebContentsManager extends events.EventEmitter {
     }
     const webContentsView = this.webContentsViews.get(targetTabId);
     const webContents = webContentsView.webContents;
+    const canGoBack = webContents.navigationHistory ? webContents.navigationHistory.canGoBack() : webContents.canGoBack();
+    const canGoForward = webContents.navigationHistory ? webContents.navigationHistory.canGoForward() : webContents.canGoForward();
     return {
-      canGoBack: webContents.canGoBack(),
-      canGoForward: webContents.canGoForward(),
+      canGoBack,
+      canGoForward,
       isLoading: webContents.isLoading(),
       url: webContents.getURL(),
       title: webContents.getTitle()
     };
   }
   /**
+   * Set explicit bounds for WebContentsView (Electron 37+)
+   */
+  setWebContentsViewBounds(webContentsView, preciseBounds = null) {
+    let targetBounds;
+    if (preciseBounds) {
+      targetBounds = preciseBounds;
+      console.log("[WebContentsManager] Using precise bounds for view:", targetBounds);
+    } else {
+      const windowBounds = this.mainWindow.getBounds();
+      targetBounds = {
+        x: 0,
+        y: 0,
+        width: windowBounds.width,
+        height: windowBounds.height
+      };
+      console.log("[WebContentsManager] Using full window bounds for view:", targetBounds);
+    }
+    try {
+      if (typeof webContentsView.setBounds === "function") {
+        webContentsView.setBounds(targetBounds);
+        console.log("[WebContentsManager] Explicit bounds set for WebContentsView:", targetBounds);
+      } else {
+        console.log("[WebContentsManager] WebContentsView bounds managed automatically, target bounds:", targetBounds);
+        this.lastRequestedBounds = targetBounds;
+      }
+    } catch (error) {
+      console.warn("[WebContentsManager] Failed to set explicit bounds:", error.message);
+    }
+  }
+  /**
    * Update WebContentsView bounds to match browser viewport area
+   * Note: WebContentsView in Electron 37+ uses automatic positioning within contentView
    */
   updateWebContentsViewBounds(preciseBounds = null) {
     if (!this.currentTabId || !this.webContentsViews.has(this.currentTabId)) {
@@ -223,13 +268,12 @@ class WebContentsManager extends events.EventEmitter {
       return;
     }
     const webContentsView = this.webContentsViews.get(this.currentTabId);
-    let targetBounds;
     if (preciseBounds) {
-      targetBounds = preciseBounds;
-      console.log("[WebContentsManager] Using precise bounds from component:", targetBounds);
+      console.log("[WebContentsManager] Precise bounds received from component:", preciseBounds);
+      this.lastRequestedBounds = preciseBounds;
     } else {
       const windowBounds = this.mainWindow.getBounds();
-      targetBounds = {
+      const estimatedBounds = {
         x: 20,
         // Left margin + border
         y: 140,
@@ -239,27 +283,10 @@ class WebContentsManager extends events.EventEmitter {
         height: Math.max(windowBounds.height - 200, 300)
         // Leave space for controls
       };
-      console.log("[WebContentsManager] Using calculated default bounds:", targetBounds);
+      console.log("[WebContentsManager] Estimated default bounds:", estimatedBounds);
+      this.lastRequestedBounds = estimatedBounds;
     }
-    if (typeof webContentsView.setBounds === "function") {
-      try {
-        webContentsView.setBounds(targetBounds);
-        console.log("[WebContentsManager] ✅ WebContentsView bounds set successfully");
-      } catch (error) {
-        console.error("[WebContentsManager] ❌ Failed to set WebContentsView bounds:", error);
-      }
-    } else {
-      console.log("[WebContentsManager] ⚠️ WebContentsView.setBounds not available");
-      console.log("[WebContentsManager] Available methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(webContentsView)));
-      if (webContentsView.webContents && typeof webContentsView.webContents.setSize === "function") {
-        try {
-          webContentsView.webContents.setSize(targetBounds.width, targetBounds.height);
-          console.log("[WebContentsManager] Used webContents.setSize as fallback");
-        } catch (error) {
-          console.error("[WebContentsManager] Fallback setSize also failed:", error);
-        }
-      }
-    }
+    this.setWebContentsViewBounds(webContentsView, this.lastRequestedBounds);
   }
   /**
    * Set up WebContents event handlers
@@ -288,6 +315,20 @@ class WebContentsManager extends events.EventEmitter {
       console.log(`[WebContentsManager] Tab ${tabId} title updated: ${title}`);
       this.emit("title-updated", { tabId, title });
     });
+    webContents.on("certificate-error", (event, url2, error, certificate, callback) => {
+      console.warn(`[WebContentsManager] Certificate error for ${url2}: ${error}`);
+      event.preventDefault();
+      callback(true);
+      console.log(`[WebContentsManager] Certificate error bypassed for: ${url2}`);
+    });
+    webContents.on("did-start-loading", () => {
+      console.log(`[WebContentsManager] Tab ${tabId} started loading`);
+      this.emit("loading-started", { tabId });
+    });
+    webContents.on("did-stop-loading", () => {
+      console.log(`[WebContentsManager] Tab ${tabId} stopped loading`);
+      this.emit("loading-stopped", { tabId });
+    });
   }
   /**
    * Close tab
@@ -299,6 +340,17 @@ class WebContentsManager extends events.EventEmitter {
     console.log(`[WebContentsManager] Closing tab: ${tabId}`);
     const webContentsView = this.webContentsViews.get(tabId);
     if (this.currentTabId === tabId) {
+      try {
+        if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
+          this.mainWindow.contentView.removeChildView(webContentsView);
+          console.log(`[WebContentsManager] Removed view from window with contentView: ${tabId}`);
+        } else if (typeof this.mainWindow.setBrowserView === "function") {
+          this.mainWindow.setBrowserView(null);
+          console.log(`[WebContentsManager] Removed view from window with setBrowserView: ${tabId}`);
+        }
+      } catch (e) {
+        console.warn(`[WebContentsManager] Could not remove view from window:`, e.message);
+      }
       this.currentTabId = null;
     }
     webContentsView.webContents.close();
@@ -412,10 +464,10 @@ class EGDeskTaehwa {
     });
     if (process.env.VITE_DEV_SERVER_URL) {
       this.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    } else if (!electron.app.isPackaged) {
-      this.mainWindow.loadURL("http://localhost:5173");
     } else {
-      this.mainWindow.loadFile(path.join(__dirname$1, "../renderer/index.html"));
+      const rendererPath = path.join(__dirname$1, "../renderer/index.html");
+      console.log(`🔍 Loading renderer from: ${rendererPath}`);
+      this.mainWindow.loadFile(rendererPath);
     }
     this.initializeWebContentsManager();
     this.mainWindow.once("ready-to-show", () => {
@@ -455,12 +507,22 @@ class EGDeskTaehwa {
       console.error("[EGDeskTaehwa] Failed to setup blog workspace:", error);
     }
   }
-  hideBrowserView() {
-    console.log("🙈 Browser View 숨김");
+  hideWebContentsView() {
+    console.log("🙈 WebContents View 숨김");
     if (this.currentTabId && this.webContentsManager) {
-      const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
-      if (currentView && this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
-        this.mainWindow.contentView.removeChildView(currentView);
+      try {
+        const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
+        if (currentView) {
+          if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
+            this.mainWindow.contentView.removeChildView(currentView);
+            console.log("🙈 Successfully removed WebContentsView with contentView");
+          } else if (typeof this.mainWindow.setBrowserView === "function") {
+            this.mainWindow.setBrowserView(null);
+            console.log("🙈 Successfully removed WebContentsView with setBrowserView");
+          }
+        }
+      } catch (error) {
+        console.error("🙈 Failed to remove WebContentsView:", error);
       }
     }
     this.currentTabId = null;
@@ -477,6 +539,14 @@ class EGDeskTaehwa {
     this.webContentsManager.on("loading-finished", (data) => {
       console.log("✅ Browser 로드 완료");
       this.mainWindow.webContents.send("browser-load-finished", data);
+    });
+    this.webContentsManager.on("loading-started", (data) => {
+      console.log("🔄 Browser 로드 시작");
+      this.mainWindow.webContents.send("browser-load-started", data);
+    });
+    this.webContentsManager.on("loading-stopped", (data) => {
+      console.log("⏹️ Browser 로드 중지");
+      this.mainWindow.webContents.send("browser-load-stopped", data);
     });
   }
   setupMenu() {
@@ -580,34 +650,56 @@ class EGDeskTaehwa {
         console.log("[MAIN] Setting up blog workspace");
         await this.setupBlogWorkspace();
       } else {
-        console.log("[MAIN] Hiding browser view");
-        this.hideBrowserView();
+        console.log("[MAIN] Hiding web contents view");
+        this.hideWebContentsView();
       }
       console.log(`[MAIN] Workspace switched to ${workspace}`);
       return { success: true, workspace };
     });
-    electron.ipcMain.handle("browser-load-url", async (event, url2) => {
-      console.log(`[MAIN] IPC browser-load-url: ${url2}`);
+    electron.ipcMain.handle("browser-create-tab", async (event, { url: url2, options }) => {
+      console.log(`[MAIN] IPC browser-create-tab: ${url2}`);
       try {
-        await this.webContentsManager.loadURL(url2);
+        const tabId = await this.webContentsManager.createTab(url2, options);
+        console.log(`[MAIN] Browser tab created: ${tabId}`);
+        return { success: true, tabId, url: url2 };
+      } catch (error) {
+        console.error(`[MAIN] Browser tab creation failed: ${error}`);
+        throw error;
+      }
+    });
+    electron.ipcMain.handle("browser-switch-tab", async (event, { tabId }) => {
+      console.log(`[MAIN] IPC browser-switch-tab: ${tabId}`);
+      try {
+        const result = await this.webContentsManager.switchTab(tabId);
+        console.log(`[MAIN] Browser tab switched: ${tabId}`);
+        return result;
+      } catch (error) {
+        console.error(`[MAIN] Browser tab switch failed: ${error}`);
+        throw error;
+      }
+    });
+    electron.ipcMain.handle("browser-load-url", async (event, { url: url2, tabId }) => {
+      console.log(`[MAIN] IPC browser-load-url: ${url2} in tab: ${tabId || "current"}`);
+      try {
+        const result = await this.webContentsManager.loadURL(url2, tabId);
         console.log(`[MAIN] Browser URL loaded: ${url2}`);
-        return { success: true, url: url2 };
+        return result;
       } catch (error) {
         console.error(`[MAIN] Browser URL load failed: ${error}`);
         throw error;
       }
     });
-    electron.ipcMain.handle("browser-go-back", async (event) => {
-      console.log("[MAIN] IPC browser-go-back");
-      return await this.webContentsManager.goBack();
+    electron.ipcMain.handle("browser-go-back", async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-go-back for tab: ${tabId || "current"}`);
+      return await this.webContentsManager.goBack(tabId);
     });
-    electron.ipcMain.handle("browser-go-forward", async (event) => {
-      console.log("[MAIN] IPC browser-go-forward");
-      return await this.webContentsManager.goForward();
+    electron.ipcMain.handle("browser-go-forward", async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-go-forward for tab: ${tabId || "current"}`);
+      return await this.webContentsManager.goForward(tabId);
     });
-    electron.ipcMain.handle("browser-reload", async (event) => {
-      console.log("[MAIN] IPC browser-reload");
-      return await this.webContentsManager.reload();
+    electron.ipcMain.handle("browser-reload", async (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-reload for tab: ${tabId || "current"}`);
+      return await this.webContentsManager.reload(tabId);
     });
     electron.ipcMain.handle("browser-can-go-back", (event) => {
       const state = this.webContentsManager.getNavigationState();
@@ -621,17 +713,29 @@ class EGDeskTaehwa {
       const state = this.webContentsManager.getNavigationState();
       return state.url;
     });
-    electron.ipcMain.handle("browser-execute-script", async (event, script) => {
-      console.log("[MAIN] IPC browser-execute-script");
+    electron.ipcMain.handle("browser-execute-script", async (event, { script, tabId }) => {
+      console.log(`[MAIN] IPC browser-execute-script in tab: ${tabId || "current"}`);
       try {
-        return await this.webContentsManager.executeScript(script);
+        return await this.webContentsManager.executeScript(script, tabId);
       } catch (error) {
         console.error("[MAIN] Script execution failed:", error);
         throw error;
       }
     });
-    electron.ipcMain.handle("browser-get-navigation-state", (event) => {
-      return this.webContentsManager.getNavigationState();
+    electron.ipcMain.handle("browser-get-navigation-state", (event, { tabId } = {}) => {
+      console.log(`[MAIN] IPC browser-get-navigation-state for tab: ${tabId || "current"}`);
+      return this.webContentsManager.getNavigationState(tabId);
+    });
+    electron.ipcMain.handle("browser-close-tab", async (event, { tabId }) => {
+      console.log(`[MAIN] IPC browser-close-tab: ${tabId}`);
+      try {
+        this.webContentsManager.closeTab(tabId);
+        console.log(`[MAIN] Browser tab closed: ${tabId}`);
+        return { success: true, tabId };
+      } catch (error) {
+        console.error(`[MAIN] Browser tab close failed: ${error}`);
+        throw error;
+      }
     });
     electron.ipcMain.handle("browser-update-bounds", (event, bounds) => {
       console.log(`[MAIN] IPC browser-update-bounds:`, bounds);

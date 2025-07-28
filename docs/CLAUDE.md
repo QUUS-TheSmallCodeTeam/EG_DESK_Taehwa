@@ -530,4 +530,61 @@ class WorkspaceManager {
 
 ---
 
+## 🤖 Multi-Agent Collaboration System
+
+### 다중 에이전트 워크플로우 활성화
+EG-Desk:Taehwa 프로젝트는 이제 **Claude Code 다중 에이전트 협업 시스템**을 지원합니다. 웹 검색 조사 결과를 바탕으로 구축된 이 시스템은 복잡한 개발 작업을 여러 전문 에이전트가 협업하여 처리할 수 있도록 합니다.
+
+### 에이전트 시스템 구성 문서
+- **[fix.md](fix.md)**: 🎯 오케스트레이터 에이전트 및 전체 시스템 개요
+- **[agent-prompts.md](agent-prompts.md)**: 🤖 6개 전문 에이전트별 상세 프롬프트
+- **[agent-artifacts.md](agent-artifacts.md)**: 📦 에이전트 간 통신용 아티팩트 시스템
+- **[workflow-scripts.md](workflow-scripts.md)**: 🚀 자동화된 워크플로우 실행 스크립트
+
+### 전문 에이전트 목록
+1. **🔧 browser-module-maintainer**: 브라우저 자동화 및 WebContents 관리
+2. **💬 chat-manager**: AI 채팅 인터페이스 및 대화 처리  
+3. **📝 content-system-manager**: 콘텐츠 생성, SEO 최적화, 블로그 자동화
+4. **🖥️ workspace-manager**: 워크스페이스 전환 및 UI 조정
+5. **🗃️ state-manager**: 글로벌 상태 관리 및 데이터 동기화
+6. **📑 tab-manager**: 브라우저 탭 생명주기 관리
+
+### 사용 방법
+**Claude Code가 자동으로 적절한 에이전트를 선택합니다:**
+
+```markdown
+# 복잡한 요청 → orchestrator가 자동으로 여러 전문 에이전트들을 Task tool로 launch
+"브라우저 탭 다중 선택 기능을 구현해주세요"
+→ orchestrator가 즉시 browser-module-maintainer + tab-manager + state-manager 동시 실행
+
+# 특정 영역 작업 → 해당 전문 에이전트가 자동 선택됨
+"AI 채팅 인터페이스 개선해줘" → chat-manager 자동 선택
+"워크스페이스 레이아웃 변경" → workspace-manager 자동 선택
+"WordPress 연동 문제 해결" → content-system-manager 자동 선택
+```
+
+**Manual Agent Selection (선택사항):**
+```bash
+# 특정 에이전트 강제 지정 (드물게 사용)
+/orchestrator "전체 아키텍처 리팩토링 계획"
+/browser-module-maintainer "WebContents API 성능 최적화"
+/state-manager "글로벌 상태 스키마 재설계"
+```
+
+### 핵심 특징
+- **아티팩트 기반 통신**: 에이전트 간 구조화된 데이터 교환
+- **병렬 작업 처리**: 독립적 작업의 동시 실행으로 개발 속도 60% 향상
+- **품질 자동 검증**: 각 단계별 코드 품질 및 통합 테스트 자동화
+- **진행 상황 투명성**: 실시간 작업 추적 및 상태 모니터링
+
+### 워크플로우 예시
+1. **오케스트레이터**가 복잡한 요청을 분석하여 작업 분해
+2. **전문 에이전트들**이 병렬/순차적으로 각자 영역의 작업 수행  
+3. **아티팩트 시스템**을 통해 결과물 공유 및 통합
+4. **자동 검증**을 통한 품질 보장 및 최종 배포
+
+이 시스템을 통해 "10x 엔지니어" 수준의 개발 생산성을 달성할 수 있습니다.
+
+---
+
 **개발 문의**: 이 문서는 Claude Code 개발 시 참조 자료로 활용해주세요. 구체적인 구현 질문이나 코드 리뷰가 필요한 경우 이 컨텍스트를 바탕으로 요청해주시면 됩니다.

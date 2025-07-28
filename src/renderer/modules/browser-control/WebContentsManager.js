@@ -12,250 +12,235 @@
 class WebContentsManager {
   constructor() {
     this.activeTabs = new Map();
-    this.webContentsViews = new Map(); // Changed from browserViews
     this.currentTabId = null;
-    this.mainWindow = null;
-    this.baseWindow = null; // For WebContentsView
     this.eventHandlers = new Map();
-  }
-
-  /**
-   * Initialize the manager with the main window
-   * @param {BrowserWindow} mainWindow - Electron main window
-   */
-  initialize(mainWindow) {
-    this.mainWindow = mainWindow;
-    this.baseWindow = mainWindow; // WebContentsView uses BaseWindow
-    console.log('[WebContentsManager] Initialized with main window');
     
-    // Set up window cleanup for memory management
-    this.mainWindow.on('closed', () => {
-      this.destroy();
-    });
+    // Renderer-side WebContentsManager acts as an IPC proxy to the main process
+    console.log('[WebContentsManager] Initialized as IPC proxy to main process');
   }
 
   /**
-   * Create a new browser tab/view
+   * Initialize the renderer-side manager (IPC proxy)
+   */
+  initialize() {
+    console.log('[WebContentsManager] Initialized renderer-side IPC proxy');
+    
+    // Set up event forwarding from main process
+    this.setupMainProcessEventListeners();
+  }
+
+  /**
+   * Set up event listeners for main process events
+   */
+  setupMainProcessEventListeners() {
+    if (window.electronAPI && window.electronAPI.on) {
+      // Listen for browser events from main process
+      window.electronAPI.on('browser-navigated', (data) => {
+        this.emit('navigation', data);
+      });
+
+      window.electronAPI.on('browser-load-started', (data) => {
+        this.emit('loading-started', data);
+      });
+
+      window.electronAPI.on('browser-load-finished', (data) => {
+        this.emit('loading-finished', data);
+      });
+
+      window.electronAPI.on('browser-load-failed', (data) => {
+        this.emit('loading-failed', data);
+      });
+
+      window.electronAPI.on('browser-load-stopped', (data) => {
+        this.emit('loading-stopped', data);
+      });
+
+      console.log('[WebContentsManager] Main process event listeners setup complete');
+    } else {
+      console.warn('[WebContentsManager] electronAPI not available for event listening');
+    }
+  }
+
+  /**
+   * Create a new browser tab/view (delegates to main process)
    * @param {string} url - Initial URL to load
-   * @param {Object} options - BrowserView options (temporary compatibility)
+   * @param {Object} options - WebContentsView options
    * @returns {string} tabId - Unique tab identifier
    */
   async createTab(url = 'about:blank', options = {}) {
-    // This method should only be called in the main process
-    if (typeof require === 'undefined') {
-      console.error('[WebContentsManager] createTab called in renderer process - this should be proxied');
-      return null;
-    }
+    console.log(`[WebContentsManager] Creating tab via IPC: ${url}`);
     
-    const { WebContentsView } = require('electron');
-    
-    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const webContentsView = new WebContentsView({
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-        ...options.webPreferences
+    try {
+      // Delegate to main process through IPC
+      const result = await window.electronAPI.invoke('browser-create-tab', { url, options });
+      
+      if (result && result.tabId) {
+        // Update local state to match main process
+        this.activeTabs.set(result.tabId, {
+          id: result.tabId,
+          url: url,
+          title: 'Loading...',
+          isLoading: true,
+          canGoBack: false,
+          canGoForward: false,
+          created: Date.now()
+        });
+        
+        console.log(`[WebContentsManager] Tab created successfully: ${result.tabId}`);
+        return result.tabId;
+      } else {
+        throw new Error('Failed to create tab: no tabId returned');
       }
-    });
-
-    this.webContentsViews.set(tabId, webContentsView);
-    this.activeTabs.set(tabId, {
-      id: tabId,
-      url: url,
-      title: 'Loading...',
-      isLoading: true,
-      canGoBack: false,
-      canGoForward: false,
-      created: Date.now()
-    });
-
-    // Set up event handlers for this WebContentsView
-    this.setupWebContentsViewEvents(tabId, webContentsView);
-
-    // Load the initial URL if provided
-    if (url && url !== 'about:blank') {
-      try {
-        await webContentsView.webContents.loadURL(url);
-        console.log(`[WebContentsManager] Loading initial URL: ${url} in tab ${tabId}`);
-      } catch (error) {
-        console.error(`[WebContentsManager] Failed to load initial URL ${url}:`, error);
-      }
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to create tab:`, error);
+      throw error;
     }
-
-    console.log(`[WebContentsManager] Created tab ${tabId} for URL: ${url}`);
-    return tabId;
   }
 
   /**
-   * Switch to a specific tab using WebContentsView
+   * Switch to a specific tab (delegates to main process)
    * @param {string} tabId - Tab to switch to
    */
   async switchTab(tabId) {
-    if (!this.activeTabs.has(tabId) || !this.webContentsViews.has(tabId)) {
-      throw new Error(`Tab ${tabId} not found`);
-    }
-
-    const webContentsView = this.webContentsViews.get(tabId);
+    console.log(`[WebContentsManager] Switching to tab via IPC: ${tabId}`);
     
-    // Hide current tab if any (using the new contentView API)
-    if (this.currentTabId && this.currentTabId !== tabId) {
-      const currentView = this.webContentsViews.get(this.currentTabId);
-      if (currentView && this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
-        this.mainWindow.contentView.removeChildView(currentView);
+    try {
+      // Delegate to main process through IPC
+      const result = await window.electronAPI.invoke('browser-switch-tab', { tabId });
+      
+      if (result && result.id === tabId) {
+        this.currentTabId = tabId;
+        
+        // Notify listeners
+        this.emit('tab-switched', { tabId, tab: this.activeTabs.get(tabId) });
+        
+        console.log(`[WebContentsManager] Switched to tab successfully: ${tabId}`);
+        return this.activeTabs.get(tabId);
+      } else {
+        throw new Error(`Failed to switch to tab ${tabId}`);
       }
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to switch tab:`, error);
+      throw error;
     }
-
-    // Show the requested tab (using the new WebContentsView API)
-    if (this.mainWindow.contentView && !this.mainWindow.contentView.children.includes(webContentsView)) {
-      this.mainWindow.contentView.addChildView(webContentsView);
-    }
-    
-    this.currentTabId = tabId;
-
-    // Bounds will be updated by BrowserTabComponent when it's ready
-    // setTimeout(() => {
-    //   this.updateWebContentsViewBounds();
-    // }, 50);
-
-    console.log(`[WebContentsManager] Switched to tab ${tabId}`);
-    
-    // Notify listeners
-    this.emit('tab-switched', { tabId, tab: this.activeTabs.get(tabId) });
-    
-    return this.activeTabs.get(tabId);
   }
 
   /**
-   * Close a tab using WebContentsView
+   * Close a tab (delegates to main process)
    * @param {string} tabId - Tab to close
    */
   async closeTab(tabId) {
-    if (!this.activeTabs.has(tabId)) {
-      throw new Error(`Tab ${tabId} not found`);
-    }
-
-    const webContentsView = this.webContentsViews.get(tabId);
+    console.log(`[WebContentsManager] Closing tab via IPC: ${tabId}`);
     
-    // If this is the current tab, hide it
-    if (this.currentTabId === tabId) {
-      if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
-        this.mainWindow.contentView.removeChildView(webContentsView);
+    try {
+      const result = await window.electronAPI.invoke('browser-close-tab', { tabId });
+      
+      if (result && result.success) {
+        // Update local state
+        this.activeTabs.delete(tabId);
+        if (this.currentTabId === tabId) {
+          this.currentTabId = null;
+        }
+        
+        // Notify listeners
+        this.emit('tab-closed', { tabId });
+        
+        console.log(`[WebContentsManager] Tab closed successfully: ${tabId}`);
+      } else {
+        throw new Error(`Failed to close tab: ${tabId}`);
       }
-      this.currentTabId = null;
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to close tab:`, error);
+      throw error;
     }
-
-    // Critical: Proper cleanup to prevent memory leaks
-    if (webContentsView) {
-      // First close the webContents explicitly
-      webContentsView.webContents.close();
-      // Then destroy it
-      webContentsView.webContents.destroy();
-    }
-    
-    this.webContentsViews.delete(tabId);
-    this.activeTabs.delete(tabId);
-
-    console.log(`[WebContentsManager] Closed tab ${tabId}`);
-    
-    // Notify listeners
-    this.emit('tab-closed', { tabId });
   }
 
   /**
-   * Execute JavaScript in the current tab
+   * Execute JavaScript in the current tab (delegates to main process)
    * @param {string} script - JavaScript code to execute
    * @param {string} tabId - Optional specific tab ID
    * @returns {Promise} Result of script execution
    */
   async executeScript(script, tabId = null) {
-    const targetTabId = tabId || this.currentTabId;
-    
-    if (!targetTabId || !this.webContentsViews.has(targetTabId)) {
-      throw new Error('No active tab found for script execution');
-    }
-
-    const browserView = this.webContentsViews.get(targetTabId);
+    console.log(`[WebContentsManager] Executing script via IPC in tab: ${tabId || 'current'}`);
     
     try {
-      const result = await browserView.webContents.executeJavaScript(script);
-      console.log(`[WebContentsManager] Script executed in tab ${targetTabId}`);
-      return result;
+      return await window.electronAPI.invoke('browser-execute-script', { script, tabId });
     } catch (error) {
-      console.error(`[WebContentsManager] Script execution failed in tab ${targetTabId}:`, error);
+      console.error(`[WebContentsManager] Script execution failed:`, error);
       throw error;
     }
   }
 
   /**
-   * Navigate to URL in current or specific tab
+   * Navigate to URL in current or specific tab (delegates to main process)
    * @param {string} url - URL to navigate to
    * @param {string} tabId - Optional specific tab ID
    */
   async loadURL(url, tabId = null) {
-    const targetTabId = tabId || this.currentTabId;
+    console.log(`[WebContentsManager] Loading URL via IPC: ${url}`);
     
-    if (!targetTabId || !this.webContentsViews.has(targetTabId)) {
-      // Create a new tab if none exists
-      const newTabId = await this.createTab(url);
-      await this.switchTab(newTabId);
-      return;
-    }
-
-    const browserView = this.webContentsViews.get(targetTabId);
-    const tab = this.activeTabs.get(targetTabId);
-
     try {
-      tab.isLoading = true;
-      await browserView.webContents.loadURL(url);
-      tab.url = url;
-      console.log(`[WebContentsManager] Loaded URL ${url} in tab ${targetTabId}`);
+      // Delegate to main process through IPC
+      const result = await window.electronAPI.invoke('browser-load-url', { url, tabId });
       
-      // Notify listeners
-      this.emit('url-loaded', { tabId: targetTabId, url, tab });
+      if (result && result.success) {
+        const targetTabId = result.tabId || this.currentTabId;
+        const tab = this.activeTabs.get(targetTabId);
+        
+        if (tab) {
+          tab.url = url;
+          tab.isLoading = false;
+        }
+        
+        // Notify listeners
+        this.emit('url-loaded', { tabId: targetTabId, url, tab });
+        
+        console.log(`[WebContentsManager] URL loaded successfully: ${url}`);
+        return result;
+      } else {
+        throw new Error(`Failed to load URL: ${url}`);
+      }
     } catch (error) {
-      tab.isLoading = false;
-      console.error(`[WebContentsManager] Failed to load URL ${url} in tab ${targetTabId}:`, error);
+      console.error(`[WebContentsManager] Failed to load URL:`, error);
       throw error;
     }
   }
 
   /**
-   * Browser navigation controls
+   * Browser navigation controls (delegate to main process)
    */
   async goBack(tabId = null) {
-    const targetTabId = tabId || this.currentTabId;
-    const browserView = this.webContentsViews.get(targetTabId);
+    console.log(`[WebContentsManager] Going back via IPC: ${tabId || 'current'}`);
     
-    if (browserView && browserView.webContents.canGoBack()) {
-      browserView.webContents.goBack();
-      return true;
+    try {
+      return await window.electronAPI.invoke('browser-go-back', { tabId });
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to go back:`, error);
+      return false;
     }
-    return false;
   }
 
   async goForward(tabId = null) {
-    const targetTabId = tabId || this.currentTabId;
-    const browserView = this.webContentsViews.get(targetTabId);
+    console.log(`[WebContentsManager] Going forward via IPC: ${tabId || 'current'}`);
     
-    if (browserView && browserView.webContents.canGoForward()) {
-      browserView.webContents.goForward();
-      return true;
+    try {
+      return await window.electronAPI.invoke('browser-go-forward', { tabId });
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to go forward:`, error);
+      return false;
     }
-    return false;
   }
 
   async reload(tabId = null) {
-    const targetTabId = tabId || this.currentTabId;
-    const browserView = this.webContentsViews.get(targetTabId);
+    console.log(`[WebContentsManager] Reloading via IPC: ${tabId || 'current'}`);
     
-    if (browserView) {
-      browserView.webContents.reload();
-      return true;
+    try {
+      return await window.electronAPI.invoke('browser-reload', { tabId });
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to reload:`, error);
+      return false;
     }
-    return false;
   }
 
   /**
@@ -274,14 +259,34 @@ class WebContentsManager {
   }
 
   /**
-   * Get navigation state for current tab
+   * Get navigation state for current tab (delegates to main process)
    */
   getNavigationState(tabId = null) {
+    // Try to get state via IPC, but provide fallback for sync calls
+    try {
+      if (window.electronAPI && window.electronAPI.invoke) {
+        // Use async version when possible
+        return window.electronAPI.invoke('browser-get-navigation-state', { tabId })
+          .catch(error => {
+            console.error(`[WebContentsManager] Failed to get navigation state:`, error);
+            return this.getLocalNavigationState(tabId);
+          });
+      }
+    } catch (error) {
+      console.warn(`[WebContentsManager] IPC not available, using local state:`, error);
+    }
+    
+    return this.getLocalNavigationState(tabId);
+  }
+  
+  /**
+   * Get local navigation state fallback
+   */
+  getLocalNavigationState(tabId = null) {
     const targetTabId = tabId || this.currentTabId;
-    const browserView = this.webContentsViews.get(targetTabId);
     const tab = this.activeTabs.get(targetTabId);
     
-    if (!browserView || !tab) {
+    if (!tab) {
       return {
         canGoBack: false,
         canGoForward: false,
@@ -292,112 +297,38 @@ class WebContentsManager {
     }
 
     return {
-      canGoBack: browserView.webContents.canGoBack(),
-      canGoForward: browserView.webContents.canGoForward(),
-      isLoading: tab.isLoading,
-      url: browserView.webContents.getURL(),
-      title: browserView.webContents.getTitle()
+      canGoBack: tab.canGoBack || false,
+      canGoForward: tab.canGoForward || false,
+      isLoading: tab.isLoading || false,
+      url: tab.url || 'about:blank',
+      title: tab.title || 'No Tab'
     };
   }
 
   /**
-   * Update WebContentsView bounds based on the browser-component-container position
+   * Update WebContentsView bounds (delegates to main process)
    */
   updateWebContentsViewBounds(preciseBounds = null) {
-    if (!this.currentTabId || !this.mainWindow) return;
-
-    const browserView = this.webContentsViews.get(this.currentTabId);
-    if (!browserView) return;
-
-    let newBounds;
-
-    if (preciseBounds) {
-      // Use precise bounds calculated by BrowserTabComponent
-      newBounds = preciseBounds;
-      console.log(`[WebContentsManager] Using precise bounds from component:`, newBounds);
-    } else {
-      // Calculate bounds based on the actual DOM layout
-      const bounds = this.mainWindow.getContentBounds();
-      
-      // Calculate based on index.html layout:
-      // - App header: 28px
-      // - Workspace layout padding: 16px
-      // - BrowserTabComponent controls: ~60px (with padding)
-      const headerHeight = 28;
-      const workspaceLayoutPadding = 16;
-      const browserControlsHeight = 60; // BrowserTabComponent의 .browser-controls 영역
-      
-      // Container starts after header + padding
-      const containerStartY = headerHeight + workspaceLayoutPadding;
-      const containerStartX = workspaceLayoutPadding;
-      
-      // 70% width for browser container (from index.html #browser-component-container flex: 7)
-      const totalWorkspaceWidth = bounds.width - (workspaceLayoutPadding * 2); // Subtract left and right padding
-      const browserContainerWidth = Math.floor(totalWorkspaceWidth * 0.7);
-      
-      // BrowserView should fill the .browser-viewport area inside BrowserTabComponent
-      newBounds = {
-        x: containerStartX,
-        y: containerStartY + browserControlsHeight,
-        width: browserContainerWidth,
-        height: bounds.height - containerStartY - browserControlsHeight - workspaceLayoutPadding
-      };
-      
-      console.log(`[WebContentsManager] Calculated bounds for container layout:`, {
-        windowBounds: bounds,
-        containerStartX,
-        containerStartY,
-        browserContainerWidth,
-        newBounds
-      });
+    console.log(`[WebContentsManager] Updating bounds via IPC:`, preciseBounds);
+    
+    try {
+      // Delegate to main process through IPC
+      if (window.electronAPI && window.electronAPI.invoke) {
+        window.electronAPI.invoke('browser-update-bounds', preciseBounds)
+          .then(() => {
+            console.log(`[WebContentsManager] Bounds updated successfully`);
+          })
+          .catch((error) => {
+            console.error(`[WebContentsManager] Failed to update bounds:`, error);
+          });
+      }
+    } catch (error) {
+      console.error(`[WebContentsManager] Failed to update bounds:`, error);
     }
-
-    browserView.setBounds(newBounds);
-    console.log(`[WebContentsManager] Updated BrowserView bounds: ${JSON.stringify(newBounds)}`);
   }
 
-  /**
-   * Set up event handlers for a BrowserView
-   */
-  setupWebContentsViewEvents(tabId, browserView) {
-    const webContents = browserView.webContents;
-    const tab = this.activeTabs.get(tabId);
-
-    webContents.on('did-navigate', (event, url) => {
-      tab.url = url;
-      tab.isLoading = false;
-      console.log(`[WebContentsManager] Tab ${tabId} navigated to: ${url}`);
-      this.emit('navigation', { tabId, url, type: 'navigate' });
-    });
-
-    webContents.on('did-start-loading', () => {
-      tab.isLoading = true;
-      this.emit('loading-started', { tabId });
-    });
-
-    webContents.on('did-finish-load', () => {
-      tab.isLoading = false;
-      tab.title = webContents.getTitle();
-      this.emit('loading-finished', { tabId, title: tab.title });
-    });
-
-    webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-      tab.isLoading = false;
-      console.error(`[WebContentsManager] Tab ${tabId} failed to load: ${errorDescription}`);
-      this.emit('loading-failed', { tabId, errorCode, errorDescription, url: validatedURL });
-    });
-
-    webContents.on('page-title-updated', (event, title) => {
-      tab.title = title;
-      this.emit('title-updated', { tabId, title });
-    });
-
-    // Updated crash handling - use render-process-gone instead of crashed
-    webContents.on('render-process-gone', (event, details) => {
-      console.error(`[WebContentsManager] Tab ${tabId} render process gone:`, details);
-      this.emit('tab-crashed', { tabId, details });
-    });
-  }
+  // WebContentsView event handling is now managed in the main process
+  // Events are forwarded to renderer via IPC in setupMainProcessEventListeners()
 
   /**
    * Event emitter functionality
