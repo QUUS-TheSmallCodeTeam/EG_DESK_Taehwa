@@ -26,7 +26,6 @@ class WebContentsManager extends events.EventEmitter {
    * Initialize WebContentsManager with main window
    */
   initialize(mainWindow) {
-    console.log("[WebContentsManager] Initialized with main window");
     this.mainWindow = mainWindow;
     this.isInitialized = true;
   }
@@ -38,7 +37,6 @@ class WebContentsManager extends events.EventEmitter {
       throw new Error("WebContentsManager not initialized");
     }
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-    console.log(`[WebContentsManager] Creating tab: ${tabId} with URL: ${url2}`);
     try {
       const webContentsView = new electron.WebContentsView({
         webPreferences: {
@@ -74,15 +72,12 @@ class WebContentsManager extends events.EventEmitter {
           nodeIntegrationInSubFrames: false
         }
       });
-      console.log(`[WebContentsManager] Created WebContentsView for tab: ${tabId}`);
       this.setupWebContentsEvents(webContentsView, tabId);
       this.webContentsViews.set(tabId, webContentsView);
       await webContentsView.webContents.loadURL(url2);
-      console.log(`[WebContentsManager] Tab created successfully: ${tabId}`);
       this.emit("tab-created", { tabId, url: url2 });
       return tabId;
     } catch (error) {
-      console.error(`[WebContentsManager] Failed to create tab:`, error);
       throw error;
     }
   }
@@ -93,7 +88,6 @@ class WebContentsManager extends events.EventEmitter {
     if (!this.webContentsViews.has(tabId)) {
       throw new Error(`Tab ${tabId} not found`);
     }
-    console.log(`[WebContentsManager] Switching to tab: ${tabId}`);
     try {
       const newView = this.webContentsViews.get(tabId);
       if (this.currentTabId && this.webContentsViews.has(this.currentTabId)) {
@@ -101,35 +95,26 @@ class WebContentsManager extends events.EventEmitter {
         try {
           if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(oldView)) {
             this.mainWindow.contentView.removeChildView(oldView);
-            console.log(`[WebContentsManager] Removed old view: ${this.currentTabId}`);
           }
         } catch (e) {
-          console.warn(`[WebContentsManager] Could not remove old view:`, e.message);
         }
       }
       try {
         if (this.mainWindow.contentView) {
           this.mainWindow.contentView.addChildView(newView);
-          console.log(`[WebContentsManager] Added WebContentsView: ${tabId}`);
-          console.log(`[WebContentsManager] Waiting for precise bounds from BrowserTabComponent...`);
           if (typeof newView.setVisible === "function") {
             newView.setVisible(false);
-            console.log(`[WebContentsManager] WebContentsView initially hidden to prevent flicker`);
           }
         } else {
-          console.error(`[WebContentsManager] mainWindow.contentView not available`);
           throw new Error("MainWindow contentView API not available");
         }
       } catch (addError) {
-        console.error(`[WebContentsManager] Failed to add view to window:`, addError);
         throw addError;
       }
       this.currentTabId = tabId;
-      console.log(`[WebContentsManager] Switched to tab: ${tabId}`);
       this.emit("tab-switched", { tabId });
       return { id: tabId };
     } catch (error) {
-      console.error(`[WebContentsManager] Failed to switch tab:`, error);
       throw error;
     }
   }
@@ -141,15 +126,12 @@ class WebContentsManager extends events.EventEmitter {
     if (!targetTabId || !this.webContentsViews.has(targetTabId)) {
       throw new Error("No active tab to load URL");
     }
-    console.log(`[WebContentsManager] Loading URL: ${url2} in tab: ${targetTabId}`);
     try {
       const webContentsView = this.webContentsViews.get(targetTabId);
       await webContentsView.webContents.loadURL(url2);
-      console.log(`[WebContentsManager] URL loaded successfully: ${url2}`);
       this.emit("url-loaded", { tabId: targetTabId, url: url2 });
       return { success: true, url: url2, tabId: targetTabId };
     } catch (error) {
-      console.error(`[WebContentsManager] Failed to load URL:`, error);
       throw error;
     }
   }
@@ -164,10 +146,8 @@ class WebContentsManager extends events.EventEmitter {
     const webContentsView = this.webContentsViews.get(targetTabId);
     if (webContentsView.webContents.canGoBack()) {
       webContentsView.webContents.goBack();
-      console.log(`[WebContentsManager] Navigated back in tab: ${targetTabId}`);
       return { success: true };
     } else {
-      console.log(`[WebContentsManager] Cannot go back in tab: ${targetTabId}`);
       return { success: false, reason: "Cannot go back" };
     }
   }
@@ -182,10 +162,8 @@ class WebContentsManager extends events.EventEmitter {
     const webContentsView = this.webContentsViews.get(targetTabId);
     if (webContentsView.webContents.canGoForward()) {
       webContentsView.webContents.goForward();
-      console.log(`[WebContentsManager] Navigated forward in tab: ${targetTabId}`);
       return { success: true };
     } else {
-      console.log(`[WebContentsManager] Cannot go forward in tab: ${targetTabId}`);
       return { success: false, reason: "Cannot go forward" };
     }
   }
@@ -199,7 +177,6 @@ class WebContentsManager extends events.EventEmitter {
     }
     const webContentsView = this.webContentsViews.get(targetTabId);
     webContentsView.webContents.reload();
-    console.log(`[WebContentsManager] Reloaded tab: ${targetTabId}`);
     return { success: true, tabId: targetTabId };
   }
   /**
@@ -213,10 +190,8 @@ class WebContentsManager extends events.EventEmitter {
     try {
       const webContentsView = this.webContentsViews.get(targetTabId);
       const result = await webContentsView.webContents.executeJavaScript(script);
-      console.log(`[WebContentsManager] Script executed in tab: ${targetTabId}`);
       return result;
     } catch (error) {
-      console.error(`[WebContentsManager] Script execution failed:`, error);
       throw error;
     }
   }
@@ -253,7 +228,6 @@ class WebContentsManager extends events.EventEmitter {
     let targetBounds;
     if (preciseBounds) {
       targetBounds = preciseBounds;
-      console.log("[WebContentsManager] Using precise bounds for view:", targetBounds);
     } else {
       const windowBounds = this.mainWindow.getBounds();
       targetBounds = {
@@ -262,18 +236,14 @@ class WebContentsManager extends events.EventEmitter {
         width: windowBounds.width,
         height: windowBounds.height
       };
-      console.log("[WebContentsManager] Using full window bounds for view:", targetBounds);
     }
     try {
       if (typeof webContentsView.setBounds === "function") {
         webContentsView.setBounds(targetBounds);
-        console.log("[WebContentsManager] Explicit bounds set for WebContentsView:", targetBounds);
       } else {
-        console.log("[WebContentsManager] WebContentsView bounds managed automatically, target bounds:", targetBounds);
         this.lastRequestedBounds = targetBounds;
       }
     } catch (error) {
-      console.warn("[WebContentsManager] Failed to set explicit bounds:", error.message);
     }
   }
   /**
@@ -282,7 +252,6 @@ class WebContentsManager extends events.EventEmitter {
    */
   updateWebContentsViewBounds(preciseBounds = null) {
     if (!this.currentTabId || !this.webContentsViews.has(this.currentTabId)) {
-      console.log("[WebContentsManager] No active tab to update bounds");
       return;
     }
     if (this.boundsUpdateTimeout) {
@@ -290,7 +259,6 @@ class WebContentsManager extends events.EventEmitter {
     }
     const webContentsView = this.webContentsViews.get(this.currentTabId);
     if (preciseBounds) {
-      console.log("[WebContentsManager] Precise bounds received from component:", preciseBounds);
       this.lastRequestedBounds = preciseBounds;
     } else {
       const windowBounds = this.mainWindow.getBounds();
@@ -304,7 +272,6 @@ class WebContentsManager extends events.EventEmitter {
         height: Math.max(windowBounds.height - 200, 300)
         // Leave space for controls
       };
-      console.log("[WebContentsManager] Estimated default bounds:", estimatedBounds);
       this.lastRequestedBounds = estimatedBounds;
     }
     this.boundsUpdateTimeout = setTimeout(() => {
@@ -319,10 +286,8 @@ class WebContentsManager extends events.EventEmitter {
       this.setWebContentsViewBounds(webContentsView, bounds);
       if (typeof webContentsView.setVisible === "function") {
         webContentsView.setVisible(true);
-        console.log("[WebContentsManager] WebContentsView made visible after bounds applied");
       }
     } catch (error) {
-      console.error("[WebContentsManager] Failed to apply bounds to view:", error);
     }
   }
   /**
@@ -331,39 +296,30 @@ class WebContentsManager extends events.EventEmitter {
   setupWebContentsEvents(webContentsView, tabId) {
     const webContents = webContentsView.webContents;
     webContents.on("did-navigate", (event, url2) => {
-      console.log(`[WebContentsManager] Tab ${tabId} navigated to: ${url2}`);
       this.emit("navigation", { tabId, url: url2, type: "navigate" });
     });
     webContents.on("did-navigate-in-page", (event, url2) => {
-      console.log(`[WebContentsManager] Tab ${tabId} navigated in page to: ${url2}`);
       this.emit("navigation", { tabId, url: url2, type: "navigate-in-page" });
     });
     webContents.on("did-finish-load", () => {
       const title = webContents.getTitle();
       const url2 = webContents.getURL();
-      console.log(`[WebContentsManager] Tab ${tabId} finished loading: ${title}`);
       this.emit("loading-finished", { tabId, title, url: url2 });
     });
     webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
-      console.error(`[WebContentsManager] Tab ${tabId} failed to load: ${errorDescription}`);
       this.emit("loading-failed", { tabId, errorCode, errorDescription, url: validatedURL });
     });
     webContents.on("page-title-updated", (event, title) => {
-      console.log(`[WebContentsManager] Tab ${tabId} title updated: ${title}`);
       this.emit("title-updated", { tabId, title });
     });
     webContents.on("certificate-error", (event, url2, error, certificate, callback) => {
-      console.warn(`[WebContentsManager] Certificate error for ${url2}: ${error}`);
       event.preventDefault();
       callback(true);
-      console.log(`[WebContentsManager] Certificate error bypassed for: ${url2}`);
     });
     webContents.on("did-start-loading", () => {
-      console.log(`[WebContentsManager] Tab ${tabId} started loading`);
       this.emit("loading-started", { tabId });
     });
     webContents.on("did-stop-loading", () => {
-      console.log(`[WebContentsManager] Tab ${tabId} stopped loading`);
       this.emit("loading-stopped", { tabId });
     });
   }
@@ -374,22 +330,18 @@ class WebContentsManager extends events.EventEmitter {
     if (!this.webContentsViews.has(tabId)) {
       throw new Error(`Tab ${tabId} not found`);
     }
-    console.log(`[WebContentsManager] Closing tab: ${tabId}`);
     const webContentsView = this.webContentsViews.get(tabId);
     if (this.currentTabId === tabId) {
       try {
         if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(webContentsView)) {
           this.mainWindow.contentView.removeChildView(webContentsView);
-          console.log(`[WebContentsManager] Removed view from window with contentView: ${tabId}`);
         }
       } catch (e) {
-        console.warn(`[WebContentsManager] Could not remove view from window:`, e.message);
       }
       this.currentTabId = null;
     }
     webContentsView.webContents.close();
     this.webContentsViews.delete(tabId);
-    console.log(`[WebContentsManager] Tab closed: ${tabId}`);
     this.emit("tab-closed", { tabId });
   }
   /**
@@ -421,12 +373,10 @@ class WebContentsManager extends events.EventEmitter {
    * Destroy WebContentsManager
    */
   destroy() {
-    console.log("[WebContentsManager] Starting cleanup...");
     for (const tabId of this.webContentsViews.keys()) {
       try {
         this.closeTab(tabId);
       } catch (error) {
-        console.error(`[WebContentsManager] Error closing tab ${tabId}:`, error);
       }
     }
     this.webContentsViews.clear();
@@ -434,7 +384,6 @@ class WebContentsManager extends events.EventEmitter {
     this.mainWindow = null;
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[WebContentsManager] Destroyed and cleaned up");
   }
 }
 class LangChainService {
@@ -480,16 +429,13 @@ class LangChainService {
    */
   async initialize() {
     try {
-      console.log("[LangChainService] Initializing...");
       if (!this.secureKeyManager || !this.secureKeyManager.isInitialized) {
         throw new Error("SecureKeyManager not initialized");
       }
       await this.initializeProviders();
       this.isInitialized = true;
-      console.log("[LangChainService] Successfully initialized");
       return true;
     } catch (error) {
-      console.error("[LangChainService] Initialization failed:", error);
       throw error;
     }
   }
@@ -518,10 +464,8 @@ class LangChainService {
           }
         }
       } catch (error) {
-        console.warn(`[LangChainService] Failed to initialize provider ${providerId}:`, error);
       }
     }
-    console.log(`[LangChainService] Initialized providers: ${availableProviders.join(", ")}`);
     if (availableProviders.length === 0) {
       throw new Error("No AI providers available. Please configure API keys.");
     }
@@ -580,7 +524,6 @@ class LangChainService {
     }
     this.currentProvider = providerId;
     this.currentModel = provider.currentModel;
-    console.log(`[LangChainService] Switched to provider: ${providerId}, model: ${this.currentModel}`);
     return {
       provider: providerId,
       model: this.currentModel,
@@ -600,7 +543,6 @@ class LangChainService {
     try {
       const provider = this.providers.get(this.currentProvider);
       const messages2 = this.buildMessageHistory(message, conversationHistory, systemPrompt);
-      console.log(`[LangChainService] Sending message to ${this.currentProvider}...`);
       const startTime = Date.now();
       const response = await provider.instance.invoke(messages2);
       const endTime = Date.now();
@@ -621,10 +563,8 @@ class LangChainService {
           timestamp: Date.now()
         }
       };
-      console.log(`[LangChainService] Response received from ${this.currentProvider} in ${result.metadata.responseTime}ms`);
       return result;
     } catch (error) {
-      console.error(`[LangChainService] Error sending message to ${this.currentProvider}:`, error);
       return {
         success: false,
         error: error.message,
@@ -649,7 +589,6 @@ class LangChainService {
     try {
       const provider = this.providers.get(this.currentProvider);
       const messages2 = this.buildMessageHistory(message, conversationHistory, systemPrompt);
-      console.log(`[LangChainService] Streaming message to ${this.currentProvider}...`);
       const startTime = Date.now();
       let fullResponse = "";
       const stream = await provider.instance.stream(messages2);
@@ -681,10 +620,8 @@ class LangChainService {
           streamed: true
         }
       };
-      console.log(`[LangChainService] Stream completed from ${this.currentProvider} in ${result.metadata.responseTime}ms`);
       return result;
     } catch (error) {
-      console.error(`[LangChainService] Error streaming message to ${this.currentProvider}:`, error);
       return {
         success: false,
         error: error.message,
@@ -797,7 +734,6 @@ class LangChainService {
    */
   resetSessionCosts() {
     this.costTracker.session = { input: 0, output: 0, total: 0 };
-    console.log("[LangChainService] Session costs reset");
   }
   /**
    * Test provider connection
@@ -855,7 +791,6 @@ class LangChainService {
       provider.instance = await this.createProvider(providerId, keyData.api_key);
       provider.instance.model = modelId;
     }
-    console.log(`[LangChainService] Updated ${providerId} model to ${modelId}`);
     return true;
   }
   /**
@@ -867,9 +802,7 @@ class LangChainService {
       this.currentProvider = null;
       this.currentModel = null;
       this.isInitialized = false;
-      console.log("[LangChainService] Destroyed successfully");
     } catch (error) {
-      console.error("[LangChainService] Cleanup failed:", error);
     }
   }
 }
@@ -966,16 +899,13 @@ class ChatHistoryStore {
    */
   async initialize() {
     try {
-      console.log("[ChatHistoryStore] Initializing...");
       this.store = new Store(this.options);
       this.setupIPCHandlers();
       this.startBackupTimer();
       await this.validateAndRepairData();
       this.isInitialized = true;
-      console.log("[ChatHistoryStore] Successfully initialized");
       return true;
     } catch (error) {
-      console.error("[ChatHistoryStore] Initialization failed:", error);
       throw error;
     }
   }
@@ -1006,7 +936,6 @@ class ChatHistoryStore {
       electron.ipcMain.handle(channel, handler);
       this.ipcHandlers.set(channel, handler);
     });
-    console.log(`[ChatHistoryStore] Registered ${Object.keys(handlers).length} IPC handlers`);
   }
   /**
    * Save conversation to storage
@@ -1031,7 +960,6 @@ class ChatHistoryStore {
         metadata.lastModified = Date.now();
         this.store.set("metadata", metadata);
       }
-      console.log(`[ChatHistoryStore] Saved conversation: ${conversationId}`);
       return {
         success: true,
         conversationId,
@@ -1039,7 +967,6 @@ class ChatHistoryStore {
         messageCount: validatedConversation.messages.length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Save conversation failed:", error);
       return {
         success: false,
         error: error.message
@@ -1062,13 +989,11 @@ class ChatHistoryStore {
           error: "Conversation not found"
         };
       }
-      console.log(`[ChatHistoryStore] Loaded conversation: ${conversationId}`);
       return {
         success: true,
         conversation
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Load conversation failed:", error);
       return {
         success: false,
         error: error.message
@@ -1102,7 +1027,6 @@ class ChatHistoryStore {
           delete conv.messages;
         });
       }
-      console.log(`[ChatHistoryStore] Listed ${paginatedList.length} of ${total} conversations`);
       return {
         success: true,
         conversations: paginatedList,
@@ -1114,7 +1038,6 @@ class ChatHistoryStore {
         }
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] List conversations failed:", error);
       return {
         success: false,
         error: error.message
@@ -1143,7 +1066,6 @@ class ChatHistoryStore {
       metadata.totalConversations = Object.keys(conversations).length;
       metadata.lastModified = Date.now();
       this.store.set("metadata", metadata);
-      console.log(`[ChatHistoryStore] Deleted conversation: ${conversationId}`);
       return {
         success: true,
         conversationId,
@@ -1154,7 +1076,6 @@ class ChatHistoryStore {
         }
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Delete conversation failed:", error);
       return {
         success: false,
         error: error.message
@@ -1216,14 +1137,12 @@ class ChatHistoryStore {
       results.conversations = results.conversations.slice(0, limit);
       results.messages = results.messages.slice(0, limit * 2);
       results.totalFound = results.conversations.length;
-      console.log(`[ChatHistoryStore] Search completed: "${query}" found ${results.totalFound} results`);
       return {
         success: true,
         query,
         results
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Search failed:", error);
       return {
         success: false,
         error: error.message
@@ -1250,7 +1169,6 @@ class ChatHistoryStore {
       conversation.metadata.messageCount = conversation.messages.length;
       conversations[conversationId] = conversation;
       this.store.set("conversations", conversations);
-      console.log(`[ChatHistoryStore] Added message to conversation: ${conversationId}`);
       return {
         success: true,
         conversationId,
@@ -1258,7 +1176,6 @@ class ChatHistoryStore {
         messageCount: conversation.messages.length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Add message failed:", error);
       return {
         success: false,
         error: error.message
@@ -1291,7 +1208,6 @@ class ChatHistoryStore {
       conversation.updatedAt = Date.now();
       conversations[conversationId] = conversation;
       this.store.set("conversations", conversations);
-      console.log(`[ChatHistoryStore] Updated message: ${messageId} in conversation: ${conversationId}`);
       return {
         success: true,
         conversationId,
@@ -1299,7 +1215,6 @@ class ChatHistoryStore {
         updatedMessage: conversation.messages[messageIndex]
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Update message failed:", error);
       return {
         success: false,
         error: error.message
@@ -1329,7 +1244,6 @@ class ChatHistoryStore {
       conversation.metadata.messageCount = conversation.messages.length;
       conversations[conversationId] = conversation;
       this.store.set("conversations", conversations);
-      console.log(`[ChatHistoryStore] Deleted message: ${messageId} from conversation: ${conversationId}`);
       return {
         success: true,
         conversationId,
@@ -1338,7 +1252,6 @@ class ChatHistoryStore {
         remainingMessages: conversation.messages.length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Delete message failed:", error);
       return {
         success: false,
         error: error.message
@@ -1365,14 +1278,12 @@ class ChatHistoryStore {
       const sessions = this.store.get("sessions", {});
       sessions[sessionId] = session;
       this.store.set("sessions", sessions);
-      console.log(`[ChatHistoryStore] Created session: ${sessionId}`);
       return {
         success: true,
         sessionId,
         session
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Create session failed:", error);
       return {
         success: false,
         error: error.message
@@ -1399,14 +1310,12 @@ class ChatHistoryStore {
         lastActiveAt: Date.now()
       };
       this.store.set("sessions", sessions);
-      console.log(`[ChatHistoryStore] Updated session: ${sessionId}`);
       return {
         success: true,
         sessionId,
         session: sessions[sessionId]
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Update session failed:", error);
       return {
         success: false,
         error: error.message
@@ -1428,14 +1337,12 @@ class ChatHistoryStore {
       if (limit) {
         sessionList = sessionList.slice(0, limit);
       }
-      console.log(`[ChatHistoryStore] Listed ${sessionList.length} sessions`);
       return {
         success: true,
         sessions: sessionList,
         total: Object.keys(sessions).length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] List sessions failed:", error);
       return {
         success: false,
         error: error.message
@@ -1466,7 +1373,6 @@ class ChatHistoryStore {
       if (format === "jsonl") {
         exportData = this.convertToJSONL(exportData);
       }
-      console.log(`[ChatHistoryStore] Exported data in ${format} format`);
       return {
         success: true,
         data: exportData,
@@ -1474,7 +1380,6 @@ class ChatHistoryStore {
         conversationCount: Object.keys(exportData.conversations || {}).length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Export data failed:", error);
       return {
         success: false,
         error: error.message
@@ -1511,7 +1416,6 @@ class ChatHistoryStore {
       metadata.lastImport = Date.now();
       this.store.set("metadata", metadata);
       const importedCount = Object.keys(importData.conversations || {}).length;
-      console.log(`[ChatHistoryStore] Imported ${importedCount} conversations`);
       return {
         success: true,
         importedConversations: importedCount,
@@ -1519,7 +1423,6 @@ class ChatHistoryStore {
         merged: merge
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Import data failed:", error);
       return {
         success: false,
         error: error.message
@@ -1544,7 +1447,6 @@ class ChatHistoryStore {
       const metadata = this.store.get("metadata", {});
       metadata.lastBackup = timestamp;
       this.store.set("metadata", metadata);
-      console.log("[ChatHistoryStore] Created backup");
       return {
         success: true,
         backupData,
@@ -1552,7 +1454,6 @@ class ChatHistoryStore {
         conversationCount: Object.keys(backupData.conversations).length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Backup failed:", error);
       return {
         success: false,
         error: error.message
@@ -1590,7 +1491,6 @@ class ChatHistoryStore {
         });
       }
       const conversationCount = Object.keys(this.store.get("conversations", {})).length;
-      console.log(`[ChatHistoryStore] Restored backup with ${conversationCount} conversations`);
       return {
         success: true,
         restoredConversations: Object.keys(backupData.conversations || {}).length,
@@ -1598,7 +1498,6 @@ class ChatHistoryStore {
         merged: merge
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Restore failed:", error);
       return {
         success: false,
         error: error.message
@@ -1630,7 +1529,6 @@ class ChatHistoryStore {
         metadata: stats
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Get metadata failed:", error);
       return {
         success: false,
         error: error.message
@@ -1678,7 +1576,6 @@ class ChatHistoryStore {
       metadata.totalConversations = Object.keys(conversations).length;
       metadata.lastCleanup = Date.now();
       this.store.set("metadata", metadata);
-      console.log(`[ChatHistoryStore] Cleanup completed: ${deletedConversations} conversations, ${deletedSessions} sessions deleted`);
       return {
         success: true,
         deletedConversations,
@@ -1687,7 +1584,6 @@ class ChatHistoryStore {
         remainingSessions: Object.keys(sessions).length
       };
     } catch (error) {
-      console.error("[ChatHistoryStore] Cleanup failed:", error);
       return {
         success: false,
         error: error.message
@@ -1773,7 +1669,6 @@ class ChatHistoryStore {
           result.sessions[data.id] = data;
         }
       } catch (error) {
-        console.warn("[ChatHistoryStore] Failed to parse JSONL line:", line);
       }
     });
     return result;
@@ -1815,10 +1710,8 @@ class ChatHistoryStore {
       if (repaired) {
         this.store.set("conversations", conversations);
         this.store.set("sessions", sessions);
-        console.log("[ChatHistoryStore] Data validation and repair completed");
       }
     } catch (error) {
-      console.error("[ChatHistoryStore] Data validation failed:", error);
     }
   }
   /**
@@ -1829,10 +1722,8 @@ class ChatHistoryStore {
       try {
         await this.handleBackup(null, { includeMetadata: true });
       } catch (error) {
-        console.error("[ChatHistoryStore] Auto-backup failed:", error);
       }
     }, 6 * 60 * 60 * 1e3);
-    console.log("[ChatHistoryStore] Auto-backup timer started");
   }
   /**
    * Generate unique conversation ID following Claude Code format
@@ -1883,7 +1774,6 @@ class ChatHistoryStore {
     this.ipcHandlers.clear();
     this.isInitialized = false;
     this.store = null;
-    console.log("[ChatHistoryStore] Destroyed");
   }
 }
 class SecureKeyManager {
@@ -1934,7 +1824,6 @@ class SecureKeyManager {
    */
   async initialize() {
     try {
-      console.log("[SecureKeyManager] Initializing...");
       if (!electron.safeStorage.isEncryptionAvailable()) {
         throw new Error("System encryption is not available");
       }
@@ -1942,10 +1831,8 @@ class SecureKeyManager {
       await this.loadProviderConfigs();
       this.isInitialized = true;
       await this.loadEnvironmentVariables();
-      console.log("[SecureKeyManager] Successfully initialized");
       return true;
     } catch (error) {
-      console.error("[SecureKeyManager] Initialization failed:", error);
       this.isInitialized = false;
       throw error;
     }
@@ -1959,14 +1846,11 @@ class SecureKeyManager {
       try {
         const existingKey = await fs.readFile(keyPath);
         this.encryptionKey = existingKey;
-        console.log("[SecureKeyManager] Loaded existing encryption key");
       } catch (error) {
         this.encryptionKey = crypto.randomBytes(32);
         await fs.writeFile(keyPath, this.encryptionKey, { mode: 384 });
-        console.log("[SecureKeyManager] Generated new encryption key");
       }
     } catch (error) {
-      console.error("[SecureKeyManager] Encryption initialization failed:", error);
       throw error;
     }
   }
@@ -1991,10 +1875,8 @@ class SecureKeyManager {
         status: "stored"
       });
       await this.saveProviderConfigs();
-      console.log(`[SecureKeyManager] Stored API key for provider: ${providerId}`);
       return true;
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to store key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -2012,10 +1894,8 @@ class SecureKeyManager {
     try {
       const decryptedData = this.decryptData(providerData.encrypted);
       providerData.lastUsed = Date.now();
-      console.log(`[SecureKeyManager] Retrieved API key for provider: ${providerId}`);
       return decryptedData;
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to retrieve key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -2029,10 +1909,8 @@ class SecureKeyManager {
     try {
       this.providers.delete(providerId);
       await this.saveProviderConfigs();
-      console.log(`[SecureKeyManager] Removed API key for provider: ${providerId}`);
       return true;
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to remove key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -2105,7 +1983,6 @@ class SecureKeyManager {
       }
       return testResult;
     } catch (error) {
-      console.error(`[SecureKeyManager] API test failed for ${providerId}:`, error);
       const providerData = this.providers.get(providerId);
       if (providerData) {
         providerData.status = "error";
@@ -2128,7 +2005,6 @@ class SecureKeyManager {
       updatedAt: Date.now()
     });
     await this.saveProviderConfigs();
-    console.log(`[SecureKeyManager] Updated configuration for provider: ${providerId}`);
     return true;
   }
   /**
@@ -2192,7 +2068,6 @@ class SecureKeyManager {
     if (importedCount > 0) {
       await this.saveProviderConfigs();
     }
-    console.log(`[SecureKeyManager] Imported ${importedCount} provider configurations`);
     return importedCount;
   }
   /**
@@ -2200,7 +2075,6 @@ class SecureKeyManager {
    */
   async loadEnvironmentVariables() {
     try {
-      console.log("[SecureKeyManager] Checking environment variables for API keys...");
       const environmentMappings = {
         "claude": "CLAUDE_API_KEY",
         "openai": "OPENAI_API_KEY",
@@ -2212,26 +2086,19 @@ class SecureKeyManager {
         if (envValue && envValue.trim()) {
           if (!this.hasProviderKey(providerId)) {
             try {
-              console.log(`[SecureKeyManager] Found ${envVarName} in environment, auto-storing...`);
               const keyData = { api_key: envValue.trim() };
               await this.storeProviderKey(providerId, keyData);
               autoStoredCount++;
-              console.log(`[SecureKeyManager] Successfully auto-stored API key for ${providerId}`);
             } catch (error) {
-              console.warn(`[SecureKeyManager] Failed to auto-store ${providerId} key from environment:`, error);
             }
           } else {
-            console.log(`[SecureKeyManager] ${providerId} key already exists, skipping environment auto-store`);
           }
         }
       }
       if (autoStoredCount > 0) {
-        console.log(`[SecureKeyManager] Auto-stored ${autoStoredCount} API keys from environment variables`);
       } else {
-        console.log("[SecureKeyManager] No new API keys found in environment variables");
       }
     } catch (error) {
-      console.warn("[SecureKeyManager] Failed to load environment variables:", error);
     }
   }
   /**
@@ -2287,20 +2154,16 @@ class SecureKeyManager {
       for (const [providerId, config] of Object.entries(configs)) {
         if (this.supportedProviders[providerId]) {
           if (config.encrypted && typeof config.encrypted === "object" && config.encrypted.type === "Buffer") {
-            console.log(`[SecureKeyManager] Migrating old format for ${providerId}`);
             config.encrypted = Buffer.from(config.encrypted.data).toString("base64");
           }
           this.providers.set(providerId, config);
         }
       }
-      console.log(`[SecureKeyManager] Loaded ${this.providers.size} provider configurations`);
       if (this.providers.size > 0) {
         await this.saveProviderConfigs();
       }
     } catch (error) {
-      if (error.code !== "ENOENT") {
-        console.warn("[SecureKeyManager] Failed to load provider configs:", error);
-      }
+      if (error.code !== "ENOENT") ;
     }
   }
   async saveProviderConfigs() {
@@ -2314,9 +2177,7 @@ class SecureKeyManager {
         configs[providerId] = data;
       }
       await fs.writeFile(this.configPath, JSON.stringify(configs, null, 2), { mode: 384 });
-      console.log("[SecureKeyManager] Saved provider configurations");
     } catch (error) {
-      console.error("[SecureKeyManager] Failed to save provider configs:", error);
       throw error;
     }
   }
@@ -2355,9 +2216,7 @@ class SecureKeyManager {
       this.providers.clear();
       this.encryptionKey = null;
       this.isInitialized = false;
-      console.log("[SecureKeyManager] Destroyed successfully");
     } catch (error) {
-      console.error("[SecureKeyManager] Cleanup failed:", error);
     }
   }
 }
@@ -2370,13 +2229,10 @@ electron.app.commandLine.appendSwitch("disable-gpu-compositing");
 electron.app.commandLine.appendSwitch("enable-features", "OverlayScrollbar");
 electron.app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 process.on("uncaughtException", (error) => {
-  console.error("💥 [FATAL] Uncaught Exception:", error);
 });
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("💥 [FATAL] Unhandled Rejection at:", promise, "reason:", reason);
 });
 electron.app.on("render-process-gone", (event, webContents, details) => {
-  console.error("💥 [FATAL] Render process gone:", details);
 });
 class EGDeskTaehwa {
   constructor() {
@@ -2391,41 +2247,32 @@ class EGDeskTaehwa {
   }
   setupApp() {
     electron.app.whenReady().then(async () => {
-      console.log("🚀 Electron 앱 시작됨");
       try {
         await this.chatHistoryStore.initialize();
-        console.log("[MAIN] Chat history store initialized");
       } catch (error) {
-        console.warn("[MAIN] Chat history store initialization failed:", error);
       }
       try {
         await this.secureKeyManager.initialize();
-        console.log("[MAIN] Secure key manager initialized");
         this.langChainService = new LangChainService(this.secureKeyManager);
         await this.langChainService.initialize();
-        console.log("[MAIN] LangChain service initialized");
       } catch (error) {
-        console.warn("[MAIN] Secure key manager initialization failed:", error);
       }
       this.createMainWindow();
       this.setupMenu();
       this.setupIPC();
     });
     electron.app.on("window-all-closed", () => {
-      console.log("🔴 모든 창이 닫힘");
       if (process.platform !== "darwin") {
         electron.app.quit();
       }
     });
     electron.app.on("activate", () => {
-      console.log("🔵 앱 활성화됨");
       if (electron.BrowserWindow.getAllWindows().length === 0) {
         this.createMainWindow();
       }
     });
   }
   createMainWindow() {
-    console.log("📱 Main Window 생성 시작");
     this.mainWindow = new electron.BrowserWindow({
       width: 1600,
       height: 1e3,
@@ -2455,84 +2302,63 @@ class EGDeskTaehwa {
       this.mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
       const rendererPath = path.join(__dirname$1, "../renderer/index.html");
-      console.log(`🔍 Loading renderer from: ${rendererPath}`);
       this.mainWindow.loadFile(rendererPath);
     }
     this.initializeWebContentsManager();
     this.mainWindow.once("ready-to-show", () => {
-      console.log("🎉 Main Window 표시 준비 완료");
       this.mainWindow.show();
     });
     this.mainWindow.webContents.once("did-finish-load", () => {
-      console.log("✅ 페이지 로딩 완료");
     });
     this.mainWindow.on("closed", () => {
-      console.log("❌ Main Window 닫힘");
       this.webContentsManager.destroy();
       this.chatHistoryStore.destroy();
       this.mainWindow = null;
     });
     this.mainWindow.webContents.on("render-process-gone", (event, details) => {
-      console.error("💥 [CRASH] Render process gone:", details);
-      console.error("💥 [CRASH] Reason:", details.reason);
-      console.error("💥 [CRASH] Exit code:", details.exitCode);
     });
     this.mainWindow.on("unresponsive", () => {
-      console.error("💥 [CRASH] Window became unresponsive!");
     });
-    console.log("📱 Main Window 생성 완료");
   }
   initializeWebContentsManager() {
-    console.log("🌐 WebContentsManager 초기화");
     this.webContentsManager.initialize(this.mainWindow);
   }
   async setupBlogWorkspace() {
-    console.log("🚀 블로그 워크스페이스 설정");
     try {
       const tabId = await this.webContentsManager.createTab("https://m8chaa.mycafe24.com/");
       await this.webContentsManager.switchTab(tabId);
       this.currentTabId = tabId;
-      console.log(`[EGDeskTaehwa] Blog workspace ready with tab ${tabId} - bounds will be updated by BrowserTabComponent`);
     } catch (error) {
-      console.error("[EGDeskTaehwa] Failed to setup blog workspace:", error);
     }
   }
   hideWebContentsView() {
-    console.log("🙈 WebContents View 숨김");
     if (this.currentTabId && this.webContentsManager) {
       try {
         const currentView = this.webContentsManager.webContentsViews.get(this.currentTabId);
         if (currentView) {
           if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
             this.mainWindow.contentView.removeChildView(currentView);
-            console.log("🙈 Successfully removed WebContentsView with contentView");
           }
         }
       } catch (error) {
-        console.error("🙈 Failed to remove WebContentsView:", error);
       }
     }
     this.currentTabId = null;
   }
   setupWebContentsEvents() {
     this.webContentsManager.on("navigation", (data) => {
-      console.log("🧭 Browser 네비게이션:", data.url);
       this.mainWindow.webContents.send("browser-navigated", data);
     });
     this.webContentsManager.on("loading-failed", (data) => {
-      console.error("❌ Browser 로드 실패:", data.errorDescription);
       this.mainWindow.webContents.send("browser-load-failed", data);
     });
     this.webContentsManager.on("loading-finished", (data) => {
-      console.log("✅ Browser 로드 완료");
       this.mainWindow.webContents.send("browser-load-finished", data);
     });
     this.webContentsManager.on("loading-started", (data) => {
-      console.log("🔄 Browser 로드 시작");
       this.mainWindow.webContents.send("browser-load-started", data);
     });
     this.webContentsManager.on("loading-stopped", (data) => {
-      console.log("⏹️ Browser 로드 중지");
       this.mainWindow.webContents.send("browser-load-stopped", data);
     });
   }
@@ -2615,13 +2441,10 @@ class EGDeskTaehwa {
     electron.Menu.setApplicationMenu(menu);
   }
   setupIPC() {
-    console.log("[MAIN] Setting up IPC handlers");
     electron.ipcMain.handle("store-get", (event, key) => {
-      console.log(`[MAIN] IPC store-get: ${key}`);
       return store.get(key);
     });
     electron.ipcMain.handle("store-set", (event, key, value) => {
-      console.log(`[MAIN] IPC store-set: ${key}`);
       store.set(key, value);
       return true;
     });
@@ -2631,61 +2454,45 @@ class EGDeskTaehwa {
       console[level](`${prefix} [${timestamp}] ${message}`);
     });
     electron.ipcMain.handle("switch-workspace", async (event, workspace) => {
-      console.log(`[MAIN] IPC switch-workspace received: ${workspace}`);
       this.currentWorkspace = workspace;
       if (workspace === "blog") {
-        console.log("[MAIN] Setting up blog workspace");
         await this.setupBlogWorkspace();
       } else {
-        console.log("[MAIN] Hiding web contents view");
         this.hideWebContentsView();
       }
-      console.log(`[MAIN] Workspace switched to ${workspace}`);
       return { success: true, workspace };
     });
     electron.ipcMain.handle("browser-create-tab", async (event, { url: url2, options }) => {
-      console.log(`[MAIN] IPC browser-create-tab: ${url2}`);
       try {
         const tabId = await this.webContentsManager.createTab(url2, options);
-        console.log(`[MAIN] Browser tab created: ${tabId}`);
         return { success: true, tabId, url: url2 };
       } catch (error) {
-        console.error(`[MAIN] Browser tab creation failed: ${error}`);
         throw error;
       }
     });
     electron.ipcMain.handle("browser-switch-tab", async (event, { tabId }) => {
-      console.log(`[MAIN] IPC browser-switch-tab: ${tabId}`);
       try {
         const result = await this.webContentsManager.switchTab(tabId);
-        console.log(`[MAIN] Browser tab switched: ${tabId}`);
         return result;
       } catch (error) {
-        console.error(`[MAIN] Browser tab switch failed: ${error}`);
         throw error;
       }
     });
     electron.ipcMain.handle("browser-load-url", async (event, { url: url2, tabId }) => {
-      console.log(`[MAIN] IPC browser-load-url: ${url2} in tab: ${tabId || "current"}`);
       try {
         const result = await this.webContentsManager.loadURL(url2, tabId);
-        console.log(`[MAIN] Browser URL loaded: ${url2}`);
         return result;
       } catch (error) {
-        console.error(`[MAIN] Browser URL load failed: ${error}`);
         throw error;
       }
     });
     electron.ipcMain.handle("browser-go-back", async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-go-back for tab: ${tabId || "current"}`);
       return await this.webContentsManager.goBack(tabId);
     });
     electron.ipcMain.handle("browser-go-forward", async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-go-forward for tab: ${tabId || "current"}`);
       return await this.webContentsManager.goForward(tabId);
     });
     electron.ipcMain.handle("browser-reload", async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-reload for tab: ${tabId || "current"}`);
       return await this.webContentsManager.reload(tabId);
     });
     electron.ipcMain.handle("browser-can-go-back", (event) => {
@@ -2701,45 +2508,35 @@ class EGDeskTaehwa {
       return state.url;
     });
     electron.ipcMain.handle("browser-execute-script", async (event, { script, tabId }) => {
-      console.log(`[MAIN] IPC browser-execute-script in tab: ${tabId || "current"}`);
       try {
         return await this.webContentsManager.executeScript(script, tabId);
       } catch (error) {
-        console.error("[MAIN] Script execution failed:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("browser-get-navigation-state", (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-get-navigation-state for tab: ${tabId || "current"}`);
       return this.webContentsManager.getNavigationState(tabId);
     });
     electron.ipcMain.handle("browser-close-tab", async (event, { tabId }) => {
-      console.log(`[MAIN] IPC browser-close-tab: ${tabId}`);
       try {
         this.webContentsManager.closeTab(tabId);
-        console.log(`[MAIN] Browser tab closed: ${tabId}`);
         return { success: true, tabId };
       } catch (error) {
-        console.error(`[MAIN] Browser tab close failed: ${error}`);
         throw error;
       }
     });
     electron.ipcMain.handle("browser-update-bounds", (event, bounds) => {
-      console.log(`[MAIN] IPC browser-update-bounds:`, bounds);
       try {
         this.webContentsManager.updateWebContentsViewBounds(bounds);
         return { success: true };
       } catch (error) {
-        console.error(`[MAIN] Failed to update browser bounds:`, error);
         throw error;
       }
     });
     electron.ipcMain.on("window-minimize", () => {
-      console.log("[MAIN] Minimizing window");
       this.mainWindow.minimize();
     });
     electron.ipcMain.on("window-maximize", () => {
-      console.log("[MAIN] Maximizing/unmaximizing window");
       if (this.mainWindow.isMaximized()) {
         this.mainWindow.unmaximize();
       } else {
@@ -2747,115 +2544,90 @@ class EGDeskTaehwa {
       }
     });
     electron.ipcMain.on("window-close", () => {
-      console.log("[MAIN] Closing window");
       this.mainWindow.close();
     });
     electron.ipcMain.handle("storage-get", async (event, key) => {
-      console.log(`[MAIN] IPC storage-get: ${key}`);
       return store.get(key);
     });
     electron.ipcMain.handle("storage-set", async (event, key, value) => {
-      console.log(`[MAIN] IPC storage-set: ${key}`);
       store.set(key, value);
       return true;
     });
     electron.ipcMain.handle("storage-delete", async (event, key) => {
-      console.log(`[MAIN] IPC storage-delete: ${key}`);
       store.delete(key);
       return true;
     });
     electron.ipcMain.handle("storage-has", async (event, key) => {
-      console.log(`[MAIN] IPC storage-has: ${key}`);
       return store.has(key);
     });
     electron.ipcMain.handle("ai-provider-store-key", async (event, { providerId, keyData }) => {
-      console.log(`[MAIN] IPC ai-provider-store-key: ${providerId}`);
       try {
         return await this.secureKeyManager.storeProviderKey(providerId, keyData);
       } catch (error) {
-        console.error("[MAIN] Failed to store provider key:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-get-key", async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-get-key: ${providerId}`);
       try {
         return await this.secureKeyManager.getProviderKey(providerId);
       } catch (error) {
-        console.error("[MAIN] Failed to get provider key:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-remove-key", async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-remove-key: ${providerId}`);
       try {
         return await this.secureKeyManager.removeProviderKey(providerId);
       } catch (error) {
-        console.error("[MAIN] Failed to remove provider key:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-has-key", (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-has-key: ${providerId}`);
       return this.secureKeyManager.hasProviderKey(providerId);
     });
     electron.ipcMain.handle("ai-provider-get-info", (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-get-info: ${providerId}`);
       return this.secureKeyManager.getProviderInfo(providerId);
     });
     electron.ipcMain.handle("ai-provider-get-all", (event) => {
-      console.log("[MAIN] IPC ai-provider-get-all");
       return this.secureKeyManager.getAllProviders();
     });
     electron.ipcMain.handle("ai-provider-test-key", async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-test-key: ${providerId}`);
       try {
         return await this.secureKeyManager.testProviderKey(providerId);
       } catch (error) {
-        console.error("[MAIN] Provider key test failed:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-update-config", async (event, { providerId, config }) => {
-      console.log(`[MAIN] IPC ai-provider-update-config: ${providerId}`);
       try {
         return await this.secureKeyManager.updateProviderConfig(providerId, config);
       } catch (error) {
-        console.error("[MAIN] Failed to update provider config:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-get-stats", (event) => {
-      console.log("[MAIN] IPC ai-provider-get-stats");
       return this.secureKeyManager.getProviderStats();
     });
     electron.ipcMain.handle("ai-provider-export-config", async (event) => {
-      console.log("[MAIN] IPC ai-provider-export-config");
       try {
         return await this.secureKeyManager.exportConfig();
       } catch (error) {
-        console.error("[MAIN] Failed to export provider config:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("ai-provider-import-config", async (event, { importData }) => {
-      console.log("[MAIN] IPC ai-provider-import-config");
       try {
         return await this.secureKeyManager.importConfig(importData);
       } catch (error) {
-        console.error("[MAIN] Failed to import provider config:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("langchain-send-message", async (event, { message, conversationHistory, systemPrompt }) => {
-      console.log("[MAIN] IPC langchain-send-message");
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error("LangChain service not initialized");
         }
         return await this.langChainService.sendMessage(message, conversationHistory, systemPrompt);
       } catch (error) {
-        console.error("[MAIN] LangChain send message failed:", error);
         return {
           success: false,
           error: error.message,
@@ -2865,7 +2637,6 @@ class EGDeskTaehwa {
       }
     });
     electron.ipcMain.handle("langchain-stream-message", async (event, { message, conversationHistory, systemPrompt }) => {
-      console.log("[MAIN] IPC langchain-stream-message");
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error("LangChain service not initialized");
@@ -2879,7 +2650,6 @@ class EGDeskTaehwa {
           }
         );
       } catch (error) {
-        console.error("[MAIN] LangChain stream message failed:", error);
         return {
           success: false,
           error: error.message,
@@ -2889,31 +2659,26 @@ class EGDeskTaehwa {
       }
     });
     electron.ipcMain.handle("langchain-switch-provider", async (event, { providerId, modelId }) => {
-      console.log(`[MAIN] IPC langchain-switch-provider: ${providerId}, model: ${modelId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error("LangChain service not initialized");
         }
         return await this.langChainService.switchProvider(providerId, modelId);
       } catch (error) {
-        console.error("[MAIN] LangChain switch provider failed:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("langchain-get-providers", (event) => {
-      console.log("[MAIN] IPC langchain-get-providers");
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return [];
         }
         return this.langChainService.getAvailableProviders();
       } catch (error) {
-        console.error("[MAIN] LangChain get providers failed:", error);
         return [];
       }
     });
     electron.ipcMain.handle("langchain-get-current-status", (event) => {
-      console.log("[MAIN] IPC langchain-get-current-status");
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return {
@@ -2925,7 +2690,6 @@ class EGDeskTaehwa {
         }
         return this.langChainService.getCurrentProviderStatus();
       } catch (error) {
-        console.error("[MAIN] LangChain get current status failed:", error);
         return {
           provider: null,
           model: null,
@@ -2936,14 +2700,12 @@ class EGDeskTaehwa {
       }
     });
     electron.ipcMain.handle("langchain-test-provider", async (event, { providerId }) => {
-      console.log(`[MAIN] IPC langchain-test-provider: ${providerId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error("LangChain service not initialized");
         }
         return await this.langChainService.testProvider(providerId);
       } catch (error) {
-        console.error("[MAIN] LangChain test provider failed:", error);
         return {
           success: false,
           provider: providerId,
@@ -2952,31 +2714,26 @@ class EGDeskTaehwa {
       }
     });
     electron.ipcMain.handle("langchain-get-provider-models", (event, { providerId }) => {
-      console.log(`[MAIN] IPC langchain-get-provider-models: ${providerId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return [];
         }
         return this.langChainService.getProviderModels(providerId);
       } catch (error) {
-        console.error("[MAIN] LangChain get provider models failed:", error);
         return [];
       }
     });
     electron.ipcMain.handle("langchain-update-provider-model", async (event, { providerId, modelId }) => {
-      console.log(`[MAIN] IPC langchain-update-provider-model: ${providerId}, model: ${modelId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error("LangChain service not initialized");
         }
         return await this.langChainService.updateProviderModel(providerId, modelId);
       } catch (error) {
-        console.error("[MAIN] LangChain update provider model failed:", error);
         throw error;
       }
     });
     electron.ipcMain.handle("langchain-reset-session-costs", (event) => {
-      console.log("[MAIN] IPC langchain-reset-session-costs");
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return false;
@@ -2984,7 +2741,6 @@ class EGDeskTaehwa {
         this.langChainService.resetSessionCosts();
         return true;
       } catch (error) {
-        console.error("[MAIN] LangChain reset session costs failed:", error);
         return false;
       }
     });

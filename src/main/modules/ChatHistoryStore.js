@@ -106,7 +106,6 @@ class ChatHistoryStore {
    */
   async initialize() {
     try {
-      console.log('[ChatHistoryStore] Initializing...');
 
       // Initialize electron-store
       this.store = new Store(this.options);
@@ -121,11 +120,9 @@ class ChatHistoryStore {
       await this.validateAndRepairData();
 
       this.isInitialized = true;
-      console.log('[ChatHistoryStore] Successfully initialized');
 
       return true;
     } catch (error) {
-      console.error('[ChatHistoryStore] Initialization failed:', error);
       throw error;
     }
   }
@@ -160,7 +157,6 @@ class ChatHistoryStore {
       this.ipcHandlers.set(channel, handler);
     });
 
-    console.log(`[ChatHistoryStore] Registered ${Object.keys(handlers).length} IPC handlers`);
   }
 
   /**
@@ -196,7 +192,6 @@ class ChatHistoryStore {
         this.store.set('metadata', metadata);
       }
 
-      console.log(`[ChatHistoryStore] Saved conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -206,7 +201,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Save conversation failed:', error);
       return {
         success: false,
         error: error.message
@@ -233,7 +227,6 @@ class ChatHistoryStore {
         };
       }
 
-      console.log(`[ChatHistoryStore] Loaded conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -241,7 +234,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Load conversation failed:', error);
       return {
         success: false,
         error: error.message
@@ -284,7 +276,6 @@ class ChatHistoryStore {
         });
       }
 
-      console.log(`[ChatHistoryStore] Listed ${paginatedList.length} of ${total} conversations`);
 
       return {
         success: true,
@@ -298,7 +289,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] List conversations failed:', error);
       return {
         success: false,
         error: error.message
@@ -336,7 +326,6 @@ class ChatHistoryStore {
       metadata.lastModified = Date.now();
       this.store.set('metadata', metadata);
 
-      console.log(`[ChatHistoryStore] Deleted conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -349,7 +338,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Delete conversation failed:', error);
       return {
         success: false,
         error: error.message
@@ -425,7 +413,6 @@ class ChatHistoryStore {
       results.messages = results.messages.slice(0, limit * 2);
       results.totalFound = results.conversations.length;
 
-      console.log(`[ChatHistoryStore] Search completed: "${query}" found ${results.totalFound} results`);
 
       return {
         success: true,
@@ -434,7 +421,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Search failed:', error);
       return {
         success: false,
         error: error.message
@@ -472,7 +458,6 @@ class ChatHistoryStore {
       conversations[conversationId] = conversation;
       this.store.set('conversations', conversations);
 
-      console.log(`[ChatHistoryStore] Added message to conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -482,7 +467,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Add message failed:', error);
       return {
         success: false,
         error: error.message
@@ -526,7 +510,6 @@ class ChatHistoryStore {
       conversations[conversationId] = conversation;
       this.store.set('conversations', conversations);
 
-      console.log(`[ChatHistoryStore] Updated message: ${messageId} in conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -536,7 +519,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Update message failed:', error);
       return {
         success: false,
         error: error.message
@@ -576,7 +558,6 @@ class ChatHistoryStore {
       conversations[conversationId] = conversation;
       this.store.set('conversations', conversations);
 
-      console.log(`[ChatHistoryStore] Deleted message: ${messageId} from conversation: ${conversationId}`);
 
       return {
         success: true,
@@ -587,7 +568,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Delete message failed:', error);
       return {
         success: false,
         error: error.message
@@ -617,7 +597,6 @@ class ChatHistoryStore {
       sessions[sessionId] = session;
       this.store.set('sessions', sessions);
 
-      console.log(`[ChatHistoryStore] Created session: ${sessionId}`);
 
       return {
         success: true,
@@ -626,7 +605,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Create session failed:', error);
       return {
         success: false,
         error: error.message
@@ -661,7 +639,6 @@ class ChatHistoryStore {
 
       this.store.set('sessions', sessions);
 
-      console.log(`[ChatHistoryStore] Updated session: ${sessionId}`);
 
       return {
         success: true,
@@ -670,7 +647,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Update session failed:', error);
       return {
         success: false,
         error: error.message
@@ -699,7 +675,6 @@ class ChatHistoryStore {
         sessionList = sessionList.slice(0, limit);
       }
 
-      console.log(`[ChatHistoryStore] Listed ${sessionList.length} sessions`);
 
       return {
         success: true,
@@ -708,7 +683,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] List sessions failed:', error);
       return {
         success: false,
         error: error.message
@@ -747,7 +721,6 @@ class ChatHistoryStore {
         exportData = this.convertToJSONL(exportData);
       }
 
-      console.log(`[ChatHistoryStore] Exported data in ${format} format`);
 
       return {
         success: true,
@@ -757,7 +730,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Export data failed:', error);
       return {
         success: false,
         error: error.message
@@ -809,7 +781,6 @@ class ChatHistoryStore {
 
       const importedCount = Object.keys(importData.conversations || {}).length;
 
-      console.log(`[ChatHistoryStore] Imported ${importedCount} conversations`);
 
       return {
         success: true,
@@ -819,7 +790,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Import data failed:', error);
       return {
         success: false,
         error: error.message
@@ -849,7 +819,6 @@ class ChatHistoryStore {
       metadata.lastBackup = timestamp;
       this.store.set('metadata', metadata);
 
-      console.log('[ChatHistoryStore] Created backup');
 
       return {
         success: true,
@@ -859,7 +828,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Backup failed:', error);
       return {
         success: false,
         error: error.message
@@ -906,7 +874,6 @@ class ChatHistoryStore {
 
       const conversationCount = Object.keys(this.store.get('conversations', {})).length;
 
-      console.log(`[ChatHistoryStore] Restored backup with ${conversationCount} conversations`);
 
       return {
         success: true,
@@ -916,7 +883,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Restore failed:', error);
       return {
         success: false,
         error: error.message
@@ -951,7 +917,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Get metadata failed:', error);
       return {
         success: false,
         error: error.message
@@ -1018,7 +983,6 @@ class ChatHistoryStore {
       metadata.lastCleanup = Date.now();
       this.store.set('metadata', metadata);
 
-      console.log(`[ChatHistoryStore] Cleanup completed: ${deletedConversations} conversations, ${deletedSessions} sessions deleted`);
 
       return {
         success: true,
@@ -1029,7 +993,6 @@ class ChatHistoryStore {
       };
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Cleanup failed:', error);
       return {
         success: false,
         error: error.message
@@ -1129,7 +1092,6 @@ class ChatHistoryStore {
           result.sessions[data.id] = data;
         }
       } catch (error) {
-        console.warn('[ChatHistoryStore] Failed to parse JSONL line:', line);
       }
     });
 
@@ -1182,11 +1144,9 @@ class ChatHistoryStore {
       if (repaired) {
         this.store.set('conversations', conversations);
         this.store.set('sessions', sessions);
-        console.log('[ChatHistoryStore] Data validation and repair completed');
       }
 
     } catch (error) {
-      console.error('[ChatHistoryStore] Data validation failed:', error);
     }
   }
 
@@ -1199,11 +1159,9 @@ class ChatHistoryStore {
       try {
         await this.handleBackup(null, { includeMetadata: true });
       } catch (error) {
-        console.error('[ChatHistoryStore] Auto-backup failed:', error);
       }
     }, 6 * 60 * 60 * 1000);
 
-    console.log('[ChatHistoryStore] Auto-backup timer started');
   }
 
   /**
@@ -1265,7 +1223,6 @@ class ChatHistoryStore {
     this.isInitialized = false;
     this.store = null;
 
-    console.log('[ChatHistoryStore] Destroyed');
   }
 }
 

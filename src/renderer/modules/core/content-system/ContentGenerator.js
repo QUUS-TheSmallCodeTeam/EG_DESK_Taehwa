@@ -29,19 +29,16 @@ class ContentGenerator extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[ContentGenerator] Initializing...');
       
       if (!this.claudeIntegration?.isInitialized) {
         throw new Error('Claude integration not initialized');
       }
       
       this.isInitialized = true;
-      console.log('[ContentGenerator] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[ContentGenerator] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -56,7 +53,6 @@ class ContentGenerator extends EventEmitter {
     }
 
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting blog generation: ${generationId}`);
     
     try {
       this.emit('generation-started', { id: generationId, type: 'blog', request });
@@ -103,13 +99,11 @@ class ContentGenerator extends EventEmitter {
 
       this.generationHistory.push(result);
       
-      console.log(`[ContentGenerator] Blog generation completed: ${generationId}`);
       this.emit('generation-completed', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[ContentGenerator] Blog generation failed: ${generationId}`, error);
       this.emit('generation-failed', { id: generationId, error: error.message });
       throw error;
     }
@@ -124,7 +118,6 @@ class ContentGenerator extends EventEmitter {
     }
 
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting SEO content generation: ${generationId}`);
     
     try {
       this.emit('generation-started', { id: generationId, type: 'seo', request });
@@ -160,13 +153,11 @@ class ContentGenerator extends EventEmitter {
 
       this.generationHistory.push(result);
       
-      console.log(`[ContentGenerator] SEO content generation completed: ${generationId}`);
       this.emit('generation-completed', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[ContentGenerator] SEO content generation failed: ${generationId}`, error);
       this.emit('generation-failed', { id: generationId, error: error.message });
       throw error;
     }
@@ -181,7 +172,6 @@ class ContentGenerator extends EventEmitter {
     }
 
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting product description generation: ${generationId}`);
     
     try {
       this.emit('generation-started', { id: generationId, type: 'product-description', product });
@@ -231,13 +221,11 @@ class ContentGenerator extends EventEmitter {
 
       this.generationHistory.push(result);
       
-      console.log(`[ContentGenerator] Product description generation completed: ${generationId}`);
       this.emit('generation-completed', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[ContentGenerator] Product description generation failed: ${generationId}`, error);
       this.emit('generation-failed', { id: generationId, error: error.message });
       throw error;
     }
@@ -252,7 +240,6 @@ class ContentGenerator extends EventEmitter {
     }
 
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting technical documentation generation: ${generationId}`);
     
     try {
       this.emit('generation-started', { id: generationId, type: 'technical-doc', request });
@@ -303,13 +290,11 @@ class ContentGenerator extends EventEmitter {
 
       this.generationHistory.push(result);
       
-      console.log(`[ContentGenerator] Technical documentation generation completed: ${generationId}`);
       this.emit('generation-completed', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[ContentGenerator] Technical documentation generation failed: ${generationId}`, error);
       this.emit('generation-failed', { id: generationId, error: error.message });
       throw error;
     }
@@ -434,7 +419,6 @@ HTML 형식으로 작성하고, SEO 메타데이터를 별도로 제공해 주�
    */
   clearHistory() {
     this.generationHistory = [];
-    console.log('[ContentGenerator] Generation history cleared');
     this.emit('history-cleared');
   }
 
@@ -452,7 +436,6 @@ HTML 형식으로 작성하고, SEO 메타데이터를 별도로 제공해 주�
     this.generationHistory = [];
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[ContentGenerator] Destroyed');
   }
 }
 

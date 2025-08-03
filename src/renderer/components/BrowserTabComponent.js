@@ -14,84 +14,34 @@ class BrowserTabComponent {
     this.elements = {};
     this.isInitialized = false;
     this.currentTabId = null;
-    
-    console.log(`[BrowserTabComponent] Constructor called with:`, {
-      containerId,
-      webContentsManager: !!webContentsManager,
-      webContentsManagerType: typeof webContentsManager
-    });
   }
 
   /**
    * Initialize the browser tab component
    */
   async initialize() {
-    console.log(`[BrowserTabComponent] ⚡ Starting initialization for: ${this.containerId}`);
-    
-    // Extensive container debugging
-    console.log(`[BrowserTabComponent] Searching for container: ${this.containerId}`);
-    console.log(`[BrowserTabComponent] Document ready state:`, document.readyState);
-    console.log(`[BrowserTabComponent] All elements with 'container' in ID:`, 
-      Array.from(document.querySelectorAll('[id*="container"]')).map(el => ({ id: el.id, className: el.className })));
-    
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[BrowserTabComponent] ❌ FATAL: Container with ID "${this.containerId}" not found`);
-      
-      // More comprehensive debugging
-      console.log(`[BrowserTabComponent] All elements by querySelector:`, 
-        Array.from(document.querySelectorAll('*')).filter(el => el.id).map(el => el.id));
-      console.log(`[BrowserTabComponent] Body innerHTML length:`, document.body.innerHTML.length);
-      console.log(`[BrowserTabComponent] Available IDs:`, 
-        Array.from(document.querySelectorAll('[id]')).map(el => el.id));
-      
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
 
-    console.log(`[BrowserTabComponent] Found container:`, {
-      id: this.container.id,
-      offsetWidth: this.container.offsetWidth,
-      offsetHeight: this.container.offsetHeight,
-      clientWidth: this.container.clientWidth,
-      clientHeight: this.container.clientHeight
-    });
-
     try {
-      console.log(`[BrowserTabComponent] 🎨 Starting render...`);
       this.render();
-      console.log(`[BrowserTabComponent] ✅ Render completed successfully`);
       
-      console.log(`[BrowserTabComponent] 🎯 Setting up event listeners...`);
       this.setupEventListeners();
-      console.log(`[BrowserTabComponent] ✅ Event listeners setup completed`);
       
-      console.log(`[BrowserTabComponent] 🌐 Setting up WebContents events...`);
       this.setupWebContentsEvents();
-      console.log(`[BrowserTabComponent] ✅ WebContents events setup completed`);
       
       // Force initial bounds calculation after DOM is ready
-      console.log(`[BrowserTabComponent] 📐 Calculating initial bounds...`);
       setTimeout(() => {
         try {
-          console.log(`[BrowserTabComponent] 📐 Attempting bounds calculation...`);
           this.updateWebContentsViewBounds();
-          console.log(`[BrowserTabComponent] ✅ Initial bounds update completed`);
         } catch (boundsError) {
-          console.error(`[BrowserTabComponent] ❌ Initial bounds calculation failed:`, boundsError);
         }
       }, 200);
       
       this.isInitialized = true;
-      console.log(`[BrowserTabComponent] 🎉 Initialization completed successfully for: ${this.containerId}`);
     } catch (error) {
-      console.error(`[BrowserTabComponent] ❌ FATAL: Initialization failed:`, error);
-      console.error(`[BrowserTabComponent] Error details:`, {
-        message: error.message,
-        stack: error.stack,
-        containerId: this.containerId,
-        containerExists: !!this.container,
-        webContentsManager: !!this.webContentsManager
-      });
       throw error;
     }
   }
@@ -100,15 +50,6 @@ class BrowserTabComponent {
    * Render the browser tab component HTML
    */
   render() {
-    // CSS 클래스 적용 디버깅
-    console.log('[CSS-DEBUG] BrowserTabComponent render() - Starting render process');
-    console.log('[CSS-DEBUG] Container classes before render:', this.container.className);
-    console.log('[CSS-DEBUG] Container computed styles:', {
-      display: window.getComputedStyle(this.container).display,
-      background: window.getComputedStyle(this.container).backgroundColor,
-      border: window.getComputedStyle(this.container).border
-    });
-    
     this.container.innerHTML = `
       <div class="browser-tab-component">
         <!-- Browser Controls Bar -->
@@ -326,13 +267,11 @@ class BrowserTabComponent {
   calculateWebContentsViewBounds() {
     const viewport = this.container.querySelector('.browser-viewport');
     if (!viewport) {
-      console.warn(`[BrowserTabComponent] .browser-viewport not found in container ${this.containerId}`);
       return null;
     }
 
     // Wait for layout to be stable
     if (viewport.offsetWidth === 0 || viewport.offsetHeight === 0) {
-      console.warn(`[BrowserTabComponent] Viewport has zero dimensions, waiting...`);
       return null;
     }
 
@@ -346,14 +285,9 @@ class BrowserTabComponent {
       height: Math.round(viewportRect.height)
     };
 
-    console.log(`[BrowserTabComponent] Calculated precise bounds:`, bounds);
-    console.log(`[BrowserTabComponent] Container:`, this.container.getBoundingClientRect());
-    console.log(`[BrowserTabComponent] Viewport rect:`, viewportRect);
-    console.log(`[BrowserTabComponent] Viewport offsetWidth/Height:`, viewport.offsetWidth, viewport.offsetHeight);
     
     // Validate bounds make sense
     if (bounds.width <= 0 || bounds.height <= 0) {
-      console.warn(`[BrowserTabComponent] Invalid bounds calculated:`, bounds);
       return null;
     }
     
@@ -369,13 +303,11 @@ class BrowserTabComponent {
     const bounds = this.calculateWebContentsViewBounds();
     if (!bounds) {
       if (retryCount < 5) { // Increase retries
-        console.warn(`[BrowserTabComponent] Could not calculate bounds, retrying in 200ms (attempt ${retryCount + 1}/5)`);
         setTimeout(() => {
           this.updateWebContentsViewBounds(retryCount + 1);
         }, 200); // Increase delay to allow more time for DOM readiness
         return;
       } else {
-        console.warn('[BrowserTabComponent] Failed to calculate bounds after 5 attempts, using fallback');
         this.webContentsManager.updateWebContentsViewBounds();
         return;
       }
@@ -383,14 +315,12 @@ class BrowserTabComponent {
 
     // Check if DOM is ready before updating bounds
     if (document.readyState !== 'complete') {
-      console.warn('[BrowserTabComponent] Document not fully ready, delaying bounds update');
       setTimeout(() => {
         this.updateWebContentsViewBounds(retryCount);
       }, 100);
       return;
     }
 
-    console.log(`[BrowserTabComponent] Sending precise bounds to WebContentsManager:`, bounds);
     // Request WebContentsManager to update bounds with our calculated values
     this.webContentsManager.updateWebContentsViewBounds(bounds);
   }
@@ -422,10 +352,8 @@ class BrowserTabComponent {
         });
       }
       
-      console.log(`[BrowserTabComponent] Created and activated tab: ${tabId}`);
       return tabId;
     } catch (error) {
-      console.error('[BrowserTabComponent] Failed to create tab:', error);
       this.showError(`탭 생성 실패: ${error.message}`);
       throw error;
     }
@@ -436,7 +364,6 @@ class BrowserTabComponent {
    */
   async navigateToURL(url) {
     if (!url || !url.trim()) {
-      console.warn('[BrowserTabComponent] Empty URL provided');
       return;
     }
 
@@ -451,9 +378,7 @@ class BrowserTabComponent {
         await this.webContentsManager.loadURL(validatedUrl, this.currentTabId);
       }
       
-      console.log(`[BrowserTabComponent] Navigated to: ${validatedUrl}`);
     } catch (error) {
-      console.error('[BrowserTabComponent] Navigation failed:', error);
       this.showError(`탐색 실패: ${error.message}`);
     }
   }
@@ -500,7 +425,6 @@ class BrowserTabComponent {
       }
       return success;
     } catch (error) {
-      console.error('[BrowserTabComponent] Go back failed:', error);
       return false;
     }
   }
@@ -515,7 +439,6 @@ class BrowserTabComponent {
       }
       return success;
     } catch (error) {
-      console.error('[BrowserTabComponent] Go forward failed:', error);
       return false;
     }
   }
@@ -526,7 +449,6 @@ class BrowserTabComponent {
     try {
       return await this.webContentsManager.reload(this.currentTabId);
     } catch (error) {
-      console.error('[BrowserTabComponent] Reload failed:', error);
       return false;
     }
   }
@@ -579,7 +501,6 @@ class BrowserTabComponent {
   }
 
   showError(message) {
-    console.error('[BrowserTabComponent]', message);
     // Could implement a toast notification or status bar here
   }
 
@@ -606,15 +527,11 @@ class BrowserTabComponent {
    * Load initial URL (call after initialization)
    */
   async loadInitialURL() {
-    console.log(`[BrowserTabComponent] 🚀 loadInitialURL called`);
     const initialUrl = this.elements.addressBar?.value || 'https://m8chaa.mycafe24.com/';
-    console.log(`[BrowserTabComponent] 🌐 Loading initial URL: ${initialUrl}`);
     
     try {
       await this.navigateToURL(initialUrl);
-      console.log(`[BrowserTabComponent] ✅ Initial URL loaded successfully: ${initialUrl}`);
     } catch (error) {
-      console.error(`[BrowserTabComponent] ❌ Failed to load initial URL:`, error);
       throw error;
     }
   }
@@ -634,7 +551,6 @@ class BrowserTabComponent {
     this.currentTabId = null;
     this.isInitialized = false;
     
-    console.log(`[BrowserTabComponent] Destroyed: ${this.containerId}`);
   }
 }
 

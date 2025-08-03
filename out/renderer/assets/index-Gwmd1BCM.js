@@ -6,75 +6,27 @@ class BrowserTabComponent {
     this.elements = {};
     this.isInitialized = false;
     this.currentTabId = null;
-    console.log(`[BrowserTabComponent] Constructor called with:`, {
-      containerId,
-      webContentsManager: !!webContentsManager,
-      webContentsManagerType: typeof webContentsManager
-    });
   }
   /**
    * Initialize the browser tab component
    */
   async initialize() {
-    console.log(`[BrowserTabComponent] ⚡ Starting initialization for: ${this.containerId}`);
-    console.log(`[BrowserTabComponent] Searching for container: ${this.containerId}`);
-    console.log(`[BrowserTabComponent] Document ready state:`, document.readyState);
-    console.log(
-      `[BrowserTabComponent] All elements with 'container' in ID:`,
-      Array.from(document.querySelectorAll('[id*="container"]')).map((el) => ({ id: el.id, className: el.className }))
-    );
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[BrowserTabComponent] ❌ FATAL: Container with ID "${this.containerId}" not found`);
-      console.log(
-        `[BrowserTabComponent] All elements by querySelector:`,
-        Array.from(document.querySelectorAll("*")).filter((el) => el.id).map((el) => el.id)
-      );
-      console.log(`[BrowserTabComponent] Body innerHTML length:`, document.body.innerHTML.length);
-      console.log(
-        `[BrowserTabComponent] Available IDs:`,
-        Array.from(document.querySelectorAll("[id]")).map((el) => el.id)
-      );
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
-    console.log(`[BrowserTabComponent] Found container:`, {
-      id: this.container.id,
-      offsetWidth: this.container.offsetWidth,
-      offsetHeight: this.container.offsetHeight,
-      clientWidth: this.container.clientWidth,
-      clientHeight: this.container.clientHeight
-    });
     try {
-      console.log(`[BrowserTabComponent] 🎨 Starting render...`);
       this.render();
-      console.log(`[BrowserTabComponent] ✅ Render completed successfully`);
-      console.log(`[BrowserTabComponent] 🎯 Setting up event listeners...`);
       this.setupEventListeners();
-      console.log(`[BrowserTabComponent] ✅ Event listeners setup completed`);
-      console.log(`[BrowserTabComponent] 🌐 Setting up WebContents events...`);
       this.setupWebContentsEvents();
-      console.log(`[BrowserTabComponent] ✅ WebContents events setup completed`);
-      console.log(`[BrowserTabComponent] 📐 Calculating initial bounds...`);
       setTimeout(() => {
         try {
-          console.log(`[BrowserTabComponent] 📐 Attempting bounds calculation...`);
           this.updateWebContentsViewBounds();
-          console.log(`[BrowserTabComponent] ✅ Initial bounds update completed`);
         } catch (boundsError) {
-          console.error(`[BrowserTabComponent] ❌ Initial bounds calculation failed:`, boundsError);
         }
       }, 200);
       this.isInitialized = true;
-      console.log(`[BrowserTabComponent] 🎉 Initialization completed successfully for: ${this.containerId}`);
     } catch (error) {
-      console.error(`[BrowserTabComponent] ❌ FATAL: Initialization failed:`, error);
-      console.error(`[BrowserTabComponent] Error details:`, {
-        message: error.message,
-        stack: error.stack,
-        containerId: this.containerId,
-        containerExists: !!this.container,
-        webContentsManager: !!this.webContentsManager
-      });
       throw error;
     }
   }
@@ -82,13 +34,6 @@ class BrowserTabComponent {
    * Render the browser tab component HTML
    */
   render() {
-    console.log("[CSS-DEBUG] BrowserTabComponent render() - Starting render process");
-    console.log("[CSS-DEBUG] Container classes before render:", this.container.className);
-    console.log("[CSS-DEBUG] Container computed styles:", {
-      display: window.getComputedStyle(this.container).display,
-      background: window.getComputedStyle(this.container).backgroundColor,
-      border: window.getComputedStyle(this.container).border
-    });
     this.container.innerHTML = `
       <div class="browser-tab-component">
         <!-- Browser Controls Bar -->
@@ -267,11 +212,9 @@ class BrowserTabComponent {
   calculateWebContentsViewBounds() {
     const viewport = this.container.querySelector(".browser-viewport");
     if (!viewport) {
-      console.warn(`[BrowserTabComponent] .browser-viewport not found in container ${this.containerId}`);
       return null;
     }
     if (viewport.offsetWidth === 0 || viewport.offsetHeight === 0) {
-      console.warn(`[BrowserTabComponent] Viewport has zero dimensions, waiting...`);
       return null;
     }
     const viewportRect = viewport.getBoundingClientRect();
@@ -281,12 +224,7 @@ class BrowserTabComponent {
       width: Math.round(viewportRect.width),
       height: Math.round(viewportRect.height)
     };
-    console.log(`[BrowserTabComponent] Calculated precise bounds:`, bounds);
-    console.log(`[BrowserTabComponent] Container:`, this.container.getBoundingClientRect());
-    console.log(`[BrowserTabComponent] Viewport rect:`, viewportRect);
-    console.log(`[BrowserTabComponent] Viewport offsetWidth/Height:`, viewport.offsetWidth, viewport.offsetHeight);
     if (bounds.width <= 0 || bounds.height <= 0) {
-      console.warn(`[BrowserTabComponent] Invalid bounds calculated:`, bounds);
       return null;
     }
     return bounds;
@@ -299,25 +237,21 @@ class BrowserTabComponent {
     const bounds = this.calculateWebContentsViewBounds();
     if (!bounds) {
       if (retryCount < 5) {
-        console.warn(`[BrowserTabComponent] Could not calculate bounds, retrying in 200ms (attempt ${retryCount + 1}/5)`);
         setTimeout(() => {
           this.updateWebContentsViewBounds(retryCount + 1);
         }, 200);
         return;
       } else {
-        console.warn("[BrowserTabComponent] Failed to calculate bounds after 5 attempts, using fallback");
         this.webContentsManager.updateWebContentsViewBounds();
         return;
       }
     }
     if (document.readyState !== "complete") {
-      console.warn("[BrowserTabComponent] Document not fully ready, delaying bounds update");
       setTimeout(() => {
         this.updateWebContentsViewBounds(retryCount);
       }, 100);
       return;
     }
-    console.log(`[BrowserTabComponent] Sending precise bounds to WebContentsManager:`, bounds);
     this.webContentsManager.updateWebContentsViewBounds(bounds);
   }
   /**
@@ -341,10 +275,8 @@ class BrowserTabComponent {
           }, 100);
         });
       }
-      console.log(`[BrowserTabComponent] Created and activated tab: ${tabId}`);
       return tabId;
     } catch (error) {
-      console.error("[BrowserTabComponent] Failed to create tab:", error);
       this.showError(`탭 생성 실패: ${error.message}`);
       throw error;
     }
@@ -354,7 +286,6 @@ class BrowserTabComponent {
    */
   async navigateToURL(url) {
     if (!url || !url.trim()) {
-      console.warn("[BrowserTabComponent] Empty URL provided");
       return;
     }
     try {
@@ -364,9 +295,7 @@ class BrowserTabComponent {
       } else {
         await this.webContentsManager.loadURL(validatedUrl, this.currentTabId);
       }
-      console.log(`[BrowserTabComponent] Navigated to: ${validatedUrl}`);
     } catch (error) {
-      console.error("[BrowserTabComponent] Navigation failed:", error);
       this.showError(`탐색 실패: ${error.message}`);
     }
   }
@@ -404,7 +333,6 @@ class BrowserTabComponent {
       }
       return success;
     } catch (error) {
-      console.error("[BrowserTabComponent] Go back failed:", error);
       return false;
     }
   }
@@ -417,7 +345,6 @@ class BrowserTabComponent {
       }
       return success;
     } catch (error) {
-      console.error("[BrowserTabComponent] Go forward failed:", error);
       return false;
     }
   }
@@ -426,7 +353,6 @@ class BrowserTabComponent {
     try {
       return await this.webContentsManager.reload(this.currentTabId);
     } catch (error) {
-      console.error("[BrowserTabComponent] Reload failed:", error);
       return false;
     }
   }
@@ -465,7 +391,6 @@ class BrowserTabComponent {
     }
   }
   showError(message) {
-    console.error("[BrowserTabComponent]", message);
   }
   /**
    * Get current tab information
@@ -487,14 +412,10 @@ class BrowserTabComponent {
    * Load initial URL (call after initialization)
    */
   async loadInitialURL() {
-    console.log(`[BrowserTabComponent] 🚀 loadInitialURL called`);
     const initialUrl = this.elements.addressBar?.value || "https://m8chaa.mycafe24.com/";
-    console.log(`[BrowserTabComponent] 🌐 Loading initial URL: ${initialUrl}`);
     try {
       await this.navigateToURL(initialUrl);
-      console.log(`[BrowserTabComponent] ✅ Initial URL loaded successfully: ${initialUrl}`);
     } catch (error) {
-      console.error(`[BrowserTabComponent] ❌ Failed to load initial URL:`, error);
       throw error;
     }
   }
@@ -510,7 +431,6 @@ class BrowserTabComponent {
     }
     this.currentTabId = null;
     this.isInitialized = false;
-    console.log(`[BrowserTabComponent] Destroyed: ${this.containerId}`);
   }
 }
 class ChatComponent {
@@ -523,7 +443,6 @@ class ChatComponent {
     this.options = {
       title: options.title || "AI Chat",
       placeholder: options.placeholder || "Type your message...",
-      enableProviderSelection: options.enableProviderSelection !== false,
       enableCostTracking: false,
       enableStreaming: options.enableStreaming !== false,
       maxMessages: options.maxMessages || 100,
@@ -548,7 +467,6 @@ class ChatComponent {
    * Initialize the chat component
    */
   async initialize() {
-    console.log(`[ChatComponent] Initializing messenger-style chat: ${this.containerId}`);
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
       throw new Error(`Container with ID "${this.containerId}" not found`);
@@ -556,13 +474,10 @@ class ChatComponent {
     try {
       this.render();
       this.setupEventListeners();
-      await this.initializeProviders();
       this.displayWelcomeMessage();
       this.isInitialized = true;
-      console.log(`[ChatComponent] Messenger-style chat initialized: ${this.containerId}`);
       return true;
     } catch (error) {
-      console.error(`[ChatComponent] Initialization failed:`, error);
       throw error;
     }
   }
@@ -588,15 +503,6 @@ class ChatComponent {
           </div>
           
           <div class="header-right">
-            ${this.options.enableProviderSelection ? `
-            <div class="provider-controls">
-              <select id="${this.containerId}-provider-select" class="provider-selector">
-                <option value="">Select Provider...</option>
-              </select>
-              <select id="${this.containerId}-model-select" class="model-selector" disabled>
-                <option value="">Select Model...</option>
-              </select>
-            </div>` : ""}
             
             ${this.options.enableCostTracking ? `
             <div class="cost-tracker">
@@ -661,8 +567,6 @@ class ChatComponent {
     this.elements = {
       statusText: document.getElementById(`${this.containerId}-status-text`),
       statusDot: document.getElementById(`${this.containerId}-status-dot`),
-      providerSelect: document.getElementById(`${this.containerId}-provider-select`),
-      modelSelect: document.getElementById(`${this.containerId}-model-select`),
       sessionCost: document.getElementById(`${this.containerId}-session-cost`),
       totalCost: document.getElementById(`${this.containerId}-total-cost`),
       resetCostsBtn: document.getElementById(`${this.containerId}-reset-costs`),
@@ -692,10 +596,9 @@ class ChatComponent {
       "message-bubble",
       "message-content",
       "send-btn",
-      "provider-selector",
       "status-dot"
     ];
-    const missingClasses = requiredClasses.filter((className) => {
+    requiredClasses.filter((className) => {
       const elements = document.getElementsByClassName(className);
       const hasInCSS = Array.from(document.styleSheets).some((sheet) => {
         try {
@@ -708,27 +611,11 @@ class ChatComponent {
       });
       return elements.length === 0 && !hasInCSS;
     });
-    if (missingClasses.length > 0) {
-      console.warn(`[ChatComponent] Missing CSS classes in index.html:`, missingClasses);
-      console.warn(`[ChatComponent] Component may not display correctly without these styles`);
-    } else {
-      console.log(`[ChatComponent] All required CSS classes found in index.html`);
-    }
   }
   /**
    * Setup event listeners
    */
   setupEventListeners() {
-    if (this.elements.providerSelect) {
-      this.elements.providerSelect.addEventListener("change", (e) => {
-        this.handleProviderChange(e.target.value);
-      });
-    }
-    if (this.elements.modelSelect) {
-      this.elements.modelSelect.addEventListener("change", (e) => {
-        this.handleModelChange(e.target.value);
-      });
-    }
     if (this.elements.resetCostsBtn) {
       this.elements.resetCostsBtn.addEventListener("click", () => {
         this.resetSessionCosts();
@@ -775,124 +662,13 @@ class ChatComponent {
         if (window.electronAPI?.chatHistory?.getMetadata) {
           await window.electronAPI.chatHistory.getMetadata();
         }
-        console.log(`[ChatComponent] Backend services ready after ${attempt} attempts`);
         return true;
       } catch (error) {
-        console.warn(`[ChatComponent] Services not ready, attempt ${attempt}/${maxAttempts}:`, error.message);
         if (attempt === maxAttempts) {
-          console.error(`[ChatComponent] Services failed to initialize after ${maxAttempts} attempts`);
           throw new Error("Backend services not available");
         }
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-    }
-  }
-  /**
-   * Initialize available providers
-   */
-  async initializeProviders() {
-    try {
-      if (!window.electronAPI) {
-        throw new Error("Electron API not available");
-      }
-      await this.waitForServicesReady();
-      this.availableProviders = await window.electronAPI.invoke("langchain-get-providers");
-      if (this.availableProviders.length === 0) {
-        throw new Error("No AI providers configured");
-      }
-      if (this.elements.providerSelect) {
-        this.elements.providerSelect.innerHTML = '<option value="">Select Provider...</option>';
-        this.availableProviders.forEach((provider) => {
-          const option = document.createElement("option");
-          option.value = provider.id;
-          const providerNames = {
-            "openai": "ChatGPT",
-            "gemini": "Gemini",
-            "claude": "Claude"
-          };
-          option.textContent = providerNames[provider.id] || provider.name;
-          if (provider.isCurrent) {
-            option.selected = true;
-            this.currentProvider = provider.id;
-          }
-          this.elements.providerSelect.appendChild(option);
-        });
-      }
-      const status = await window.electronAPI.invoke("langchain-get-current-status");
-      this.updateProviderStatus(status);
-      this.updateStatus("Ready", "ready");
-    } catch (error) {
-      console.error("[ChatComponent] Provider initialization failed:", error);
-      this.updateStatus(`Error: ${error.message}`, "error");
-    }
-  }
-  /**
-   * Handle provider change
-   */
-  async handleProviderChange(providerId) {
-    if (!providerId) return;
-    try {
-      this.updateStatus("Switching provider...", "connecting");
-      const result = await window.electronAPI.invoke("langchain-switch-provider", { providerId });
-      this.currentProvider = result.provider;
-      this.currentModel = result.model;
-      this.updateModelDropdown(providerId);
-      const status = await window.electronAPI.invoke("langchain-get-current-status");
-      this.updateProviderStatus(status);
-      this.updateStatus("Connected", "connected");
-      this.addSystemMessage(`Switched to ${result.config.name} (${result.model})`);
-    } catch (error) {
-      console.error("[ChatComponent] Provider switch failed:", error);
-      this.updateStatus(`Error: ${error.message}`, "error");
-    }
-  }
-  /**
-   * Handle model change
-   */
-  async handleModelChange(modelId) {
-    if (!modelId || !this.currentProvider) return;
-    try {
-      this.updateStatus("Updating model...", "connecting");
-      await window.electronAPI.invoke("langchain-update-provider-model", {
-        providerId: this.currentProvider,
-        modelId
-      });
-      this.currentModel = modelId;
-      const status = await window.electronAPI.invoke("langchain-get-current-status");
-      this.updateProviderStatus(status);
-      this.updateStatus("Connected", "connected");
-      this.addSystemMessage(`Model updated to ${modelId}`);
-    } catch (error) {
-      console.error("[ChatComponent] Model update failed:", error);
-      this.updateStatus(`Error: ${error.message}`, "error");
-    }
-  }
-  /**
-   * Update model dropdown based on selected provider
-   */
-  async updateModelDropdown(providerId) {
-    if (!this.elements.modelSelect) return;
-    try {
-      const models = await window.electronAPI.invoke("langchain-get-provider-models", { providerId });
-      this.elements.modelSelect.innerHTML = '<option value="">Select Model...</option>';
-      this.elements.modelSelect.disabled = false;
-      models.forEach((model) => {
-        const option = document.createElement("option");
-        option.value = model.id;
-        const modelDisplayNames = {
-          "gpt-4o": "GPT-4o",
-          "gemini-1.5-flash": "Gemini 2.5 Flash",
-          "claude-3-5-sonnet-20241022": "Claude 4.0 Sonnet"
-        };
-        option.textContent = modelDisplayNames[model.id] || model.name;
-        if (model.id === this.currentModel) {
-          option.selected = true;
-        }
-        this.elements.modelSelect.appendChild(option);
-      });
-    } catch (error) {
-      console.error("[ChatComponent] Failed to load models:", error);
-      this.elements.modelSelect.disabled = true;
     }
   }
   /**
@@ -901,10 +677,6 @@ class ChatComponent {
   async sendMessage() {
     const message = this.elements.messageInput.value.trim();
     if (!message || this.isStreaming) return;
-    if (!this.currentProvider) {
-      this.showError("Please select a provider first");
-      return;
-    }
     try {
       this.addUserMessage(message);
       this.elements.messageInput.value = "";
@@ -923,7 +695,6 @@ class ChatComponent {
         await this.sendRegularMessage(message, apiHistory);
       }
     } catch (error) {
-      console.error("[ChatComponent] Send message failed:", error);
       this.showError(`Failed to send message: ${error.message}`);
     } finally {
       this.isStreaming = false;
@@ -1180,10 +951,6 @@ class ChatComponent {
     if (status.provider) {
       this.currentProvider = status.provider.id;
       this.currentModel = status.provider.currentModel;
-      if (this.elements.providerSelect) {
-        this.elements.providerSelect.value = this.currentProvider;
-      }
-      this.updateModelDropdown(this.currentProvider);
     }
     if (status.costTracker) {
       this.costTracker = status.costTracker;
@@ -1220,7 +987,6 @@ class ChatComponent {
       this.updateCostDisplayFromTracker();
       this.addSystemMessage("Session costs reset");
     } catch (error) {
-      console.error("[ChatComponent] Failed to reset session costs:", error);
     }
   }
   /**
@@ -1238,7 +1004,7 @@ class ChatComponent {
     welcomeDiv.className = "welcome-message";
     welcomeDiv.innerHTML = `
       <h3>Welcome to AI Chat</h3>
-      <p>Select a provider and start chatting with AI assistants. Your conversations are powered by multiple AI providers for the best experience.</p>
+      <p>Start chatting with AI assistants. Your conversations are powered by advanced AI technology for the best experience.</p>
     `;
     this.elements.messagesList.appendChild(welcomeDiv);
   }
@@ -1274,18 +1040,11 @@ class ChatComponent {
    */
   async setState(state) {
     try {
-      console.log(`[ChatComponent] Restoring state for: ${this.containerId}`);
       if (state.currentProvider !== void 0) {
         this.currentProvider = state.currentProvider;
-        if (this.elements.providerSelect) {
-          this.elements.providerSelect.value = state.currentProvider;
-        }
       }
       if (state.currentModel !== void 0) {
         this.currentModel = state.currentModel;
-        if (this.elements.modelSelect) {
-          this.elements.modelSelect.value = state.currentModel;
-        }
       }
       if (state.currentSessionId !== void 0) {
         this.currentSessionId = state.currentSessionId;
@@ -1330,7 +1089,6 @@ class ChatComponent {
           costTracker: this.costTracker
         });
       }
-      console.log(`[ChatComponent] State restored successfully`);
       if (this.eventBus) {
         this.eventBus.publish("chat-component-state-restored", {
           containerId: this.containerId,
@@ -1340,7 +1098,6 @@ class ChatComponent {
         });
       }
     } catch (error) {
-      console.error(`[ChatComponent] Failed to restore state:`, error);
     }
   }
   /**
@@ -1379,9 +1136,7 @@ class ChatComponent {
         });
       }
       this.addSystemMessage("New chat session started");
-      console.log(`[ChatComponent] Started new session: ${this.currentSessionId}`);
     } catch (error) {
-      console.error(`[ChatComponent] Failed to start new session:`, error);
     }
   }
   /**
@@ -1389,7 +1144,6 @@ class ChatComponent {
    */
   async loadSession(conversation) {
     try {
-      console.log(`[ChatComponent] Loading session: ${conversation.id}`);
       await this.setState({
         currentSessionId: conversation.id,
         conversationHistory: conversation.messages || [],
@@ -1399,7 +1153,6 @@ class ChatComponent {
       });
       this.addSystemMessage(`Loaded conversation: ${conversation.title || "Untitled"}`);
     } catch (error) {
-      console.error(`[ChatComponent] Failed to load session:`, error);
       this.showError(`Failed to load session: ${error.message}`);
     }
   }
@@ -1425,7 +1178,6 @@ class ChatComponent {
         });
       }
     } catch (error) {
-      console.error(`[ChatComponent] Failed to save session:`, error);
     }
   }
   /**
@@ -1436,7 +1188,6 @@ class ChatComponent {
       this.container.innerHTML = "";
     }
     this.isInitialized = false;
-    console.log(`[ChatComponent] Destroyed: ${this.containerId}`);
   }
 }
 class ChatHistoryPanel {
@@ -1479,37 +1230,27 @@ class ChatHistoryPanel {
    * Initialize the chat history panel
    */
   async initialize() {
-    console.log(`[ChatHistoryPanel] Starting initialization for: ${this.containerId}`);
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[ChatHistoryPanel] Container with ID "${this.containerId}" not found`);
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
     try {
       this.render();
-      console.log(`[ChatHistoryPanel] Render completed`);
       this.setupEventListeners();
-      console.log(`[ChatHistoryPanel] Event listeners setup`);
       this.setupWorkspaceIntegration();
-      console.log(`[ChatHistoryPanel] Workspace integration setup`);
       await this.loadPanelPreferences();
-      console.log(`[ChatHistoryPanel] Panel preferences loaded`);
       await this.loadConversations();
-      console.log(`[ChatHistoryPanel] Initial conversations loaded`);
       if (this.options.defaultCollapsed && !this.preferencesLoaded) {
         this.toggleCollapse(true);
       }
       this.setupRealTimeSync();
-      console.log(`[ChatHistoryPanel] Real-time sync setup`);
       this.isInitialized = true;
-      console.log(`[ChatHistoryPanel] Initialized successfully in container: ${this.containerId}`);
       this.dispatchEvent("chat-history-panel-initialized", {
         containerId: this.containerId,
         conversationsCount: this.conversations.length,
         isCollapsed: this.isCollapsed
       });
     } catch (error) {
-      console.error(`[ChatHistoryPanel] Initialization failed:`, error);
       throw error;
     }
   }
@@ -1660,30 +1401,25 @@ class ChatHistoryPanel {
       if (this.globalStateManager) {
         try {
           conversations = await this.globalStateManager.loadChatHistory("blog") || [];
-          console.log("[ChatHistoryPanel] Conversations loaded via GlobalStateManager");
         } catch (error) {
-          console.warn("[ChatHistoryPanel] GlobalStateManager failed, trying alternatives:", error);
         }
       }
       if (conversations.length === 0 && window.electronAPI?.state?.loadChatHistory) {
         const result = await window.electronAPI.state.loadChatHistory();
         if (result.success && result.data) {
           conversations = result.data;
-          console.log("[ChatHistoryPanel] Conversations loaded via state-manager");
         }
       }
       if (conversations.length === 0 && window.electronAPI?.chatHistory) {
         const result = await window.electronAPI.chatHistory.getConversations();
         if (result.success) {
           conversations = result.data || [];
-          console.log("[ChatHistoryPanel] Conversations loaded via chatHistory API");
         }
       }
       if (conversations.length === 0) {
         const stored = localStorage.getItem("chatHistory");
         if (stored) {
           conversations = JSON.parse(stored);
-          console.log("[ChatHistoryPanel] Conversations loaded from localStorage");
         }
       }
       this.conversations = conversations;
@@ -1691,7 +1427,6 @@ class ChatHistoryPanel {
       this.renderConversations();
       this.updateStats();
     } catch (error) {
-      console.error("[ChatHistoryPanel] Failed to load conversations:", error);
       this.showError("Failed to load conversation history");
     } finally {
       this.showLoading(false);
@@ -1873,7 +1608,6 @@ class ChatHistoryPanel {
     this.currentSessionId = sessionId;
     this.renderConversations();
     this.onSessionSelect(conversation);
-    console.log(`[ChatHistoryPanel] Selected conversation: ${sessionId}`);
   }
   /**
    * Create new chat session
@@ -1890,7 +1624,6 @@ class ChatHistoryPanel {
     this.conversations.unshift(newSession);
     this.selectConversation(newSession.id);
     this.saveConversations();
-    console.log(`[ChatHistoryPanel] Created new chat session: ${newSession.id}`);
   }
   /**
    * Delete a conversation
@@ -1906,7 +1639,6 @@ class ChatHistoryPanel {
       this.updateStats();
       this.saveConversations();
       this.onSessionDelete(sessionId);
-      console.log(`[ChatHistoryPanel] Deleted conversation: ${sessionId}`);
     }
   }
   /**
@@ -1919,7 +1651,6 @@ class ChatHistoryPanel {
       this.updateFilteredConversations();
       this.renderConversations();
       this.saveConversations();
-      console.log(`[ChatHistoryPanel] Toggled pin for conversation: ${sessionId}`);
     }
   }
   /**
@@ -1931,7 +1662,6 @@ class ChatHistoryPanel {
     this.elements.panel?.classList.toggle("collapsed", shouldCollapse);
     this.debouncedSavePreferences();
     this.onToggleCollapse(shouldCollapse);
-    console.log(`[ChatHistoryPanel] Panel ${shouldCollapse ? "collapsed" : "expanded"}`);
   }
   /**
    * Focus search input
@@ -1976,7 +1706,6 @@ class ChatHistoryPanel {
    * Show error message
    */
   showError(message) {
-    console.error(`[ChatHistoryPanel] Error: ${message}`);
   }
   /**
    * Update statistics
@@ -2024,7 +1753,6 @@ class ChatHistoryPanel {
       if (this.globalStateManager) {
         try {
           await this.globalStateManager.saveChatHistory("blog", this.conversations);
-          console.log("[ChatHistoryPanel] Conversations saved via GlobalStateManager");
           if (this.eventBus) {
             this.eventBus.publish("chat-history-updated", {
               workspaceId: "blog",
@@ -2034,25 +1762,20 @@ class ChatHistoryPanel {
           }
           return;
         } catch (error) {
-          console.warn("[ChatHistoryPanel] GlobalStateManager save failed, trying alternatives:", error);
         }
       }
       if (window.electronAPI?.state?.saveChatHistory) {
         const result = await window.electronAPI.state.saveChatHistory(this.conversations);
         if (result.success) {
-          console.log("[ChatHistoryPanel] Conversations saved via state-manager");
           return;
         }
       }
       if (window.electronAPI?.chatHistory) {
         await window.electronAPI.chatHistory.saveConversations(this.conversations);
-        console.log("[ChatHistoryPanel] Conversations saved via chatHistory API");
         return;
       }
       localStorage.setItem("chatHistory", JSON.stringify(this.conversations));
-      console.log("[ChatHistoryPanel] Conversations saved to localStorage");
     } catch (error) {
-      console.error("[ChatHistoryPanel] Failed to save conversations:", error);
     }
   }
   /**
@@ -2096,7 +1819,6 @@ class ChatHistoryPanel {
    */
   async setState(state) {
     try {
-      console.log(`[ChatHistoryPanel] Restoring state for: ${this.containerId}`);
       if (state.conversations && Array.isArray(state.conversations)) {
         this.conversations = state.conversations;
       }
@@ -2127,13 +1849,11 @@ class ChatHistoryPanel {
       this.updateFilteredConversations();
       this.renderConversations();
       this.updateStats();
-      console.log(`[ChatHistoryPanel] State restored successfully`);
       this.dispatchEvent("chat-history-panel-state-restored", {
         containerId: this.containerId,
         state
       });
     } catch (error) {
-      console.error(`[ChatHistoryPanel] Failed to restore state:`, error);
     }
   }
   /**
@@ -2152,7 +1872,6 @@ class ChatHistoryPanel {
         localStorage.setItem("historyPanelPreferences", JSON.stringify(preferences));
       }
     } catch (error) {
-      console.warn("[ChatHistoryPanel] Failed to save panel preferences:", error);
     }
   }
   /**
@@ -2181,7 +1900,6 @@ class ChatHistoryPanel {
         }
       }
     } catch (error) {
-      console.warn("[ChatHistoryPanel] Failed to load panel preferences:", error);
     }
   }
   /**
@@ -2220,7 +1938,6 @@ class ChatHistoryPanel {
       try {
         await this.syncWithStorage();
       } catch (error) {
-        console.warn("[ChatHistoryPanel] Sync failed:", error);
       }
     }, 1e4);
     window.addEventListener("storage", (e) => {
@@ -2413,7 +2130,6 @@ class ChatHistoryPanel {
       this.updateFilteredConversations();
       this.renderConversations();
       this.saveConversations();
-      console.log(`[ChatHistoryPanel] Renamed conversation: ${sessionId}`);
     }
   }
   /**
@@ -2434,7 +2150,6 @@ class ChatHistoryPanel {
     this.renderConversations();
     this.updateStats();
     this.saveConversations();
-    console.log(`[ChatHistoryPanel] Duplicated conversation: ${sessionId} -> ${duplicated.id}`);
   }
   /**
    * Export single conversation
@@ -2491,7 +2206,6 @@ class ChatHistoryPanel {
     if (this.elements.panel) {
       this.elements.panel.classList.toggle("blog-mode", mode === "blog");
     }
-    console.log(`[ChatHistoryPanel] Workspace mode set to: ${mode}`);
   }
   /**
    * Handle chat message added
@@ -2554,7 +2268,6 @@ class ChatHistoryPanel {
         const lastLocalUpdate = Math.max(...this.conversations.map((c) => new Date(c.lastModified || c.createdAt).getTime()));
         const lastStoredUpdate = Math.max(...storedConversations.map((c) => new Date(c.lastModified || c.createdAt).getTime()));
         if (lastStoredUpdate > lastLocalUpdate) {
-          console.log("[ChatHistoryPanel] Syncing with newer storage data");
           this.conversations = storedConversations;
           this.updateFilteredConversations();
           this.renderConversations();
@@ -2562,7 +2275,6 @@ class ChatHistoryPanel {
         }
       }
     } catch (error) {
-      console.warn("[ChatHistoryPanel] Storage sync failed:", error);
     }
   }
   /**
@@ -2572,13 +2284,11 @@ class ChatHistoryPanel {
     if (event.key === "chatHistory" && event.newValue) {
       try {
         const newConversations = JSON.parse(event.newValue);
-        console.log("[ChatHistoryPanel] Detected storage change, updating conversations");
         this.conversations = newConversations;
         this.updateFilteredConversations();
         this.renderConversations();
         this.updateStats();
       } catch (error) {
-        console.warn("[ChatHistoryPanel] Failed to handle storage change:", error);
       }
     }
   }
@@ -2615,7 +2325,6 @@ class ChatHistoryPanel {
     this.updateFilteredConversations();
     this.renderConversations();
     this.debouncedSavePreferences();
-    console.log(`[ChatHistoryPanel] Provider filter changed to: ${provider}`);
   }
   /**
    * Get conversation provider info
@@ -2672,7 +2381,6 @@ class ChatHistoryPanel {
     if (this.providerFilter === previousProvider) {
       this.handleProviderFilterChange(newProvider);
     }
-    console.log(`[ChatHistoryPanel] Provider changed: ${previousProvider} → ${newProvider}`);
   }
   /**
    * Enable provider metadata display
@@ -2683,7 +2391,6 @@ class ChatHistoryPanel {
     if (enabled) {
       this.renderConversations();
     }
-    console.log(`[ChatHistoryPanel] Provider metadata ${enabled ? "enabled" : "disabled"}`);
   }
   /**
    * Get provider statistics
@@ -2738,7 +2445,6 @@ class ChatHistoryPanel {
     this.dispatchEvent("chat-history-panel-destroyed", {
       containerId: this.containerId
     });
-    console.log(`[ChatHistoryPanel] Destroyed: ${this.containerId}`);
   }
 }
 class EventEmitter {
@@ -2755,9 +2461,7 @@ class EventEmitter {
     }
     const listeners = this._events.get(eventName);
     listeners.push(listener);
-    if (listeners.length > this._maxListeners) {
-      console.warn(`MaxListenersExceededWarning: Possible EventEmitter memory leak detected. ${listeners.length} ${eventName} listeners added.`);
-    }
+    if (listeners.length > this._maxListeners) ;
     return this;
   }
   /**
@@ -2828,7 +2532,6 @@ class EventEmitter {
       try {
         listener.apply(this, args);
       } catch (error) {
-        console.error("EventEmitter error:", error);
       }
     }
     return true;
@@ -3005,16 +2708,13 @@ class EventBus extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[EventBus] Initializing...");
       this.isInitialized = true;
       this.setupChatHistoryEventHandlers();
       this.setupProviderEventHandlers();
       this.setupEnhancedProviderCoordination();
-      console.log("[EventBus] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[EventBus] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -3024,7 +2724,6 @@ class EventBus extends EventEmitter {
    */
   publish(eventName, data = {}) {
     if (!this.isInitialized) {
-      console.warn("[EventBus] Cannot publish before initialization");
       return;
     }
     const eventData = {
@@ -3037,9 +2736,7 @@ class EventBus extends EventEmitter {
     if (this.eventHistory.length > 1e3) {
       this.eventHistory.shift();
     }
-    if (this.options.enableLogging) {
-      console.log(`[EventBus] Publishing event: ${eventName}`, data);
-    }
+    if (this.options.enableLogging) ;
     this.emit(eventName, eventData);
     this.emit("event-published", eventData);
   }
@@ -3048,7 +2745,6 @@ class EventBus extends EventEmitter {
    */
   subscribe(eventName, callback, moduleName = null) {
     if (!this.isInitialized) {
-      console.warn("[EventBus] Cannot subscribe before initialization");
       return null;
     }
     if (moduleName) {
@@ -3058,9 +2754,7 @@ class EventBus extends EventEmitter {
       this.moduleSubscriptions.get(moduleName).add(eventName);
     }
     this.on(eventName, callback);
-    if (this.options.enableLogging) {
-      console.log(`[EventBus] Subscribed to event: ${eventName}${moduleName ? ` (module: ${moduleName})` : ""}`);
-    }
+    if (this.options.enableLogging) ;
     return () => {
       this.unsubscribe(eventName, callback);
       if (moduleName) {
@@ -3079,9 +2773,7 @@ class EventBus extends EventEmitter {
    */
   unsubscribe(eventName, callback) {
     this.off(eventName, callback);
-    if (this.options.enableLogging) {
-      console.log(`[EventBus] Unsubscribed from event: ${eventName}`);
-    }
+    if (this.options.enableLogging) ;
   }
   /**
    * Subscribe to multiple events at once
@@ -3141,7 +2833,6 @@ class EventBus extends EventEmitter {
    */
   clearHistory() {
     this.eventHistory = [];
-    console.log("[EventBus] Event history cleared");
     this.emit("history-cleared");
   }
   /**
@@ -3154,7 +2845,6 @@ class EventBus extends EventEmitter {
         this.removeAllListeners(eventName);
       });
       this.moduleSubscriptions.delete(moduleName);
-      console.log(`[EventBus] Unsubscribed all events for module: ${moduleName}`);
     }
   }
   /**
@@ -3226,7 +2916,6 @@ class EventBus extends EventEmitter {
         this.handleChatHistoryEvent(eventType, eventData);
       }, "EventBus-ChatHistoryCoordinator");
     });
-    console.log("[EventBus] Chat history event coordination set up");
   }
   /**
    * Set up provider event handlers for coordination
@@ -3237,15 +2926,12 @@ class EventBus extends EventEmitter {
         this.handleProviderEvent(eventType, eventData);
       }, "EventBus-ProviderCoordinator");
     });
-    console.log("[EventBus] Provider event coordination set up");
   }
   /**
    * Handle chat history events for cross-module coordination
    */
   handleChatHistoryEvent(eventType, eventData) {
-    if (this.options.enableLogging) {
-      console.log(`[EventBus] Chat history event: ${eventType}`, eventData.data);
-    }
+    if (this.options.enableLogging) ;
     switch (eventType) {
       case "conversation-created":
         this.publish("ui-update-required", {
@@ -3336,9 +3022,7 @@ class EventBus extends EventEmitter {
    * Handle provider events for cross-module coordination
    */
   handleProviderEvent(eventType, eventData) {
-    if (this.options.enableLogging) {
-      console.log(`[EventBus] Provider event: ${eventType}`, eventData.data);
-    }
+    if (this.options.enableLogging) ;
     switch (eventType) {
       case "active-provider-changed":
         this.publish("ui-provider-switched", {
@@ -3509,7 +3193,6 @@ class EventBus extends EventEmitter {
    */
   publishChatHistoryEvent(eventType, data = {}) {
     if (!this.chatHistoryEventTypes.has(eventType)) {
-      console.warn(`[EventBus] Unknown chat history event type: ${eventType}`);
       return;
     }
     const eventData = {
@@ -3524,7 +3207,6 @@ class EventBus extends EventEmitter {
    */
   publishProviderEvent(eventType, data = {}) {
     if (!this.providerEventTypes.has(eventType)) {
-      console.warn(`[EventBus] Unknown provider event type: ${eventType}`);
       return;
     }
     const eventData = {
@@ -3540,8 +3222,7 @@ class EventBus extends EventEmitter {
   subscribeToChatHistoryEvents(eventTypes, callback, moduleName = null) {
     const validEventTypes = eventTypes.filter((type) => this.chatHistoryEventTypes.has(type));
     if (validEventTypes.length !== eventTypes.length) {
-      const invalidTypes = eventTypes.filter((type) => !this.chatHistoryEventTypes.has(type));
-      console.warn(`[EventBus] Invalid chat history event types: ${invalidTypes.join(", ")}`);
+      eventTypes.filter((type) => !this.chatHistoryEventTypes.has(type));
     }
     return this.subscribeMultiple(validEventTypes, callback, moduleName);
   }
@@ -3551,8 +3232,7 @@ class EventBus extends EventEmitter {
   subscribeToProviderEvents(eventTypes, callback, moduleName = null) {
     const validEventTypes = eventTypes.filter((type) => this.providerEventTypes.has(type));
     if (validEventTypes.length !== eventTypes.length) {
-      const invalidTypes = eventTypes.filter((type) => !this.providerEventTypes.has(type));
-      console.warn(`[EventBus] Invalid provider event types: ${invalidTypes.join(", ")}`);
+      eventTypes.filter((type) => !this.providerEventTypes.has(type));
     }
     return this.subscribeMultiple(validEventTypes, callback, moduleName);
   }
@@ -3671,7 +3351,6 @@ class EventBus extends EventEmitter {
    */
   setupConflictResolution() {
     this.subscribe("state-conflict-detected", (eventData) => {
-      console.warn("[EventBus] State conflict detected:", eventData.data);
       const resolutionStrategy = this.determineResolutionStrategy(eventData.data);
       this.publish("state-conflict-resolution", {
         conflictId: eventData.data.conflictId,
@@ -3752,7 +3431,6 @@ class EventBus extends EventEmitter {
     this.subscribe("provider-health-check-completed", (eventData) => {
       this.coordinateProviderHealth(eventData.data);
     }, "EventBus-HealthCoordinator");
-    console.log("[EventBus] Enhanced provider coordination set up");
   }
   /**
    * Create provider-specific event channels
@@ -3890,7 +3568,6 @@ class EventBus extends EventEmitter {
     this.chatHistoryEventTypes.clear();
     this.providerEventTypes.clear();
     this.isInitialized = false;
-    console.log("[EventBus] Enhanced destruction completed");
   }
 }
 const eventBus = new EventBus();
@@ -3936,7 +3613,6 @@ class WorkspaceManager {
     this.registerWorkspaces();
     this.setupProviderIntegration();
     this.setupEventBusIntegration();
-    console.log("[WorkspaceManager] Initialized with workspaces:", Array.from(this.workspaces.keys()));
   }
   /**
    * Register available workspaces
@@ -3986,9 +3662,7 @@ class WorkspaceManager {
     this.workspaces.set("future", {
       name: "Advanced Workspace",
       description: "Future advanced features workspace",
-      components: [],
-      onActivate: () => console.log("[WorkspaceManager] Future workspace activated"),
-      onDeactivate: () => console.log("[WorkspaceManager] Future workspace deactivated")
+      components: []
     });
   }
   /**
@@ -3998,7 +3672,6 @@ class WorkspaceManager {
     if (!this.workspaces.has(workspaceId)) {
       throw new Error(`Workspace "${workspaceId}" not found`);
     }
-    console.log(`[WorkspaceManager] Switching to workspace: ${workspaceId}`);
     try {
       this.pauseComponentAnimations();
       if (this.currentWorkspace) {
@@ -4010,7 +3683,6 @@ class WorkspaceManager {
       setTimeout(() => {
         this.resumeComponentAnimations();
       }, 100);
-      console.log(`[WorkspaceManager] Successfully switched to: ${workspaceId}`);
       return { success: true, workspace: workspaceId };
     } catch (error) {
       this.resumeComponentAnimations();
@@ -4028,9 +3700,7 @@ class WorkspaceManager {
       if (workspace.onActivate) {
         await workspace.onActivate();
       }
-      console.log(`[WorkspaceManager] Activated workspace: ${workspaceId}`);
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to activate workspace ${workspaceId}:`, error);
       throw error;
     }
   }
@@ -4046,9 +3716,7 @@ class WorkspaceManager {
         await workspace.onDeactivate();
       }
       this.destroyWorkspaceComponents(workspaceId);
-      console.log(`[WorkspaceManager] Deactivated workspace: ${workspaceId}`);
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to deactivate workspace ${workspaceId}:`, error);
     }
   }
   /**
@@ -4064,10 +3732,8 @@ class WorkspaceManager {
         const component = await this.createComponent(componentConfig);
         if (component) {
           workspaceComponents.set(componentConfig.containerId, component);
-          console.log(`[WorkspaceManager] Initialized ${componentConfig.type} component for ${workspaceId}`);
         }
       } catch (error) {
-        console.error(`[WorkspaceManager] Failed to create ${componentConfig.type} component:`, error);
       }
     }
     this.components.set(workspaceKey, workspaceComponents);
@@ -4078,7 +3744,6 @@ class WorkspaceManager {
    */
   async saveWorkspaceState(workspaceId) {
     try {
-      console.log(`[WorkspaceManager] Saving state for workspace: ${workspaceId}`);
       const workspaceKey = `workspace_${workspaceId}`;
       const workspaceComponents = this.components.get(workspaceKey);
       const workspaceState = {
@@ -4102,7 +3767,6 @@ class WorkspaceManager {
       }
       if (this.globalStateManager) {
         await this.globalStateManager.setState(`workspace_${workspaceId}`, workspaceState);
-        console.log(`[WorkspaceManager] Saved state for workspace: ${workspaceId}`);
       }
       if (this.eventBus) {
         this.eventBus.publish("workspace-state-saved", {
@@ -4111,7 +3775,6 @@ class WorkspaceManager {
         });
       }
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to save workspace state for ${workspaceId}:`, error);
     }
   }
   /**
@@ -4119,14 +3782,11 @@ class WorkspaceManager {
    */
   async restoreWorkspaceState(workspaceId) {
     try {
-      console.log(`[WorkspaceManager] Restoring state for workspace: ${workspaceId}`);
       if (!this.globalStateManager) {
-        console.warn(`[WorkspaceManager] GlobalStateManager not available for state restoration`);
         return;
       }
       const workspaceState = await this.globalStateManager.getState(`workspace_${workspaceId}`);
       if (!workspaceState || !workspaceState.componentStates) {
-        console.log(`[WorkspaceManager] No saved state found for workspace: ${workspaceId}`);
         return;
       }
       const workspaceKey = `workspace_${workspaceId}`;
@@ -4136,21 +3796,18 @@ class WorkspaceManager {
           const chatComponent = this.getChatComponent(workspaceId);
           if (chatComponent && typeof chatComponent.setState === "function") {
             await chatComponent.setState(workspaceState.componentStates.chat);
-            console.log(`[WorkspaceManager] Restored chat component state for: ${workspaceId}`);
           }
         }
         if (workspaceState.componentStates.chatHistory) {
           const historyPanel = this.getChatHistoryPanel(workspaceId);
           if (historyPanel && typeof historyPanel.setState === "function") {
             await historyPanel.setState(workspaceState.componentStates.chatHistory);
-            console.log(`[WorkspaceManager] Restored chat history panel state for: ${workspaceId}`);
           }
         }
         if (workspaceState.componentStates.browser) {
           const browserComponent = this.getBrowserComponent(workspaceId);
           if (browserComponent && typeof browserComponent.setState === "function") {
             await browserComponent.setState(workspaceState.componentStates.browser);
-            console.log(`[WorkspaceManager] Restored browser component state for: ${workspaceId}`);
           }
         }
       }
@@ -4160,9 +3817,7 @@ class WorkspaceManager {
           state: workspaceState
         });
       }
-      console.log(`[WorkspaceManager] Successfully restored state for workspace: ${workspaceId}`);
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to restore workspace state for ${workspaceId}:`, error);
     }
   }
   /**
@@ -4173,58 +3828,39 @@ class WorkspaceManager {
     try {
       switch (type) {
         case "browser":
-          console.log(`[WorkspaceManager] 🌐 Attempting to create browser component...`);
-          console.log(`[WorkspaceManager] BrowserTabComponent available:`, typeof BrowserTabComponent);
-          console.log(`[WorkspaceManager] webContentsManager available:`, !!this.webContentsManager);
           if (typeof BrowserTabComponent === "undefined") {
-            console.error("[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if import is loaded");
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, "BrowserTabComponent not available");
             return null;
           }
-          console.log(`[WorkspaceManager] 🏗️ Creating BrowserTabComponent for container: ${containerId}`);
           const browserComponent = new BrowserTabComponent(containerId, this.webContentsManager);
-          console.log(`[WorkspaceManager] ✅ BrowserTabComponent instance created`);
-          console.log(`[WorkspaceManager] 🚀 Initializing BrowserTabComponent...`);
           await browserComponent.initialize();
-          console.log(`[WorkspaceManager] ✅ BrowserTabComponent initialization completed`);
           if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
-          console.log(`[WorkspaceManager] 🌐 Scheduling initial URL load...`);
           setTimeout(() => {
-            console.log(`[WorkspaceManager] 🔄 Triggering loadInitialURL...`);
             browserComponent.loadInitialURL().catch((error) => {
-              console.error(`[WorkspaceManager] ❌ loadInitialURL failed:`, error);
             });
           }, 100);
-          console.log(`[WorkspaceManager] 🎉 Browser component setup complete`);
           return browserComponent;
         case "chat":
           if (typeof ChatComponent === "undefined") {
-            console.error("[WorkspaceManager] ChatComponent not available");
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, "ChatComponent not available");
             return null;
           }
-          console.log(`[WorkspaceManager] 🤖 Creating ChatComponent for container: ${containerId}`);
           const chatComponent = new ChatComponent(containerId, componentConfig);
           if (this.globalStateManager) {
             chatComponent.globalStateManager = this.globalStateManager;
-            console.log(`[WorkspaceManager] ChatComponent integrated with GlobalStateManager`);
           }
           if (this.eventBus) {
             chatComponent.eventBus = this.eventBus;
-            console.log(`[WorkspaceManager] ChatComponent integrated with EventBus`);
           }
           await chatComponent.initialize();
           if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
           this.integrateChatComponentWithProviderState(chatComponent);
-          console.log(`[WorkspaceManager] ✅ ChatComponent initialization completed`);
           return chatComponent;
         case "chat-history":
           if (typeof ChatHistoryPanel === "undefined") {
-            console.error("[WorkspaceManager] ChatHistoryPanel not available");
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, "ChatHistoryPanel not available");
             return null;
           }
-          console.log(`[WorkspaceManager] 📝 Creating ChatHistoryPanel for container: ${containerId}`);
           const historyPanel = new ChatHistoryPanel(containerId, {
             ...componentConfig,
             onSessionSelect: (conversation) => this.handleHistorySessionSelect(conversation),
@@ -4233,23 +3869,18 @@ class WorkspaceManager {
           });
           if (this.globalStateManager) {
             historyPanel.globalStateManager = this.globalStateManager;
-            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with GlobalStateManager`);
           }
           if (this.eventBus) {
             historyPanel.eventBus = this.eventBus;
-            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with EventBus`);
           }
           await historyPanel.initialize();
           if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
-          console.log(`[WorkspaceManager] ✅ ChatHistoryPanel initialization completed`);
           return historyPanel;
         default:
-          console.warn(`[WorkspaceManager] Unknown component type: ${type}`);
           if (window.uiManager) window.uiManager.markComponentFailed(containerId, `Unknown component type: ${type}`);
           return null;
       }
     } catch (error) {
-      console.error(`[WorkspaceManager] ❌ Component creation failed for ${type}:`, error);
       if (window.uiManager) window.uiManager.markComponentFailed(containerId, error);
       throw error;
     }
@@ -4266,9 +3897,7 @@ class WorkspaceManager {
           if (component.destroy) {
             component.destroy();
           }
-          console.log(`[WorkspaceManager] Destroyed component in ${containerId}`);
         } catch (error) {
-          console.error(`[WorkspaceManager] Error destroying component in ${containerId}:`, error);
         }
       });
       this.components.delete(workspaceKey);
@@ -4317,11 +3946,9 @@ class WorkspaceManager {
    * Blog workspace specific activation
    */
   async activateBlogWorkspace() {
-    console.log("[WorkspaceManager] Blog workspace specific setup...");
     const historyPanel = this.getChatHistoryPanel();
     const chatComponent = this.getChatComponent();
     if (historyPanel && chatComponent) {
-      console.log("[WorkspaceManager] Setting up chat history integration");
       const currentSession = historyPanel.getCurrentConversation();
       if (currentSession && chatComponent.loadSession) {
         chatComponent.loadSession(currentSession);
@@ -4334,7 +3961,6 @@ class WorkspaceManager {
    * Blog workspace specific deactivation
    */
   async deactivateBlogWorkspace() {
-    console.log("[WorkspaceManager] Blog workspace specific cleanup...");
   }
   /**
    * Get available workspaces
@@ -4388,15 +4014,12 @@ class WorkspaceManager {
    * Pause component-level animations during workspace transitions
    */
   pauseComponentAnimations() {
-    console.log("[WorkspaceManager] 🚫 Pausing component animations during workspace transition");
     this.components.forEach((workspaceComponents, workspaceKey) => {
       workspaceComponents.forEach((component, containerId) => {
         if (component.pauseAnimations && typeof component.pauseAnimations === "function") {
           try {
             component.pauseAnimations();
-            console.log(`[WorkspaceManager] Paused animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to pause animations for ${containerId}:`, error);
           }
         }
       });
@@ -4406,15 +4029,12 @@ class WorkspaceManager {
    * Resume component-level animations after workspace transitions
    */
   resumeComponentAnimations() {
-    console.log("[WorkspaceManager] ▶️ Resuming component animations after workspace transition");
     this.components.forEach((workspaceComponents, workspaceKey) => {
       workspaceComponents.forEach((component, containerId) => {
         if (component.resumeAnimations && typeof component.resumeAnimations === "function") {
           try {
             component.resumeAnimations();
-            console.log(`[WorkspaceManager] Resumed animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to resume animations for ${containerId}:`, error);
           }
         }
       });
@@ -4424,15 +4044,12 @@ class WorkspaceManager {
    * Clear all component animations to prevent conflicts
    */
   clearComponentAnimations() {
-    console.log("[WorkspaceManager] 🧹 Clearing all component animations");
     this.components.forEach((workspaceComponents, workspaceKey) => {
       workspaceComponents.forEach((component, containerId) => {
         if (component.clearAnimations && typeof component.clearAnimations === "function") {
           try {
             component.clearAnimations();
-            console.log(`[WorkspaceManager] Cleared animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to clear animations for ${containerId}:`, error);
           }
         }
       });
@@ -4463,7 +4080,6 @@ class WorkspaceManager {
     this.workspaces.clear();
     this.providerStates.clear();
     this.currentWorkspace = null;
-    console.log("[WorkspaceManager] Destroyed");
   }
   /**
    * Clean up provider integration and EventBus subscriptions
@@ -4484,13 +4100,11 @@ class WorkspaceManager {
         clearInterval(state.statusCheckInterval);
       }
     });
-    console.log("[WorkspaceManager] Enhanced provider integration cleanup complete");
   }
   /**
    * Handle chat history session selection
    */
   handleHistorySessionSelect(conversation) {
-    console.log(`[WorkspaceManager] History session selected: ${conversation.id}`);
     const chatComponent = this.getChatComponent();
     if (chatComponent && chatComponent.loadSession) {
       chatComponent.loadSession(conversation);
@@ -4501,7 +4115,6 @@ class WorkspaceManager {
    * Handle chat history session deletion
    */
   handleHistorySessionDelete(sessionId) {
-    console.log(`[WorkspaceManager] History session deleted: ${sessionId}`);
     const chatComponent = this.getChatComponent();
     if (chatComponent && chatComponent.clearSession) {
       chatComponent.clearSession(sessionId);
@@ -4512,7 +4125,6 @@ class WorkspaceManager {
    * Handle chat history panel toggle
    */
   handleHistoryPanelToggle(collapsed) {
-    console.log(`[WorkspaceManager] History panel toggled: ${collapsed ? "collapsed" : "expanded"}`);
     if (window.uiManager && window.uiManager.handleHistoryPanelToggle) {
       window.uiManager.handleHistoryPanelToggle(collapsed);
     }
@@ -4582,14 +4194,12 @@ class WorkspaceManager {
         this.coordinateCostUpdateUI(event.data);
       }, "WorkspaceManager-UICostCoordination")
     );
-    console.log("[WorkspaceManager] EventBus integration setup complete");
   }
   /**
    * Handle provider switch events from EventBus
    */
   handleProviderSwitchEvent(eventData) {
     const { providerId, previousProvider, reason, conversationId } = eventData;
-    console.log(`[WorkspaceManager] Handling provider switch: ${previousProvider} -> ${providerId}`);
     this.globalProviderState.activeProvider = providerId;
     this.globalProviderState.switching = true;
     this.globalProviderState.analytics.switchCount++;
@@ -4613,7 +4223,6 @@ class WorkspaceManager {
    */
   handleProviderStatusEvent(eventData) {
     const { providerId, status, error, healthMetrics } = eventData;
-    console.log(`[WorkspaceManager] Provider ${providerId} status: ${status}`);
     this.globalProviderState.providers.set(providerId, { status, error });
     if (healthMetrics) {
       this.globalProviderState.healthStatus.set(providerId, healthMetrics);
@@ -4641,7 +4250,6 @@ class WorkspaceManager {
    */
   handleCostLimitWarning(eventData) {
     const { type, percentage, severity, recommendation } = eventData;
-    console.warn(`[WorkspaceManager] Cost limit warning: ${type} at ${percentage}%`);
     this.showWorkspaceCostWarning({
       type,
       percentage,
@@ -4654,7 +4262,6 @@ class WorkspaceManager {
    */
   handleProviderHealthUpdate(eventData) {
     const { results, healthyCount, totalCount } = eventData;
-    console.log(`[WorkspaceManager] Provider health update: ${healthyCount}/${totalCount} healthy`);
     this.updateWorkspaceHealthDisplay({
       healthyCount,
       totalCount,
@@ -4814,7 +4421,6 @@ class WorkspaceManager {
         }
       });
     });
-    console.log("[WorkspaceManager] Provider integration setup complete");
   }
   /**
    * Handle provider changed event
@@ -4827,7 +4433,6 @@ class WorkspaceManager {
     workspaceProviderState.activeProvider = provider;
     this.globalProviderState.activeProvider = provider;
     this.globalProviderState.switching = true;
-    console.log(`[WorkspaceManager] Provider changed: ${previousProvider} → ${provider} in workspace ${workspaceId}`);
     this.updateWorkspaceProviderUI(workspaceId, provider);
     this.notifyProviderChange(workspaceId, provider, previousProvider);
     setTimeout(() => {
@@ -4846,7 +4451,6 @@ class WorkspaceManager {
       providerInfo.status = status;
       if (model) providerInfo.model = model;
       this.globalProviderState.providers.set(provider, { status, model });
-      console.log(`[WorkspaceManager] Provider ${provider} status: ${status}${model ? ` (${model})` : ""}`);
       this.updateWorkspaceProviderStatus(workspaceId, provider, status, model);
     }
   }
@@ -4866,7 +4470,6 @@ class WorkspaceManager {
       this.globalProviderState.costTracking.totalCost = totalCost || 0;
       this.globalProviderState.costTracking.sessionTokens = sessionTokens || 0;
       this.globalProviderState.costTracking.totalTokens = totalTokens || 0;
-      console.log(`[WorkspaceManager] Cost updated for ${provider}: $${sessionCost?.toFixed(4) || "0.0000"}`);
       this.updateWorkspaceCostDisplay(workspaceId, provider);
     }
   }
@@ -4917,7 +4520,6 @@ class WorkspaceManager {
   updateWorkspaceHeader(workspaceId, updateInfo) {
     const headerElement = document.querySelector(`[data-workspace="${workspaceId}"] .workspace-header`);
     if (!headerElement) {
-      console.warn(`[WorkspaceManager] Workspace header not found for: ${workspaceId}`);
       return;
     }
     if (updateInfo.activeProvider) {
@@ -5061,7 +4663,6 @@ class WorkspaceManager {
       this.checkProviderStatuses(workspaceId);
     }, 3e4);
     workspaceState.statusCheckInterval = checkInterval;
-    console.log(`[WorkspaceManager] Provider monitoring initialized for workspace: ${workspaceId}`);
   }
   /**
    * Check provider statuses for workspace
@@ -5083,7 +4684,6 @@ class WorkspaceManager {
             }
           }
         } catch (error) {
-          console.warn(`[WorkspaceManager] Provider ${provider} ping failed:`, error);
           this.handleProviderStatusChanged({
             provider,
             status: "error",
@@ -5205,7 +4805,6 @@ class UIManager {
    * Add event listener (EventTarget compatibility)
    */
   addEventListener(type, listener, options) {
-    console.log(`[UIManager] 🎧 Adding event listener for: ${type}`);
     this.eventTarget.addEventListener(type, listener, options);
   }
   /**
@@ -5218,7 +4817,6 @@ class UIManager {
    * Dispatch custom event (EventTarget compatibility)
    */
   dispatchEvent(event) {
-    console.log(`[UIManager] 📢 Dispatching event: ${event.type}`, event.detail);
     return this.eventTarget.dispatchEvent(event);
   }
   /**
@@ -5226,7 +4824,6 @@ class UIManager {
    */
   async initialize() {
     try {
-      console.log("[UIManager] 🎨 Initializing UI management system...");
       this.applyTheme(this.currentTheme);
       this.setupResponsiveDesign();
       this.setupKeyboardShortcuts();
@@ -5239,11 +4836,9 @@ class UIManager {
       this.setupProviderUIIntegration();
       this.startAutoSave();
       this.isInitialized = true;
-      console.log("[UIManager] ✅ UI Manager initialized successfully");
       this.dispatchEvent(new CustomEvent("initialized"));
       return true;
     } catch (error) {
-      console.error("[UIManager] ❌ Initialization failed:", error);
       this.dispatchEvent(new CustomEvent("error", { detail: error }));
       throw error;
     }
@@ -5266,13 +4861,6 @@ class UIManager {
       costDisplays: document.querySelectorAll(".cost-display")
     };
     this.setComponentLoadingState();
-    console.log("[UIManager] Cached DOM elements:", Object.keys(this.elements));
-    console.log("[UIManager] Critical elements status:", {
-      startScreen: !!this.elements.startScreen,
-      mainContent: !!this.elements.mainContent,
-      workspaceLayout: !!this.elements.workspaceLayout,
-      workspaceTabs: !!this.elements.workspaceTabs
-    });
   }
   /**
    * Refresh DOM element cache to ensure current elements
@@ -5282,7 +4870,6 @@ class UIManager {
     this.elements.mainContent = document.getElementById("main-content");
     this.elements.workspaceLayout = document.getElementById("workspace-layout");
     this.elements.workspaceTabs = document.querySelector(".workspace-tabs");
-    console.log("[UIManager] DOM element cache refreshed");
   }
   /**
    * Set loading states for component containers
@@ -5303,7 +4890,6 @@ class UIManager {
     if (container) {
       container.classList.remove("loading", "error");
       container.classList.add("component-initialized");
-      console.log(`[UIManager] Component marked as initialized: ${containerId}`);
     }
   }
   /**
@@ -5314,14 +4900,12 @@ class UIManager {
     if (container) {
       container.classList.remove("loading");
       container.classList.add("error");
-      console.error(`[UIManager] Component marked as failed: ${containerId}`, error);
     }
   }
   /**
    * Apply theme to the application
    */
   applyTheme(themeName) {
-    console.log(`[UIManager] 🎨 Applying theme: ${themeName}`);
     const themes = {
       "light-grey": {
         "--primary-bg": "#f8f9fa",
@@ -5370,10 +4954,7 @@ class UIManager {
       });
       this.currentTheme = themeName;
       document.body.setAttribute("data-theme", themeName);
-      console.log(`[UIManager] ✅ Theme applied: ${themeName}`);
       this.dispatchEvent(new CustomEvent("theme-changed", { detail: { theme: themeName } }));
-    } else {
-      console.warn(`[UIManager] Theme not found: ${themeName}`);
     }
   }
   /**
@@ -5392,7 +4973,6 @@ class UIManager {
         const previousSize = this.screenSize;
         this.screenSize = newSize;
         document.body.className = document.body.className.replace(/screen-\w+/g, "").trim() + ` screen-${newSize}`;
-        console.log(`[UIManager] 📱 Screen size changed: ${previousSize} → ${newSize}`);
         this.dispatchEvent(new CustomEvent("screen-size-changed", {
           detail: {
             previous: previousSize,
@@ -5405,7 +4985,6 @@ class UIManager {
     };
     updateScreenSize();
     window.addEventListener("resize", updateScreenSize);
-    console.log("[UIManager] 📱 Responsive design system activated");
   }
   /**
    * Adjust UI for different screen sizes
@@ -5441,7 +5020,6 @@ class UIManager {
       this.toggleHistoryPanel(true);
     }
     this.applyChatLayoutForScreenSize("mobile");
-    console.log("[UIManager] 📱 Mobile layout applied");
   }
   /**
    * Apply tablet-specific layout adjustments
@@ -5452,7 +5030,6 @@ class UIManager {
       this.elements.workspaceLayout.style.removeProperty("gap");
     }
     this.applyChatLayoutForScreenSize("tablet");
-    console.log("[UIManager] 📱 Tablet layout applied");
   }
   /**
    * Apply desktop-specific layout adjustments
@@ -5463,7 +5040,6 @@ class UIManager {
       this.elements.workspaceLayout.style.removeProperty("gap");
     }
     this.applyChatLayoutForScreenSize("desktop");
-    console.log("[UIManager] 🖥️ Desktop layout applied");
   }
   /**
    * Apply chat layout adjustments for different screen sizes
@@ -5495,7 +5071,6 @@ class UIManager {
         workspace: this.currentWorkspace
       }
     }));
-    console.log(`[UIManager] 💬 Chat layout applied for ${screenSize} (history ${this.historyPanelCollapsed ? "collapsed" : "expanded"})`);
   }
   /**
    * Set up keyboard shortcuts
@@ -5527,19 +5102,16 @@ class UIManager {
         shortcuts[shortcut]();
       }
     });
-    console.log("[UIManager] ⌨️ Keyboard shortcuts activated");
   }
   /**
    * Set up animation system
    */
   setupAnimationSystem() {
-    console.log("[UIManager] ✨ Animation system initialized");
   }
   /**
    * Pause all animations temporarily
    */
   pauseAnimations() {
-    console.log("[UIManager] 🚫 Pausing animations during workspace transition");
     const animationStyle = document.getElementById("ui-animations");
     if (animationStyle) {
       animationStyle.disabled = true;
@@ -5551,7 +5123,6 @@ class UIManager {
    * Resume animations after workspace transition
    */
   resumeAnimations() {
-    console.log("[UIManager] ▶️ Resuming animations after workspace transition");
     const animationStyle = document.getElementById("ui-animations");
     if (animationStyle) {
       animationStyle.disabled = false;
@@ -5566,7 +5137,6 @@ class UIManager {
       el.classList.remove("ui-fade-in", "ui-fade-out", "ui-slide-up", "ui-slide-down");
     });
     this.activeAnimations.clear();
-    console.log("[UIManager] 🧹 Cleared all active animations");
   }
   /**
    * Queue animation to prevent conflicts
@@ -5603,12 +5173,9 @@ class UIManager {
    */
   async switchWorkspace(workspace) {
     if (this.currentWorkspace === workspace) {
-      console.log(`[UIManager] Already in workspace: ${workspace}`);
       return;
     }
-    console.log(`[UIManager] 🔄 Switching workspace: ${this.currentWorkspace} → ${workspace}`);
     if (this.isTransitioning) {
-      console.log(`[UIManager] ⏳ Queueing workspace switch (already transitioning)`);
       return this.queueAnimation(() => this.switchWorkspace(workspace));
     }
     try {
@@ -5634,9 +5201,7 @@ class UIManager {
           screenSize: this.screenSize
         }
       }));
-      console.log(`[UIManager] ✅ Workspace switched to: ${workspace}`);
     } catch (error) {
-      console.error(`[UIManager] ❌ Workspace switch failed:`, error);
       this.resumeAnimations();
       this.dispatchEvent(new CustomEvent("workspace-switch-failed", {
         detail: { workspace, error }
@@ -5675,93 +5240,43 @@ class UIManager {
    * Update workspace UI without animations
    */
   updateWorkspaceUI(workspace) {
-    console.log(`[UIManager] 🎯 updateWorkspaceUI called for workspace: ${workspace}`);
     this.refreshDOMElementCache();
-    console.log("[UIManager] DOM element status:");
-    console.log("  startScreen:", {
-      exists: !!this.elements.startScreen,
-      currentDisplay: this.elements.startScreen?.style.display,
-      computedDisplay: this.elements.startScreen ? window.getComputedStyle(this.elements.startScreen).display : "N/A"
-    });
-    console.log("  mainContent:", {
-      exists: !!this.elements.mainContent,
-      hasActiveClass: this.elements.mainContent?.classList.contains("active"),
-      currentDisplay: this.elements.mainContent?.style.display,
-      computedDisplay: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).display : "N/A"
-    });
-    console.log("  workspaceTabs:", {
-      exists: !!this.elements.workspaceTabs,
-      hasShowClass: this.elements.workspaceTabs?.classList.contains("show")
-    });
-    console.log("  workspaceLayout:", {
-      exists: !!this.elements.workspaceLayout,
-      currentDisplay: this.elements.workspaceLayout?.style.display,
-      computedDisplay: this.elements.workspaceLayout ? window.getComputedStyle(this.elements.workspaceLayout).display : "N/A"
-    });
     if (workspace === "start") {
-      console.log("[UIManager] 📋 Switching to start workspace");
       if (this.elements.startScreen) {
         this.elements.startScreen.style.display = "flex";
         this.elements.startScreen.style.visibility = "visible";
         this.elements.startScreen.style.opacity = "1";
-        console.log("[UIManager] ✅ startScreen shown");
       }
       if (this.elements.mainContent) {
         this.elements.mainContent.classList.remove("active");
-        console.log("[UIManager] ✅ mainContent active class removed");
       }
       if (this.elements.workspaceTabs) {
         this.elements.workspaceTabs.classList.remove("show");
-        console.log("[UIManager] ✅ workspaceTabs show class removed");
       }
     } else {
-      console.log(`[UIManager] 📋 Switching to ${workspace} workspace`);
       if (this.elements.startScreen) {
         this.elements.startScreen.style.display = "none";
-        console.log("[UIManager] ✅ startScreen hidden");
       }
       if (this.elements.mainContent) {
         this.elements.mainContent.classList.add("active");
-        console.log("[UIManager] ✅ mainContent active class added");
         if (workspace === "blog") {
           this.elements.mainContent.style.opacity = "1";
           this.elements.mainContent.style.visibility = "visible";
           this.elements.mainContent.style.pointerEvents = "auto";
-          console.log("[UIManager] 🔧 Forced blog workspace visibility");
         }
       }
       if (this.elements.workspaceTabs) {
         this.elements.workspaceTabs.classList.add("show");
-        console.log("[UIManager] ✅ workspaceTabs show class added");
       }
       if (this.elements.workspaceLayout && workspace === "blog") {
         this.elements.workspaceLayout.style.display = "flex";
-        console.log("[UIManager] ✅ workspaceLayout display set to flex for blog");
       }
     }
-    console.log("[UIManager] DOM element status after changes:");
-    console.log("  startScreen:", {
-      currentDisplay: this.elements.startScreen?.style.display,
-      computedDisplay: this.elements.startScreen ? window.getComputedStyle(this.elements.startScreen).display : "N/A"
-    });
-    console.log("  mainContent:", {
-      hasActiveClass: this.elements.mainContent?.classList.contains("active"),
-      currentDisplay: this.elements.mainContent?.style.display,
-      computedDisplay: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).display : "N/A",
-      opacity: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).opacity : "N/A",
-      visibility: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).visibility : "N/A"
-    });
-    console.log("  workspaceLayout:", {
-      currentDisplay: this.elements.workspaceLayout?.style.display,
-      computedDisplay: this.elements.workspaceLayout ? window.getComputedStyle(this.elements.workspaceLayout).display : "N/A"
-    });
-    const oldClassName = document.body.className;
+    document.body.className;
     document.body.className = document.body.className.replace(/workspace-\w+/g, "").trim() + ` workspace-${workspace}`;
-    console.log(`[UIManager] Body class updated: '${oldClassName}' → '${document.body.className}'`);
     this.dispatchEvent(new CustomEvent("ui-updated", {
       detail: { workspace }
     }));
-    console.log(`[UIManager] ✅ updateWorkspaceUI completed for workspace: ${workspace}`);
   }
   /**
    * Update workspace tabs active state
@@ -5783,7 +5298,6 @@ class UIManager {
       notification.style.animation = "uiFadeOut 0.3s ease-out";
       setTimeout(() => notification.remove(), 300);
     }, duration);
-    console.log(`[UIManager] 📢 Notification: ${type} - ${message}`);
   }
   /**
    * Toggle fullscreen mode
@@ -5791,10 +5305,8 @@ class UIManager {
   toggleFullscreen() {
     if (document.fullscreenElement) {
       document.exitFullscreen();
-      console.log("[UIManager] 📺 Exited fullscreen");
     } else {
       document.documentElement.requestFullscreen();
-      console.log("[UIManager] 📺 Entered fullscreen");
     }
   }
   /**
@@ -5802,7 +5314,6 @@ class UIManager {
    */
   showHelp() {
     this.showNotification("도움말 기능은 개발 중입니다", "info");
-    console.log("[UIManager] ❓ Help requested");
   }
   /**
    * Get current UI state
@@ -5824,7 +5335,6 @@ class UIManager {
    */
   registerComponent(name, component) {
     this.uiComponents.set(name, component);
-    console.log(`[UIManager] 📦 Registered UI component: ${name}`);
     this.dispatchEvent(new CustomEvent("component-registered", {
       detail: { name, component }
     }));
@@ -5848,7 +5358,6 @@ class UIManager {
     }
     this.isInitialized = false;
     this.eventTarget = null;
-    console.log("[UIManager] 🗑️ UI Manager destroyed");
   }
   /**
    * Toggle chat history panel collapse state
@@ -5863,7 +5372,6 @@ class UIManager {
         screenSize: this.screenSize
       }
     }));
-    console.log(`[UIManager] 📝 History panel ${shouldCollapse ? "collapsed" : "expanded"}`);
   }
   /**
    * Handle history panel toggle from WorkspaceManager
@@ -5871,7 +5379,6 @@ class UIManager {
   handleHistoryPanelToggle(collapsed) {
     this.historyPanelCollapsed = collapsed;
     this.applyChatLayoutForScreenSize(this.screenSize);
-    console.log(`[UIManager] 📝 History panel state updated: ${collapsed ? "collapsed" : "expanded"}`);
   }
   /**
    * Focus history search input
@@ -5923,7 +5430,6 @@ class UIManager {
         localStorage.setItem("uiPreferences", JSON.stringify(preferences));
       }
     } catch (error) {
-      console.warn("[UIManager] Failed to save UI preferences:", error);
     }
   }
   /**
@@ -5944,10 +5450,8 @@ class UIManager {
         this.historyPanelCollapsed = preferences.historyPanelCollapsed || false;
         this.historyPanelWidth = preferences.historyPanelWidth || 280;
         this.applyTheme(this.currentTheme);
-        console.log("[UIManager] 💾 UI preferences loaded");
       }
     } catch (error) {
-      console.warn("[UIManager] Failed to load UI preferences:", error);
     }
   }
   /**
@@ -5967,13 +5471,11 @@ class UIManager {
    * Enable chat history specific shortcuts
    */
   enableChatHistoryShortcuts() {
-    console.log("[UIManager] ⌨️ Chat history shortcuts enabled");
   }
   /**
    * Disable chat history specific shortcuts
    */
   disableChatHistoryShortcuts() {
-    console.log("[UIManager] ⌨️ Chat history shortcuts disabled");
   }
   /**
    * Handle history navigation with arrow keys
@@ -6047,7 +5549,6 @@ class UIManager {
       });
     });
     this.initializeProviderIndicators();
-    console.log("[UIManager] Provider UI integration setup complete");
   }
   /**
    * Initialize provider status indicators
@@ -6151,7 +5652,6 @@ class UIManager {
         }, 800);
       }
     });
-    console.log(`[UIManager] Provider state updated: ${activeProvider}${switching ? " (switching)" : ""}`);
   }
   /**
    * Update provider status
@@ -6175,7 +5675,6 @@ class UIManager {
     modelInfos.forEach((modelInfo) => {
       modelInfo.textContent = model || "";
     });
-    console.log(`[UIManager] Provider status updated: ${provider} - ${status}${model ? ` (${model})` : ""}`);
   }
   /**
    * Update cost display
@@ -6197,7 +5696,6 @@ class UIManager {
         display.classList.add("high-cost");
       }
     });
-    console.log(`[UIManager] Cost display updated: $${sessionCost?.toFixed(4) || "0.0000"}`);
   }
   /**
    * Get provider indicators for workspace
@@ -6274,7 +5772,6 @@ class SimpleEventEmitter {
       try {
         listener(...args);
       } catch (error) {
-        console.error("EventEmitter listener error:", error);
       }
     });
     return true;
@@ -6315,23 +5812,18 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async initialize() {
     try {
-      console.log("[AIIntegration] Initializing LangChain AI integration...");
       if (!window.electronAPI?.langchainGetProviders) {
         throw new Error("LangChain integration not available in main process");
       }
       await this.checkSystemRequirements();
       try {
         await this.testConnection();
-        console.log("[AIIntegration] Connection test passed");
       } catch (testError) {
-        console.warn("[AIIntegration] Connection test failed, but continuing:", testError.message);
       }
       this.isInitialized = true;
-      console.log("[AIIntegration] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[AIIntegration] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -6341,7 +5833,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async checkSystemRequirements() {
     try {
-      console.log("[AIIntegration] Checking available AI providers...");
       const providers = await window.electronAPI.langchainGetProviders();
       const status = await window.electronAPI.langchainGetCurrentStatus();
       this.systemInfo = {
@@ -6352,10 +5843,8 @@ class ClaudeIntegration extends SimpleEventEmitter {
         isConfigured: status.status === "connected",
         lastChecked: Date.now()
       };
-      console.log("[AIIntegration] System requirements check:", this.systemInfo);
       this.emit("system-status", this.systemInfo);
       if (!this.systemInfo.isConfigured) {
-        console.warn("[AIIntegration] No AI provider is currently configured");
         this.emit("configuration-warning", {
           message: "No AI provider configured. Please set up API keys in settings.",
           suggestions: [
@@ -6367,7 +5856,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
       }
       return this.systemInfo;
     } catch (error) {
-      console.error("[AIIntegration] System requirements check failed:", error);
       this.systemInfo = {
         availableProviders: [],
         currentProvider: null,
@@ -6389,10 +5877,8 @@ class ClaudeIntegration extends SimpleEventEmitter {
         timeout: 1e4,
         skipQueue: true
       });
-      console.log("[AIIntegration] Connection test successful:", response);
       return true;
     } catch (error) {
-      console.error("[AIIntegration] Connection test failed:", error);
       throw new Error(`AI connection failed: ${error.message}`);
     }
   }
@@ -6453,7 +5939,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
         streamed: true
       };
     } catch (error) {
-      console.error("[AIIntegration] Stream request failed:", error);
       throw error;
     }
   }
@@ -6479,11 +5964,9 @@ class ClaudeIntegration extends SimpleEventEmitter {
     while (this.requestQueue.length > 0) {
       const request = this.requestQueue.shift();
       try {
-        console.log(`[AIIntegration] Processing request: ${request.id}`);
         const result = await this.executeRequest(request);
         request.resolve(result);
       } catch (error) {
-        console.error(`[AIIntegration] Request failed: ${request.id}`, error);
         request.reject(error);
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -6520,11 +6003,9 @@ class ClaudeIntegration extends SimpleEventEmitter {
         timestamp: Date.now(),
         cost: response.metadata?.cost || null
       };
-      console.log(`[AIIntegration] Request completed: ${request.id}`);
       this.emit("response-received", result);
       return result;
     } catch (error) {
-      console.error(`[AIIntegration] Request execution failed:`, error);
       this.emit("request-failed", { id: request.id, error: error.message });
       throw error;
     }
@@ -6534,7 +6015,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async switchProvider(providerId, modelId = null) {
     try {
-      console.log(`[AIIntegration] Switching to provider: ${providerId}, model: ${modelId}`);
       const response = await window.electronAPI.langchainSwitchProvider({
         providerId,
         modelId
@@ -6543,11 +6023,9 @@ class ClaudeIntegration extends SimpleEventEmitter {
         throw new Error(response.error || "Failed to switch provider");
       }
       await this.checkSystemRequirements();
-      console.log("[AIIntegration] Provider switched successfully");
       this.emit("provider-switched", { providerId, modelId });
       return response;
     } catch (error) {
-      console.error("[AIIntegration] Failed to switch provider:", error);
       throw error;
     }
   }
@@ -6558,7 +6036,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
     try {
       return await window.electronAPI.langchainGetProviders();
     } catch (error) {
-      console.error("[AIIntegration] Failed to get providers:", error);
       return [];
     }
   }
@@ -6569,7 +6046,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
     try {
       return await window.electronAPI.langchainGetCurrentStatus();
     } catch (error) {
-      console.error("[AIIntegration] Failed to get current status:", error);
       return {
         provider: null,
         model: null,
@@ -6626,7 +6102,6 @@ HTML 형식으로 작성하되, <article> 태그로 감싸주세요.
         }
       };
     } catch (error) {
-      console.error("[AIIntegration] Blog content generation failed:", error);
       throw error;
     }
   }
@@ -6669,7 +6144,6 @@ SEO 최적화 요구사항:
         }
       };
     } catch (error) {
-      console.error("[AIIntegration] SEO optimization failed:", error);
       throw error;
     }
   }
@@ -6705,7 +6179,6 @@ JSON 형식으로 상세한 분석 결과를 제공해 주세요.
         // Will be extracted from response
       };
     } catch (error) {
-      console.error("[AIIntegration] Website analysis failed:", error);
       throw error;
     }
   }
@@ -6739,7 +6212,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
         generatedAt: Date.now()
       };
     } catch (error) {
-      console.error("[AIIntegration] WordPress post generation failed:", error);
       throw error;
     }
   }
@@ -6777,7 +6249,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       request.reject(new Error("Queue cleared"));
     });
     this.requestQueue = [];
-    console.log("[AIIntegration] Request queue cleared");
   }
   /**
    * Destroy AI integration
@@ -6787,7 +6258,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
     this.isInitialized = false;
     this.currentSession = null;
     this.removeAllListeners();
-    console.log("[AIIntegration] Destroyed");
   }
 }
 class ConversationManager extends EventEmitter {
@@ -6819,24 +6289,19 @@ class ConversationManager extends EventEmitter {
    */
   async initialize(chatHistoryManager = null) {
     try {
-      console.log("[ConversationManager] Initializing...");
       this.chatHistoryManager = chatHistoryManager;
       if (this.chatHistoryManager) {
-        console.log("[ConversationManager] ChatHistoryManager integration enabled");
         this.setupChatHistoryIntegration();
       } else {
-        console.log("[ConversationManager] Running in standalone mode");
         await this.loadConversations();
       }
       if (this.options.autoSave) {
         this.startAutoSave();
       }
       this.isInitialized = true;
-      console.log("[ConversationManager] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[ConversationManager] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -6855,7 +6320,6 @@ class ConversationManager extends EventEmitter {
     this.chatHistoryManager.on("active-conversation-changed", (data) => {
       this.handleHistoryActiveConversationChanged(data);
     });
-    console.log("[ConversationManager] ChatHistoryManager event listeners set up");
   }
   /**
    * Create a new conversation (Claude Code style session)
@@ -6922,9 +6386,7 @@ class ConversationManager extends EventEmitter {
         });
         conversation._historyIntegrated = true;
         this.conversations.set(conversationId, conversation);
-        console.log(`[ConversationManager] Created session via ChatHistoryManager: ${conversationId}`);
       } catch (error) {
-        console.error("[ConversationManager] Failed to create via ChatHistoryManager, falling back to local:", error);
         this.conversations.set(conversationId, conversation);
       }
     } else {
@@ -6940,7 +6402,6 @@ class ConversationManager extends EventEmitter {
     });
     this.lastSessionId = conversationId;
     this.enforceSessionLimits();
-    console.log(`[ConversationManager] Created session: ${conversationId}`);
     this.emit("conversation-created", { conversationId, conversation });
     return conversationId;
   }
@@ -6953,7 +6414,6 @@ class ConversationManager extends EventEmitter {
     }
     const previousId = this.currentConversationId;
     this.currentConversationId = conversationId;
-    console.log(`[ConversationManager] Switched to conversation: ${conversationId}`);
     this.emit("conversation-switched", {
       conversationId,
       previousId,
@@ -6993,9 +6453,7 @@ class ConversationManager extends EventEmitter {
     if (this.chatHistoryManager && conversation._historyIntegrated) {
       try {
         await this.chatHistoryManager.addMessage(targetId, messageObj);
-        console.log(`[ConversationManager] Added message via ChatHistoryManager: ${targetId}`);
       } catch (error) {
-        console.error("[ConversationManager] Failed to add message via ChatHistoryManager:", error);
       }
     }
     conversation.messages.push(messageObj);
@@ -7063,7 +6521,6 @@ class ConversationManager extends EventEmitter {
     } else {
       this.trimConversation(conversation);
     }
-    console.log(`[ConversationManager] Added message to session ${targetId}`);
     this.emit("message-added", { conversationId: targetId, message: messageObj });
     return messageObj;
   }
@@ -7096,7 +6553,6 @@ class ConversationManager extends EventEmitter {
       conversation.settings.model = modelId;
     }
     conversation.metadata.updatedAt = Date.now();
-    console.log(`[ConversationManager] Switched provider from ${previousProvider} to ${providerId} for conversation ${targetId}`);
     this.emit("provider-switched", {
       conversationId: targetId,
       previousProvider,
@@ -7156,7 +6612,6 @@ class ConversationManager extends EventEmitter {
       };
     }
     conversation.metadata.updatedAt = Date.now();
-    console.log(`[ConversationManager] Reset session costs for conversation ${targetId}`);
     this.emit("session-costs-reset", { conversationId: targetId });
     return conversation.metadata.costTracking;
   }
@@ -7250,12 +6705,10 @@ class ConversationManager extends EventEmitter {
       if (conversation) {
         conversation.context.set(key, value);
         conversation.metadata.updatedAt = Date.now();
-        console.log(`[ConversationManager] Updated context for conversation ${targetId}: ${key}`);
         this.emit("context-updated", { conversationId: targetId, key, value });
       }
     } else {
       this.globalContext.set(key, value);
-      console.log(`[ConversationManager] Updated global context: ${key}`);
       this.emit("global-context-updated", { key, value });
     }
   }
@@ -7264,7 +6717,6 @@ class ConversationManager extends EventEmitter {
    */
   setGlobalContext(key, value) {
     this.globalContext.set(key, value);
-    console.log(`[ConversationManager] Set global context: ${key}`);
     this.emit("global-context-updated", { key, value });
   }
   /**
@@ -7324,7 +6776,6 @@ class ConversationManager extends EventEmitter {
       }
     }
     searchResults.sort((a, b) => b.updatedAt - a.updatedAt);
-    console.log(`[ConversationManager] Search for "${query}" found ${searchResults.length} results`);
     return searchResults;
   }
   /**
@@ -7406,11 +6857,9 @@ class ConversationManager extends EventEmitter {
         context: new Map(Object.entries(conversationData.context || {}))
       };
       this.conversations.set(importId, conversation);
-      console.log(`[ConversationManager] Imported conversation: ${importId}`);
       this.emit("conversation-imported", { conversationId: importId, conversation });
       return importId;
     } catch (error) {
-      console.error("[ConversationManager] Import failed:", error);
       throw error;
     }
   }
@@ -7426,7 +6875,6 @@ class ConversationManager extends EventEmitter {
       const remaining = Array.from(this.conversations.keys());
       this.currentConversationId = remaining.length > 0 ? remaining[0] : null;
     }
-    console.log(`[ConversationManager] Deleted conversation: ${conversationId}`);
     this.emit("conversation-deleted", { conversationId });
   }
   /**
@@ -7463,7 +6911,6 @@ class ConversationManager extends EventEmitter {
     conversation.sessionState.continuationMode = true;
     conversation.metadata.updatedAt = Date.now();
     this.switchToConversation(this.lastSessionId);
-    console.log(`[ConversationManager] Continuing session: ${this.lastSessionId}`);
     this.emit("session-continued", { conversationId: this.lastSessionId, conversation });
     return conversation;
   }
@@ -7483,7 +6930,6 @@ class ConversationManager extends EventEmitter {
     }
     this.switchToConversation(sessionId);
     this.lastSessionId = sessionId;
-    console.log(`[ConversationManager] Resumed session: ${sessionId}`);
     this.emit("session-resumed", { conversationId: sessionId, conversation });
     return conversation;
   }
@@ -7504,7 +6950,6 @@ class ConversationManager extends EventEmitter {
     conversation.metadata.updatedAt = Date.now();
     conversation.metadata.tokenUsage = { input: 0, output: 0, total: 0 };
     conversation.sessionState.contextSummary = null;
-    console.log(`[ConversationManager] Cleared conversation: ${targetId}`);
     this.emit("conversation-cleared", { conversationId: targetId });
     return conversation;
   }
@@ -7521,7 +6966,6 @@ class ConversationManager extends EventEmitter {
       throw new Error(`Conversation ${targetId} not found`);
     }
     if (conversation.messages.length < 5) {
-      console.log(`[ConversationManager] Conversation too short to compact: ${targetId}`);
       return conversation;
     }
     const messagesToSummarize = conversation.messages.slice(0, -this.options.contextWindow);
@@ -7543,7 +6987,6 @@ class ConversationManager extends EventEmitter {
     conversation.metadata.compactionCount++;
     conversation.metadata.updatedAt = Date.now();
     conversation.sessionState.contextSummary = summary;
-    console.log(`[ConversationManager] Compacted conversation: ${targetId}`);
     this.emit("conversation-compacted", { conversationId: targetId, summary });
     return conversation;
   }
@@ -7637,7 +7080,6 @@ class ConversationManager extends EventEmitter {
       const [sessionId] = sessions[i];
       this.conversations.delete(sessionId);
       this.sessionHistory.delete(sessionId);
-      console.log(`[ConversationManager] Removed old session: ${sessionId}`);
     }
   }
   formatTimeAgo(timestamp) {
@@ -7654,8 +7096,7 @@ class ConversationManager extends EventEmitter {
   }
   trimConversation(conversation) {
     if (conversation.messages.length > this.options.maxHistorySize) {
-      const removed = conversation.messages.splice(0, conversation.messages.length - this.options.maxHistorySize);
-      console.log(`[ConversationManager] Trimmed ${removed.length} old messages from conversation ${conversation.id}`);
+      conversation.messages.splice(0, conversation.messages.length - this.options.maxHistorySize);
     }
   }
   convertToMarkdown(conversationData) {
@@ -7725,23 +7166,18 @@ ${msg.content}
             };
             this.conversations.set(id, conversation);
           }
-          console.log(`[ConversationManager] Loaded ${this.conversations.size} conversations`);
         }
         if (savedSessionHistory) {
           this.sessionHistory = new Map(Object.entries(savedSessionHistory));
-          console.log(`[ConversationManager] Loaded ${this.sessionHistory.size} session records`);
         }
         if (savedGlobalContext) {
           this.globalContext = new Map(Object.entries(savedGlobalContext));
-          console.log(`[ConversationManager] Loaded global context`);
         }
         if (savedLastSession && this.conversations.has(savedLastSession)) {
           this.lastSessionId = savedLastSession;
-          console.log(`[ConversationManager] Restored last session: ${savedLastSession}`);
         }
       }
     } catch (error) {
-      console.warn("[ConversationManager] Failed to load conversations:", error);
     }
   }
   /**
@@ -7763,10 +7199,8 @@ ${msg.content}
         if (this.lastSessionId) {
           await window.electronAPI.storage.set("lastSessionId", this.lastSessionId);
         }
-        console.log(`[ConversationManager] Saved ${this.conversations.size} conversations and ${this.sessionHistory.size} session records`);
       }
     } catch (error) {
-      console.error("[ConversationManager] Failed to save conversations:", error);
     }
   }
   /**
@@ -7779,7 +7213,6 @@ ${msg.content}
     this.saveTimer = setInterval(() => {
       this.saveConversations();
     }, this.options.saveInterval);
-    console.log("[ConversationManager] Auto-save started");
   }
   /**
    * Stop auto-save timer
@@ -7788,7 +7221,6 @@ ${msg.content}
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
-      console.log("[ConversationManager] Auto-save stopped");
     }
   }
   /**
@@ -7818,7 +7250,6 @@ ${msg.content}
         _historyIntegrated: true
       };
       this.conversations.set(conversationId, localConversation);
-      console.log(`[ConversationManager] Synced conversation from ChatHistoryManager: ${conversationId}`);
     }
   }
   /**
@@ -7830,7 +7261,6 @@ ${msg.content}
     if (conversation && conversation._historyIntegrated) {
       conversation.metadata.messageCount = conversation.messages.length;
       conversation.metadata.updatedAt = Date.now();
-      console.log(`[ConversationManager] Synced message addition from ChatHistoryManager: ${conversationId}`);
     }
   }
   /**
@@ -7840,7 +7270,6 @@ ${msg.content}
     const { conversationId, previousId } = data;
     this.currentConversationId = conversationId;
     this.lastSessionId = conversationId;
-    console.log(`[ConversationManager] Synced active conversation change from ChatHistoryManager: ${conversationId}`);
     this.emit("conversation-switched", { conversationId, previousId });
   }
   /**
@@ -7874,11 +7303,9 @@ ${msg.content}
           _historyIntegrated: true
         };
         this.conversations.set(conversationId, localConversation);
-        console.log(`[ConversationManager] Loaded conversation from ChatHistoryManager: ${conversationId}`);
         return localConversation;
       }
     } catch (error) {
-      console.error(`[ConversationManager] Failed to load from ChatHistoryManager: ${conversationId}`, error);
     }
     return null;
   }
@@ -7905,7 +7332,6 @@ ${msg.content}
       reason: "manual-switch"
     });
     conversation.metadata.updatedAt = Date.now();
-    console.log(`[ConversationManager] Switched provider from ${oldProvider} to ${newProvider} for conversation ${targetId}`);
     this.emit("provider-switched", { conversationId: targetId, oldProvider, newProvider });
     return conversation;
   }
@@ -7975,7 +7401,6 @@ ${msg.content}
     if (conversation.sessionState.currentProvider === provider) {
       conversation.settings.providerModel = model;
       conversation.metadata.updatedAt = Date.now();
-      console.log(`[ConversationManager] Updated model to ${model} for provider ${provider} in conversation ${targetId}`);
       this.emit("model-updated", { conversationId: targetId, provider, model });
     }
     return conversation;
@@ -8026,7 +7451,6 @@ ${msg.content}
     this.chatHistoryManager = null;
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[ConversationManager] Destroyed");
   }
 }
 class TaskExecutor extends EventEmitter {
@@ -8045,13 +7469,10 @@ class TaskExecutor extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[TaskExecutor] Initializing...");
       this.isInitialized = true;
-      console.log("[TaskExecutor] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[TaskExecutor] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -8068,7 +7489,6 @@ class TaskExecutor extends EventEmitter {
       retries: 0
     };
     this.tasks.set(taskId, taskObj);
-    console.log(`[TaskExecutor] Added new task: ${taskId}`);
     this.emit("task-added", taskObj);
     this.executeTask(taskId);
     return taskId;
@@ -8083,19 +7503,15 @@ class TaskExecutor extends EventEmitter {
     const task = this.tasks.get(taskId);
     try {
       task.status = "running";
-      console.log(`[TaskExecutor] Executing task: ${taskId}`);
       this.emit("task-started", task);
       await task.executionLogic();
       task.status = "completed";
-      console.log(`[TaskExecutor] Task completed: ${taskId}`);
       this.emit("task-completed", task);
       this.tasks.delete(taskId);
     } catch (error) {
-      console.error(`[TaskExecutor] Task execution failed: ${taskId}`, error);
       task.status = "failed";
       task.retries++;
       if (task.retries <= this.options.retryLimit) {
-        console.log(`[TaskExecutor] Retrying task: ${taskId} (${task.retries}/${this.options.retryLimit})`);
         this.executeTask(taskId);
       } else {
         this.emit("task-failed", task);
@@ -8110,7 +7526,6 @@ class TaskExecutor extends EventEmitter {
     if (this.tasks.has(taskId)) {
       const task = this.tasks.get(taskId);
       task.status = "cancelled";
-      console.log(`[TaskExecutor] Task cancelled: ${taskId}`);
       this.emit("task-cancelled", task);
       this.tasks.delete(taskId);
     } else {
@@ -8145,7 +7560,6 @@ class TaskExecutor extends EventEmitter {
     this.tasks.clear();
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[TaskExecutor] Destroyed");
   }
 }
 class ContentGenerator extends EventEmitter {
@@ -8167,16 +7581,13 @@ class ContentGenerator extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[ContentGenerator] Initializing...");
       if (!this.claudeIntegration?.isInitialized) {
         throw new Error("Claude integration not initialized");
       }
       this.isInitialized = true;
-      console.log("[ContentGenerator] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[ContentGenerator] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -8189,7 +7600,6 @@ class ContentGenerator extends EventEmitter {
       throw new Error("ContentGenerator not initialized");
     }
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting blog generation: ${generationId}`);
     try {
       this.emit("generation-started", { id: generationId, type: "blog", request });
       const options = {
@@ -8228,11 +7638,9 @@ class ContentGenerator extends EventEmitter {
         }
       };
       this.generationHistory.push(result);
-      console.log(`[ContentGenerator] Blog generation completed: ${generationId}`);
       this.emit("generation-completed", result);
       return result;
     } catch (error) {
-      console.error(`[ContentGenerator] Blog generation failed: ${generationId}`, error);
       this.emit("generation-failed", { id: generationId, error: error.message });
       throw error;
     }
@@ -8245,7 +7653,6 @@ class ContentGenerator extends EventEmitter {
       throw new Error("ContentGenerator not initialized");
     }
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting SEO content generation: ${generationId}`);
     try {
       this.emit("generation-started", { id: generationId, type: "seo", request });
       const prompt2 = this.createSEOPrompt(request.topic, {
@@ -8275,11 +7682,9 @@ class ContentGenerator extends EventEmitter {
         }
       };
       this.generationHistory.push(result);
-      console.log(`[ContentGenerator] SEO content generation completed: ${generationId}`);
       this.emit("generation-completed", result);
       return result;
     } catch (error) {
-      console.error(`[ContentGenerator] SEO content generation failed: ${generationId}`, error);
       this.emit("generation-failed", { id: generationId, error: error.message });
       throw error;
     }
@@ -8292,7 +7697,6 @@ class ContentGenerator extends EventEmitter {
       throw new Error("ContentGenerator not initialized");
     }
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting product description generation: ${generationId}`);
     try {
       this.emit("generation-started", { id: generationId, type: "product-description", product });
       const prompt2 = `
@@ -8336,11 +7740,9 @@ class ContentGenerator extends EventEmitter {
         }
       };
       this.generationHistory.push(result);
-      console.log(`[ContentGenerator] Product description generation completed: ${generationId}`);
       this.emit("generation-completed", result);
       return result;
     } catch (error) {
-      console.error(`[ContentGenerator] Product description generation failed: ${generationId}`, error);
       this.emit("generation-failed", { id: generationId, error: error.message });
       throw error;
     }
@@ -8353,7 +7755,6 @@ class ContentGenerator extends EventEmitter {
       throw new Error("ContentGenerator not initialized");
     }
     const generationId = this.generateId();
-    console.log(`[ContentGenerator] Starting technical documentation generation: ${generationId}`);
     try {
       this.emit("generation-started", { id: generationId, type: "technical-doc", request });
       const prompt2 = `
@@ -8398,11 +7799,9 @@ class ContentGenerator extends EventEmitter {
         }
       };
       this.generationHistory.push(result);
-      console.log(`[ContentGenerator] Technical documentation generation completed: ${generationId}`);
       this.emit("generation-completed", result);
       return result;
     } catch (error) {
-      console.error(`[ContentGenerator] Technical documentation generation failed: ${generationId}`, error);
       this.emit("generation-failed", { id: generationId, error: error.message });
       throw error;
     }
@@ -8512,7 +7911,6 @@ HTML 형식으로 작성하고, SEO 메타데이터를 별도로 제공해 주�
    */
   clearHistory() {
     this.generationHistory = [];
-    console.log("[ContentGenerator] Generation history cleared");
     this.emit("history-cleared");
   }
   /**
@@ -8528,7 +7926,6 @@ HTML 형식으로 작성하고, SEO 메타데이터를 별도로 제공해 주�
     this.generationHistory = [];
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[ContentGenerator] Destroyed");
   }
 }
 class TemplateManager extends EventEmitter {
@@ -8547,17 +7944,14 @@ class TemplateManager extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[TemplateManager] Initializing...");
       await this.reloadTemplates();
       if (this.options.autoReload) {
         this.setupFileWatchers();
       }
       this.isInitialized = true;
-      console.log("[TemplateManager] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[TemplateManager] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -8578,10 +7972,8 @@ class TemplateManager extends EventEmitter {
 `
       };
       this.templates.set(exampleTemplate.id, exampleTemplate);
-      console.log(`[TemplateManager] Loaded templates from ${this.options.templatesPath}`);
       this.emit("templates-reloaded", { count: this.templates.size });
     } catch (error) {
-      console.error("[TemplateManager] Failed to load templates:", error);
       throw error;
     }
   }
@@ -8600,7 +7992,6 @@ class TemplateManager extends EventEmitter {
     }
     const template = this.templates.get(templateId);
     const prompt2 = this.fillTemplate(template.prompt, variables);
-    console.log(`[TemplateManager] Generated prompt using template: ${templateId}`);
     return prompt2;
   }
   /**
@@ -8619,7 +8010,6 @@ class TemplateManager extends EventEmitter {
       throw new Error("Invalid template format");
     }
     this.templates.set(template.id, template);
-    console.log(`[TemplateManager] Added/Updated template: ${template.id}`);
     this.emit("template-updated", { id: template.id });
   }
   /**
@@ -8630,14 +8020,12 @@ class TemplateManager extends EventEmitter {
       throw new Error(`Template ${templateId} not found`);
     }
     this.templates.delete(templateId);
-    console.log(`[TemplateManager] Deleted template: ${templateId}`);
     this.emit("template-deleted", { templateId });
   }
   /**
    * Watch template files for changes
    */
   setupFileWatchers() {
-    console.log("[TemplateManager] File watchers not implemented yet. Placeholder for future enhancement.");
   }
   /**
    * Destroy template manager
@@ -8646,7 +8034,6 @@ class TemplateManager extends EventEmitter {
     this.templates.clear();
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[TemplateManager] Destroyed");
   }
 }
 class SEOOptimizer extends EventEmitter {
@@ -8694,13 +8081,10 @@ class SEOOptimizer extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[SEOOptimizer] Initializing...");
       this.isInitialized = true;
-      console.log("[SEOOptimizer] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[SEOOptimizer] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -8713,7 +8097,6 @@ class SEOOptimizer extends EventEmitter {
       throw new Error("SEOOptimizer not initialized");
     }
     const optimizationId = this.generateId();
-    console.log(`[SEOOptimizer] Starting content optimization: ${optimizationId}`);
     try {
       this.emit("optimization-started", { id: optimizationId, content: content.substring(0, 100) + "..." });
       const analysis = this.analyzeContent(content, options);
@@ -8728,11 +8111,9 @@ class SEOOptimizer extends EventEmitter {
         seoScore: this.calculateSEOScore(analysis, options),
         optimizedAt: Date.now()
       };
-      console.log(`[SEOOptimizer] Content optimization completed: ${optimizationId}`);
       this.emit("optimization-completed", result);
       return result;
     } catch (error) {
-      console.error(`[SEOOptimizer] Content optimization failed: ${optimizationId}`, error);
       this.emit("optimization-failed", { id: optimizationId, error: error.message });
       throw error;
     }
@@ -9065,7 +8446,6 @@ ${optimizedContent}`;
   destroy() {
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[SEOOptimizer] Destroyed");
   }
 }
 class QualityChecker extends EventEmitter {
@@ -9084,13 +8464,10 @@ class QualityChecker extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[QualityChecker] Initializing...");
       this.isInitialized = true;
-      console.log("[QualityChecker] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[QualityChecker] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -9119,7 +8496,6 @@ class QualityChecker extends EventEmitter {
       this.emit("quality-check-completed", qualityReport);
       return qualityReport;
     } catch (error) {
-      console.error("[QualityChecker] Quality check failed:", error);
       this.emit("quality-check-failed", { error: error.message });
       throw error;
     }
@@ -9171,7 +8547,6 @@ class QualityChecker extends EventEmitter {
   destroy() {
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[QualityChecker] Destroyed");
   }
 }
 class GlobalStateManager extends EventEmitter {
@@ -9204,7 +8579,6 @@ class GlobalStateManager extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[GlobalStateManager] Initializing...");
       if (this.options.persistState) {
         await this.loadState();
       }
@@ -9216,11 +8590,9 @@ class GlobalStateManager extends EventEmitter {
       this.startHistoryCleanup();
       this.startProviderMonitoring();
       this.isInitialized = true;
-      console.log("[GlobalStateManager] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[GlobalStateManager] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -9231,7 +8603,6 @@ class GlobalStateManager extends EventEmitter {
   setState(key, value) {
     const previousValue = this.state.get(key);
     this.state.set(key, value);
-    console.log(`[GlobalStateManager] State updated: ${key}`);
     this.emit("state-changed", { key, value, previousValue });
     this.emit(`state-changed:${key}`, { value, previousValue });
   }
@@ -9255,7 +8626,6 @@ class GlobalStateManager extends EventEmitter {
   removeState(key) {
     const value = this.state.get(key);
     this.state.delete(key);
-    console.log(`[GlobalStateManager] State removed: ${key}`);
     this.emit("state-removed", { key, value });
   }
   /**
@@ -9269,7 +8639,6 @@ class GlobalStateManager extends EventEmitter {
    */
   clearState() {
     this.state.clear();
-    console.log("[GlobalStateManager] State cleared");
     this.emit("state-cleared");
   }
   /**
@@ -9296,18 +8665,15 @@ class GlobalStateManager extends EventEmitter {
         const savedState = await window.electronAPI.storage.get("globalState");
         if (savedState) {
           this.state = new Map(Object.entries(savedState));
-          console.log(`[GlobalStateManager] Loaded state with ${this.state.size} entries`);
           this.emit("state-loaded", { size: this.state.size });
         }
         const savedChatHistory = await window.electronAPI.storage.get("chatHistory");
         if (savedChatHistory) {
           this.state.set("chatHistory", savedChatHistory);
-          console.log(`[GlobalStateManager] Loaded chat history with ${Object.keys(savedChatHistory.conversations || {}).length} conversations`);
         }
         const savedAIProviders = await window.electronAPI.storage.get("aiProviders");
         if (savedAIProviders) {
           this.state.set("aiProviders", savedAIProviders);
-          console.log(`[GlobalStateManager] Loaded AI provider state with ${Object.keys(savedAIProviders.availableProviders || {}).length} providers`);
           this.activeProvider = savedAIProviders.activeProvider;
           if (savedAIProviders.retryAttempts) {
             this.providerRetryAttempts = new Map(Object.entries(savedAIProviders.retryAttempts));
@@ -9329,7 +8695,6 @@ class GlobalStateManager extends EventEmitter {
         }
       }
     } catch (error) {
-      console.warn("[GlobalStateManager] Failed to load state:", error);
     }
   }
   /**
@@ -9350,11 +8715,9 @@ class GlobalStateManager extends EventEmitter {
         if (aiProviders) {
           await this.saveAIProviderState(aiProviders);
         }
-        console.log(`[GlobalStateManager] Saved state with ${this.state.size} entries`);
         this.emit("state-saved", { size: this.state.size });
       }
     } catch (error) {
-      console.error("[GlobalStateManager] Failed to save state:", error);
     }
   }
   /**
@@ -9364,13 +8727,11 @@ class GlobalStateManager extends EventEmitter {
     try {
       await window.electronAPI.storage.set("chatHistory", chatHistory);
       const conversationCount = Object.keys(chatHistory.conversations || {}).length;
-      console.log(`[GlobalStateManager] Saved chat history with ${conversationCount} conversations`);
       eventBus.publish("chat-history-persisted", {
         conversationCount,
         timestamp: Date.now()
       });
     } catch (error) {
-      console.error("[GlobalStateManager] Failed to save chat history:", error);
       throw error;
     }
   }
@@ -9405,7 +8766,6 @@ class GlobalStateManager extends EventEmitter {
       };
       await window.electronAPI.storage.set("aiProviders", enhancedProviderState);
       const providerCount = Object.keys(aiProviders.availableProviders || {}).length;
-      console.log(`[GlobalStateManager] Saved AI provider state with ${providerCount} providers`);
       eventBus.publish("provider-state-persisted", {
         providerCount,
         activeProvider: aiProviders.activeProvider,
@@ -9413,7 +8773,6 @@ class GlobalStateManager extends EventEmitter {
         timestamp: Date.now()
       });
     } catch (error) {
-      console.error("[GlobalStateManager] Failed to save AI provider state:", error);
       throw error;
     }
   }
@@ -9427,7 +8786,6 @@ class GlobalStateManager extends EventEmitter {
     this.saveTimer = setInterval(() => {
       this.saveState();
     }, this.options.saveInterval);
-    console.log("[GlobalStateManager] Auto-save started");
   }
   /**
    * Stop auto-save timer
@@ -9436,7 +8794,6 @@ class GlobalStateManager extends EventEmitter {
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
-      console.log("[GlobalStateManager] Auto-save stopped");
     }
   }
   /**
@@ -9485,12 +8842,10 @@ class GlobalStateManager extends EventEmitter {
         }
       });
       this.setState("chatHistory", chatHistory);
-      console.log("[GlobalStateManager] Chat history state initialized for coordination");
       eventBus.publish("chat-history-state-initialized", {
         preferences: chatHistory.userPreferences
       });
     } catch (error) {
-      console.error("[GlobalStateManager] Failed to initialize chat history state:", error);
       throw error;
     }
   }
@@ -9503,7 +8858,6 @@ class GlobalStateManager extends EventEmitter {
     chatHistory.activeConversationId = conversationId;
     chatHistory.uiState.selectedConversation = conversationId;
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Active conversation state updated: ${conversationId}`);
     eventBus.publish("state-active-conversation-changed", {
       conversationId,
       previousId
@@ -9530,7 +8884,6 @@ class GlobalStateManager extends EventEmitter {
     chatHistory.metadata.totalConversations = Object.keys(chatHistory.cachedConversations).length;
     chatHistory.metadata.lastSync = Date.now();
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Updated cached conversation: ${conversationId}`);
     eventBus.publish("state-conversation-cached", { conversationId });
   }
   /**
@@ -9553,7 +8906,6 @@ class GlobalStateManager extends EventEmitter {
         chatHistory.uiState.selectedConversation = null;
       }
       this.setState("chatHistory", chatHistory);
-      console.log(`[GlobalStateManager] Removed cached conversation: ${conversationId}`);
       eventBus.publish("state-conversation-removed", { conversationId });
     }
   }
@@ -9585,7 +8937,6 @@ class GlobalStateManager extends EventEmitter {
       };
     }
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Updated search state: "${query}"`);
     eventBus.publish("state-search-updated", { query, hasResults: !!results });
   }
   /**
@@ -9598,7 +8949,6 @@ class GlobalStateManager extends EventEmitter {
       ...filterUpdates
     };
     this.setState("chatHistory", chatHistory);
-    console.log("[GlobalStateManager] Updated filter state");
     eventBus.publish("state-filter-updated", { filterState: chatHistory.uiState.filterState });
   }
   /**
@@ -9609,7 +8959,6 @@ class GlobalStateManager extends EventEmitter {
     chatHistory.uiState.sortBy = sortBy;
     chatHistory.uiState.sortOrder = sortOrder;
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Updated sort state: ${sortBy} ${sortOrder}`);
     eventBus.publish("state-sort-updated", { sortBy, sortOrder });
   }
   /**
@@ -9624,7 +8973,6 @@ class GlobalStateManager extends EventEmitter {
     chatHistory.activeConversationId = conversationId;
     this.activeConversationId = conversationId;
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Active conversation changed: ${conversationId}`);
     eventBus.publish("active-conversation-changed", {
       conversationId,
       previousId
@@ -9648,7 +8996,6 @@ class GlobalStateManager extends EventEmitter {
       this.activeConversationId = null;
     }
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Deleted conversation: ${conversationId}`);
     eventBus.publish("conversation-deleted", { conversationId, conversation });
   }
   /**
@@ -9704,10 +9051,6 @@ class GlobalStateManager extends EventEmitter {
     results.messages.sort((a, b) => b.score - a.score);
     results.conversations = results.conversations.slice(0, limit);
     results.messages = results.messages.slice(0, limit * 2);
-    console.log(`[GlobalStateManager] Search completed: ${query}`, {
-      conversationResults: results.conversations.length,
-      messageResults: results.messages.length
-    });
     eventBus.publish("chat-history-searched", {
       query,
       results: {
@@ -9761,7 +9104,6 @@ class GlobalStateManager extends EventEmitter {
       };
     }
     this.setState("chatHistory", chatHistory);
-    console.log("[GlobalStateManager] Search index rebuilt");
   }
   /**
    * Load conversation metadata cache
@@ -9778,7 +9120,6 @@ class GlobalStateManager extends EventEmitter {
         messageCount: conversation.messages.length
       });
     }
-    console.log(`[GlobalStateManager] Loaded metadata for ${this.conversationMetadata.size} conversations`);
   }
   /**
    * Start history cleanup timer
@@ -9790,7 +9131,6 @@ class GlobalStateManager extends EventEmitter {
     this.historyCleanupTimer = setInterval(() => {
       this.performHistoryCleanup();
     }, 6 * 60 * 60 * 1e3);
-    console.log("[GlobalStateManager] History cleanup timer started");
   }
   /**
    * Perform history cleanup based on user preferences
@@ -9815,7 +9155,6 @@ class GlobalStateManager extends EventEmitter {
       }
     }
     if (cleanupCount > 0) {
-      console.log(`[GlobalStateManager] Cleaned up ${cleanupCount} old conversations`);
       eventBus.publish("chat-history-cleanup-completed", { cleanupCount });
     }
     chatHistory.metadata.lastCleanup = Date.now();
@@ -9871,7 +9210,6 @@ class GlobalStateManager extends EventEmitter {
       ...preferences
     };
     this.setState("chatHistory", chatHistory);
-    console.log("[GlobalStateManager] Chat history preferences updated");
     eventBus.publish("chat-history-preferences-updated", { preferences });
   }
   /**
@@ -9882,7 +9220,6 @@ class GlobalStateManager extends EventEmitter {
     chatHistory.metadata.isOnline = isOnline;
     chatHistory.metadata.lastSync = Date.now();
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Connection status updated: ${isOnline ? "online" : "offline"}`);
     eventBus.publish("state-connection-changed", { isOnline });
   }
   /**
@@ -9948,7 +9285,6 @@ class GlobalStateManager extends EventEmitter {
     await this.loadConversationMetadata();
     chatHistory.metadata.totalConversations = Object.keys(chatHistory.conversations).length;
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Imported chat history with ${Object.keys(importData.conversations || {}).length} conversations`);
     eventBus.publish("chat-history-imported", {
       conversationCount: Object.keys(importData.conversations || {}).length,
       merged: merge
@@ -10019,7 +9355,6 @@ class GlobalStateManager extends EventEmitter {
       });
       this.setState("aiProviders", providerState);
       this.activeProvider = providerState.activeProvider;
-      console.log("[GlobalStateManager] AI providers state initialized");
       eventBus.publish("ai-providers-initialized", {
         activeProvider: providerState.activeProvider,
         availableProviders: Object.keys(providerState.availableProviders),
@@ -10030,7 +9365,6 @@ class GlobalStateManager extends EventEmitter {
         }
       });
     } catch (error) {
-      console.error("[GlobalStateManager] Failed to initialize AI providers state:", error);
       throw error;
     }
   }
@@ -10040,7 +9374,6 @@ class GlobalStateManager extends EventEmitter {
   updateProviderStatus(providerId, status, error = null) {
     const providerState = this.getState("aiProviders");
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider: ${providerId}`);
       return;
     }
     const provider = providerState.availableProviders[providerId];
@@ -10053,7 +9386,6 @@ class GlobalStateManager extends EventEmitter {
       provider.lastError = null;
     }
     this.setState("aiProviders", providerState);
-    console.log(`[GlobalStateManager] Provider status updated: ${providerId} -> ${status}`);
     eventBus.publish("provider-status-changed", {
       providerId,
       status,
@@ -10068,7 +9400,6 @@ class GlobalStateManager extends EventEmitter {
     const providerState = this.getState("aiProviders");
     if (!providerState.availableProviders[newProviderId]) {
       const error = new Error(`Unknown provider: ${newProviderId}`);
-      console.error("[GlobalStateManager] Provider switch failed:", error);
       eventBus.publish("provider-switch-failed", {
         providerId: newProviderId,
         reason: error.message,
@@ -10079,7 +9410,6 @@ class GlobalStateManager extends EventEmitter {
     const provider = providerState.availableProviders[newProviderId];
     if (provider.status !== "connected" && provider.status !== "ready") {
       const warning = `Provider ${newProviderId} is not ready (status: ${provider.status})`;
-      console.warn("[GlobalStateManager]", warning);
       eventBus.publish("provider-switch-warning", {
         providerId: newProviderId,
         status: provider.status,
@@ -10119,7 +9449,6 @@ class GlobalStateManager extends EventEmitter {
     }
     this.setState("aiProviders", providerState);
     this.activeProvider = newProviderId;
-    console.log(`[GlobalStateManager] Active provider switched: ${previousProvider} -> ${newProviderId} (reason: ${reason})`);
     eventBus.publish("active-provider-changed", {
       providerId: newProviderId,
       previousProvider,
@@ -10165,7 +9494,6 @@ class GlobalStateManager extends EventEmitter {
     provider.model = model;
     provider.lastModelChange = Date.now();
     this.setState("aiProviders", providerState);
-    console.log(`[GlobalStateManager] Provider model updated: ${providerId} -> ${model}`);
     eventBus.publish("provider-model-changed", {
       providerId,
       model,
@@ -10184,7 +9512,6 @@ class GlobalStateManager extends EventEmitter {
     provider.config = { ...provider.config, ...config };
     provider.lastConfigChange = Date.now();
     this.setState("aiProviders", providerState);
-    console.log(`[GlobalStateManager] Provider configuration updated: ${providerId}`);
     eventBus.publish("provider-config-changed", {
       providerId,
       config: provider.config
@@ -10197,7 +9524,6 @@ class GlobalStateManager extends EventEmitter {
     const { tokens = 0, cost = 0, messageId = null } = usage;
     const providerState = this.getState("aiProviders");
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider for usage tracking: ${providerId}`);
       return;
     }
     const provider = providerState.availableProviders[providerId];
@@ -10216,7 +9542,6 @@ class GlobalStateManager extends EventEmitter {
     globalTracking.costByProvider[providerId].cost += cost;
     globalTracking.costByProvider[providerId].tokens += tokens;
     this.setState("aiProviders", providerState);
-    console.log(`[GlobalStateManager] Usage tracked for ${providerId}: ${tokens} tokens, $${cost.toFixed(4)}`);
     eventBus.publish("provider-usage-tracked", {
       providerId,
       tokens,
@@ -10239,7 +9564,6 @@ class GlobalStateManager extends EventEmitter {
     providerState.globalCostTracking.sessionCost = 0;
     providerState.globalCostTracking.sessionTokens = 0;
     this.setState("aiProviders", providerState);
-    console.log("[GlobalStateManager] Session cost tracking reset");
     eventBus.publish("session-cost-reset");
   }
   /**
@@ -10271,7 +9595,6 @@ class GlobalStateManager extends EventEmitter {
   updateProviderKeyStatus(providerId, hasKey) {
     const providerState = this.getState("aiProviders");
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider: ${providerId}`);
       return;
     }
     const provider = providerState.availableProviders[providerId];
@@ -10282,7 +9605,6 @@ class GlobalStateManager extends EventEmitter {
       provider.lastError = "API key not available";
     }
     this.setState("aiProviders", providerState);
-    console.log(`[GlobalStateManager] Provider key status updated: ${providerId} -> ${hasKey ? "available" : "missing"}`);
     eventBus.publish("provider-key-status-changed", {
       providerId,
       hasKey,
@@ -10349,7 +9671,6 @@ class GlobalStateManager extends EventEmitter {
       ...preferences
     };
     this.setState("aiProviders", providerState);
-    console.log("[GlobalStateManager] Provider preferences updated");
     eventBus.publish("provider-preferences-updated", { preferences });
   }
   /**
@@ -10363,7 +9684,6 @@ class GlobalStateManager extends EventEmitter {
       try {
         await this.checkProviderHealth();
       } catch (error) {
-        console.error("[GlobalStateManager] Provider monitoring error:", error);
         eventBus.publish("provider-monitoring-error", {
           error: error.message,
           timestamp: Date.now()
@@ -10376,7 +9696,6 @@ class GlobalStateManager extends EventEmitter {
     this.providerHealthTimer = setInterval(() => {
       this.performProviderHealthAnalysis();
     }, 6e4);
-    console.log("[GlobalStateManager] Enhanced provider monitoring started");
     eventBus.publish("provider-monitoring-started", { timestamp: Date.now() });
   }
   /**
@@ -10411,7 +9730,6 @@ class GlobalStateManager extends EventEmitter {
             healthCheck.currentStatus = provider.consecutiveFailures > 3 ? "error" : "degraded";
           }
         } catch (error) {
-          console.warn(`[GlobalStateManager] Provider health check failed for ${providerId}:`, error);
           healthCheck.error = error.message;
           healthCheck.currentStatus = "error";
           provider.consecutiveFailures = (provider.consecutiveFailures || 0) + 1;
@@ -10481,7 +9799,6 @@ class GlobalStateManager extends EventEmitter {
       }
       return provider.hasApiKey && provider.status !== "error";
     } catch (error) {
-      console.error(`[GlobalStateManager] Health check implementation error for ${providerId}:`, error);
       return false;
     }
   }
@@ -10519,7 +9836,6 @@ class GlobalStateManager extends EventEmitter {
       ).sort((a, b) => b[1].lastUsed - a[1].lastUsed);
       if (alternatives.length > 0) {
         const [alternativeId] = alternatives[0];
-        console.log(`[GlobalStateManager] Auto-switching from ${failedProviderId} to ${alternativeId} due to ${reason}`);
         this.switchActiveProvider(alternativeId, `auto-switch-${reason}`);
         eventBus.publish("provider-auto-switched", {
           from: failedProviderId,
@@ -10529,7 +9845,6 @@ class GlobalStateManager extends EventEmitter {
         });
         return alternativeId;
       } else {
-        console.warn("[GlobalStateManager] No healthy alternative providers available for auto-switch");
         eventBus.publish("provider-auto-switch-failed", {
           failedProvider: failedProviderId,
           reason: "no-alternatives",
@@ -10537,7 +9852,6 @@ class GlobalStateManager extends EventEmitter {
         });
       }
     } catch (error) {
-      console.error("[GlobalStateManager] Auto-switch attempt failed:", error);
       eventBus.publish("provider-auto-switch-error", {
         failedProvider: failedProviderId,
         error: error.message,
@@ -10613,7 +9927,6 @@ class GlobalStateManager extends EventEmitter {
   updateConversationProvider(conversationId, providerId, providerInfo = {}) {
     const chatHistory = this.getState("chatHistory");
     if (!chatHistory.cachedConversations[conversationId]) {
-      console.warn(`[GlobalStateManager] Conversation ${conversationId} not found in cache`);
       return;
     }
     const conversation = chatHistory.cachedConversations[conversationId];
@@ -10639,7 +9952,6 @@ class GlobalStateManager extends EventEmitter {
     }
     conversation.lastCached = Date.now();
     this.setState("chatHistory", chatHistory);
-    console.log(`[GlobalStateManager] Updated provider for conversation ${conversationId}: ${previousProvider} -> ${providerId}`);
     eventBus.publish("conversation-provider-updated", {
       conversationId,
       providerId,
@@ -10956,7 +10268,6 @@ class GlobalStateManager extends EventEmitter {
         lastSaveTime: Date.now()
       }
     });
-    console.log("[GlobalStateManager] Destroyed");
   }
 }
 class WPApiClient extends EventEmitter {
@@ -10979,26 +10290,19 @@ class WPApiClient extends EventEmitter {
    */
   async initialize(siteUrl, credentials) {
     try {
-      console.log("[WPApiClient] 🔍 Initializing...");
-      console.log("[WPApiClient] 📝 Received siteUrl:", siteUrl, "type:", typeof siteUrl);
-      console.log("[WPApiClient] 📝 Received credentials:", credentials ? "provided" : "missing");
       if (!siteUrl) {
         throw new Error("Site URL is required");
       }
       if (typeof siteUrl !== "string") {
         throw new Error(`Site URL must be a string, received: ${typeof siteUrl} - ${siteUrl}`);
       }
-      console.log("[WPApiClient] 🔧 Processing siteUrl.replace()...");
       this.siteUrl = siteUrl.replace(/\/$/, "");
-      console.log("[WPApiClient] ✅ Processed siteUrl:", this.siteUrl);
       this.credentials = credentials;
       await this.testConnection();
       this.isInitialized = true;
-      console.log("[WPApiClient] Successfully initialized");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[WPApiClient] Initialization failed:", error);
       this.emit("error", error);
       throw error;
     }
@@ -11010,13 +10314,11 @@ class WPApiClient extends EventEmitter {
     try {
       const response = await this.makeRequest("GET", "/wp-json/wp/v2/users/me");
       if (response.id) {
-        console.log(`[WPApiClient] Connected as user: ${response.name} (ID: ${response.id})`);
         return { success: true, user: response };
       } else {
         throw new Error("Invalid API response");
       }
     } catch (error) {
-      console.error("[WPApiClient] Connection test failed:", error);
       throw new Error(`WordPress connection failed: ${error.message}`);
     }
   }
@@ -11028,7 +10330,6 @@ class WPApiClient extends EventEmitter {
       throw new Error("WPApiClient not initialized");
     }
     try {
-      console.log("[WPApiClient] Creating new post:", postData.title);
       const payload = {
         title: postData.title,
         content: postData.content,
@@ -11041,11 +10342,9 @@ class WPApiClient extends EventEmitter {
         ...postData.customFields
       };
       const response = await this.makeRequest("POST", "/wp-json/wp/v2/posts", payload);
-      console.log(`[WPApiClient] Post created successfully: ${response.id}`);
       this.emit("post-created", { id: response.id, post: response });
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to create post:", error);
       this.emit("post-creation-failed", { error: error.message, postData });
       throw error;
     }
@@ -11058,7 +10357,6 @@ class WPApiClient extends EventEmitter {
       throw new Error("WPApiClient not initialized");
     }
     try {
-      console.log(`[WPApiClient] Updating post: ${postId}`);
       const payload = {
         title: postData.title,
         content: postData.content,
@@ -11076,11 +10374,9 @@ class WPApiClient extends EventEmitter {
         }
       });
       const response = await this.makeRequest("POST", `/wp-json/wp/v2/posts/${postId}`, payload);
-      console.log(`[WPApiClient] Post updated successfully: ${postId}`);
       this.emit("post-updated", { id: postId, post: response });
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to update post ${postId}:`, error);
       this.emit("post-update-failed", { id: postId, error: error.message });
       throw error;
     }
@@ -11096,7 +10392,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest("GET", `/wp-json/wp/v2/posts/${postId}`);
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to get post ${postId}:`, error);
       throw error;
     }
   }
@@ -11123,7 +10418,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest("GET", endpoint);
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to get posts:", error);
       throw error;
     }
   }
@@ -11135,14 +10429,11 @@ class WPApiClient extends EventEmitter {
       throw new Error("WPApiClient not initialized");
     }
     try {
-      console.log(`[WPApiClient] Deleting post: ${postId}`);
       const params = force ? "?force=true" : "";
       const response = await this.makeRequest("DELETE", `/wp-json/wp/v2/posts/${postId}${params}`);
-      console.log(`[WPApiClient] Post deleted successfully: ${postId}`);
       this.emit("post-deleted", { id: postId, forced: force });
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to delete post ${postId}:`, error);
       throw error;
     }
   }
@@ -11154,7 +10445,6 @@ class WPApiClient extends EventEmitter {
       throw new Error("WPApiClient not initialized");
     }
     try {
-      console.log("[WPApiClient] Uploading media file:", file.name);
       const formData = new FormData();
       formData.append("file", file);
       if (metadata.title) formData.append("title", metadata.title);
@@ -11165,11 +10455,9 @@ class WPApiClient extends EventEmitter {
         "Content-Type": void 0
         // Let browser set multipart boundary
       });
-      console.log(`[WPApiClient] Media uploaded successfully: ${response.id}`);
       this.emit("media-uploaded", { id: response.id, media: response });
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to upload media:", error);
       this.emit("media-upload-failed", { error: error.message });
       throw error;
     }
@@ -11188,7 +10476,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest("GET", endpoint);
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to get categories:", error);
       throw error;
     }
   }
@@ -11201,10 +10488,8 @@ class WPApiClient extends EventEmitter {
     }
     try {
       const response = await this.makeRequest("POST", "/wp-json/wp/v2/categories", categoryData);
-      console.log(`[WPApiClient] Category created: ${response.name} (ID: ${response.id})`);
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to create category:", error);
       throw error;
     }
   }
@@ -11222,7 +10507,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest("GET", endpoint);
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to get tags:", error);
       throw error;
     }
   }
@@ -11235,10 +10519,8 @@ class WPApiClient extends EventEmitter {
     }
     try {
       const response = await this.makeRequest("POST", "/wp-json/wp/v2/tags", tagData);
-      console.log(`[WPApiClient] Tag created: ${response.name} (ID: ${response.id})`);
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to create tag:", error);
       throw error;
     }
   }
@@ -11253,7 +10535,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest("GET", "/wp-json");
       return response;
     } catch (error) {
-      console.error("[WPApiClient] Failed to get site info:", error);
       throw error;
     }
   }
@@ -11302,7 +10583,6 @@ class WPApiClient extends EventEmitter {
         return responseData;
       } catch (error) {
         attempt++;
-        console.warn(`[WPApiClient] Request attempt ${attempt} failed:`, error.message);
         if (attempt >= this.options.retryAttempts) {
           throw error;
         }
@@ -11327,7 +10607,6 @@ class WPApiClient extends EventEmitter {
    */
   updateCredentials(credentials) {
     this.credentials = credentials;
-    console.log("[WPApiClient] Credentials updated");
     this.emit("credentials-updated");
   }
   /**
@@ -11335,11 +10614,9 @@ class WPApiClient extends EventEmitter {
    */
   updateSiteUrl(siteUrl) {
     if (!siteUrl) {
-      console.warn("[WPApiClient] Cannot update with empty site URL");
       return;
     }
     this.siteUrl = siteUrl.replace(/\/$/, "");
-    console.log(`[WPApiClient] Site URL updated: ${this.siteUrl}`);
     this.emit("site-url-updated", { siteUrl: this.siteUrl });
   }
   /**
@@ -11350,7 +10627,6 @@ class WPApiClient extends EventEmitter {
     this.credentials = null;
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[WPApiClient] Destroyed");
   }
 }
 class EGDeskCore extends EventEmitter {
@@ -11382,20 +10658,16 @@ class EGDeskCore extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log("[EGDeskCore] 🚀 Starting EG-Desk:태화 module initialization...");
       if (this.isInitialized) {
-        console.warn("[EGDeskCore] Already initialized");
         return;
       }
       await this.createModuleInstances();
       await this.initializeModules();
       this.setupInterModuleCommunication();
       this.isInitialized = true;
-      console.log("[EGDeskCore] ✅ All modules initialized successfully");
       this.emit("initialized");
       return true;
     } catch (error) {
-      console.error("[EGDeskCore] ❌ Initialization failed:", error);
       this.emit("initialization-failed", error);
       throw error;
     }
@@ -11404,40 +10676,22 @@ class EGDeskCore extends EventEmitter {
    * Create instances of all modules
    */
   async createModuleInstances() {
-    console.log("[EGDeskCore] 🏗️  Creating module instances...");
     try {
-      console.log("[EGDeskCore] 📦 Creating eventBus...");
       this.modules.set("eventBus", eventBus);
-      console.log("[EGDeskCore] 📦 Creating globalStateManager...");
       this.modules.set("globalStateManager", new GlobalStateManager());
-      console.log("[EGDeskCore] 📦 Creating claudeIntegration...");
       this.modules.set("claudeIntegration", new ClaudeIntegration());
-      console.log("[EGDeskCore] 📦 Creating conversationManager...");
       this.modules.set("conversationManager", new ConversationManager());
-      console.log("[EGDeskCore] 📦 Creating taskExecutor...");
       this.modules.set("taskExecutor", new TaskExecutor());
-      console.log("[EGDeskCore] 📦 Creating templateManager...");
       this.modules.set("templateManager", new TemplateManager());
-      console.log("[EGDeskCore] 📦 Creating contentGenerator...");
       const contentGenerator = new ContentGenerator(
         this.modules.get("claudeIntegration"),
         this.modules.get("templateManager")
       );
       this.modules.set("contentGenerator", contentGenerator);
-      console.log("[EGDeskCore] 📦 Creating seoOptimizer...");
       this.modules.set("seoOptimizer", new SEOOptimizer());
-      console.log("[EGDeskCore] 📦 Creating qualityChecker...");
       this.modules.set("qualityChecker", new QualityChecker());
-      console.log("[EGDeskCore] ⚠️  WPApiClient NOT created - will be created only when WordPress settings provided");
       this.modules.set("workspaceManager", null);
-      console.log(`[EGDeskCore] ✅ Created ${this.modules.size} module instances successfully`);
     } catch (error) {
-      console.error("[EGDeskCore] ❌ Error during module instance creation:", error);
-      console.error("[EGDeskCore] 📊 Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -11445,21 +10699,16 @@ class EGDeskCore extends EventEmitter {
    * Initialize modules in dependency order
    */
   async initializeModules() {
-    console.log("[EGDeskCore] Initializing modules in dependency order...");
     for (const moduleName of this.initializationOrder) {
       const module = this.modules.get(moduleName);
       if (!module) {
-        console.warn(`[EGDeskCore] Module ${moduleName} not found, skipping...`);
         continue;
       }
       try {
-        console.log(`[EGDeskCore] Initializing ${moduleName}...`);
         if (typeof module.initialize === "function") {
           await module.initialize();
         }
-        console.log(`[EGDeskCore] ✅ ${moduleName} initialized`);
       } catch (error) {
-        console.error(`[EGDeskCore] ❌ Failed to initialize ${moduleName}:`, error);
         throw new Error(`Module initialization failed: ${moduleName} - ${error.message}`);
       }
     }
@@ -11468,7 +10717,6 @@ class EGDeskCore extends EventEmitter {
    * Set up inter-module communication via EventBus
    */
   setupInterModuleCommunication() {
-    console.log("[EGDeskCore] Setting up inter-module communication...");
     const eventBus2 = this.modules.get("eventBus");
     eventBus2.subscribe("content:generate-request", async (eventData) => {
       const contentGenerator = this.modules.get("contentGenerator");
@@ -11481,19 +10729,15 @@ class EGDeskCore extends EventEmitter {
       eventBus2.publish("content:optimized", result);
     }, "EGDeskCore");
     eventBus2.subscribe("wordpress:publish-request", async (eventData) => {
-      console.log("[EGDeskCore] 🔍 WordPress publish request received, checking wpApiClient...");
       const wpApiClient = this.modules.get("wpApiClient");
       if (!wpApiClient) {
-        console.error("[EGDeskCore] ❌ wpApiClient not available for publish request");
         eventBus2.publish("wordpress:publish-failed", { error: "WordPress API client not initialized" });
         return;
       }
       try {
-        console.log("[EGDeskCore] 📤 Creating WordPress post via wpApiClient...");
         const result = await wpApiClient.createPost(eventData.data);
         eventBus2.publish("wordpress:published", result);
       } catch (error) {
-        console.error("[EGDeskCore] ❌ WordPress publish failed:", error);
         eventBus2.publish("wordpress:publish-failed", { error: error.message });
       }
     }, "EGDeskCore");
@@ -11507,7 +10751,6 @@ class EGDeskCore extends EventEmitter {
       const result = await claudeIntegration.sendMessage(eventData.data.prompt, eventData.data.options);
       eventBus2.publish("ai:message-response", result);
     }, "EGDeskCore");
-    console.log("[EGDeskCore] Inter-module communication established");
   }
   /**
    * Get module instance by name
@@ -11527,7 +10770,6 @@ class EGDeskCore extends EventEmitter {
       workspaceManager.eventBus = eventBus2;
       window.globalStateManager = globalStateManager;
       window.eventBus = eventBus2;
-      console.log("[EGDeskCore] WorkspaceManager integrated with state management");
     }
   }
   /**
@@ -11547,26 +10789,14 @@ class EGDeskCore extends EventEmitter {
    */
   async initializeWordPressClient(siteUrl, credentials) {
     try {
-      console.log("[EGDeskCore] 🔍 Initializing WordPress API client...");
-      console.log("[EGDeskCore] 📝 Received siteUrl:", siteUrl, "type:", typeof siteUrl);
-      console.log("[EGDeskCore] 📝 Received credentials:", credentials ? "provided" : "missing");
       let wpApiClient = this.modules.get("wpApiClient");
       if (!wpApiClient) {
-        console.log("[EGDeskCore] 🏗️  Creating new WPApiClient instance...");
         wpApiClient = new WPApiClient();
         this.modules.set("wpApiClient", wpApiClient);
       }
-      console.log("[EGDeskCore] 🚀 Calling wpApiClient.initialize...");
       await wpApiClient.initialize(siteUrl, credentials);
-      console.log("[EGDeskCore] ✅ WordPress API client initialized successfully");
       return true;
     } catch (error) {
-      console.error("[EGDeskCore] ❌ WordPress API initialization failed:", error);
-      console.error("[EGDeskCore] 📊 Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -11596,26 +10826,21 @@ class EGDeskCore extends EventEmitter {
       throw new Error("EGDeskCore not initialized");
     }
     const workflowId = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-    console.log(`[EGDeskCore] 📝 Starting blog workflow: ${workflowId}`);
     try {
       const eventBus2 = this.modules.get("eventBus");
-      console.log(`[EGDeskCore] Step 1: Generating content for topic: ${request.topic}`);
       eventBus2.publish("content:generate-request", request);
       const contentResult = await eventBus2.waitForEvent("content:generated", 6e4);
-      console.log(`[EGDeskCore] Step 2: Optimizing content for SEO`);
       eventBus2.publish("content:optimize-request", {
         content: contentResult.data.content,
         options: { targetKeywords: request.keywords || [] }
       });
       const seoResult = await eventBus2.waitForEvent("content:optimized", 3e4);
-      console.log(`[EGDeskCore] Step 3: Checking content quality`);
       eventBus2.publish("content:quality-check-request", {
         content: seoResult.data.optimizedContent
       });
       const qualityResult = await eventBus2.waitForEvent("content:quality-checked", 15e3);
       let publishResult = null;
       if (request.autoPublish) {
-        console.log(`[EGDeskCore] Step 4: Publishing to WordPress`);
         eventBus2.publish("wordpress:publish-request", {
           title: contentResult.data.title,
           content: seoResult.data.optimizedContent,
@@ -11636,11 +10861,9 @@ class EGDeskCore extends EventEmitter {
         },
         completedAt: Date.now()
       };
-      console.log(`[EGDeskCore] ✅ Blog workflow completed: ${workflowId}`);
       this.emit("workflow-completed", workflowResult);
       return workflowResult;
     } catch (error) {
-      console.error(`[EGDeskCore] ❌ Blog workflow failed: ${workflowId}`, error);
       const errorResult = {
         workflowId,
         status: "failed",
@@ -11655,37 +10878,28 @@ class EGDeskCore extends EventEmitter {
    * Destroy all modules
    */
   async destroy() {
-    console.log("[EGDeskCore] 🔄 Destroying all modules...");
     const destroyOrder = [...this.initializationOrder].reverse();
     for (const moduleName of destroyOrder) {
       const module = this.modules.get(moduleName);
       if (module && typeof module.destroy === "function") {
         try {
           await module.destroy();
-          console.log(`[EGDeskCore] ✅ ${moduleName} destroyed`);
         } catch (error) {
-          console.error(`[EGDeskCore] ❌ Failed to destroy ${moduleName}:`, error);
         }
       }
     }
     this.modules.clear();
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log("[EGDeskCore] 🔄 All modules destroyed");
   }
 }
 window.addEventListener("error", (event) => {
-  console.error("💥 [RENDERER CRASH] Global error:", event.error);
 });
 window.addEventListener("unhandledrejection", (event) => {
-  console.error("💥 [RENDERER CRASH] Unhandled promise rejection:", event.reason);
 });
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("[RENDERER] DOMContentLoaded: Initializing EG-Desk");
-  console.log("[RENDERER] CSS imported via ES modules");
   try {
     let updateUIForWorkspace2 = function(workspace) {
-      console.log(`[RENDERER] Updating UI for workspace: ${workspace}`);
       document.querySelectorAll(".tab").forEach((tab) => {
         tab.classList.toggle("active", tab.dataset.workspace === workspace);
       });
@@ -11693,7 +10907,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       const mainContent = document.getElementById("main-content");
       const workspaceTabs = document.querySelector(".workspace-tabs");
       if (!startScreen || !mainContent) {
-        console.error("[RENDERER] Could not find essential DOM elements");
         return;
       }
       if (workspace === "start") {
@@ -11713,19 +10926,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     var updateUIForWorkspace = updateUIForWorkspace2;
     if (!window.electronAPI) {
-      console.error("[RENDERER] FATAL: electronAPI is not available on window object!");
       return;
     }
-    console.log("[RENDERER] electronAPI loaded successfully:", Object.keys(window.electronAPI));
     await new Promise((resolve) => setTimeout(resolve, 100));
-    console.log("[RENDERER] Initializing EGDeskCore...");
     window.egDeskCore = new EGDeskCore({
       enableLogging: true,
       autoInitialize: true
     });
     await window.egDeskCore.initialize();
-    console.log("[RENDERER] EGDeskCore initialized successfully");
-    console.log("[RENDERER] Initializing UI Manager...");
     window.uiManager = new UIManager({
       theme: "light-grey",
       animations: true
@@ -11733,104 +10941,60 @@ document.addEventListener("DOMContentLoaded", async () => {
     await window.uiManager.initialize();
     window.uiManager.addEventListener("workspace-switched", (event) => {
       const data = event.detail;
-      console.log("[RENDERER] UIManager workspace switched:", data.workspace);
       if (data.workspace === "blog") {
         setTimeout(() => {
           initializeBlogWorkspace();
         }, 100);
       }
     });
-    console.log("[RENDERER] UI Manager initialized successfully");
-    console.log("[RENDERER] Component availability check:");
-    console.log("  BrowserTabComponent:", typeof BrowserTabComponent);
-    console.log("  ChatComponent:", typeof ChatComponent);
-    console.log("  WorkspaceManager:", typeof WorkspaceManager);
-    console.log("  UIManager:", typeof UIManager);
     if (WorkspaceManager) {
-      console.log("[RENDERER] Creating WebContentsManager proxy instance...");
       const webContentsManager = createWebContentsManagerProxy();
-      console.log("[RENDERER] Creating WorkspaceManager instance...");
       window.workspaceManager = new WorkspaceManager(webContentsManager);
       window.egDeskCore.setWorkspaceManager(window.workspaceManager);
-      console.log("[RENDERER] Initializing WorkspaceManager...");
       await window.workspaceManager.initialize();
-      console.log("[RENDERER] WorkspaceManager initialized successfully");
     } else {
-      console.warn("[RENDERER] WorkspaceManager not available, using fallback mode");
-      console.log("[RENDERER] Available classes:", Object.keys(window).filter((k) => k.includes("Manager") || k.includes("Component")));
     }
     window.switchWorkspace = async function(workspace) {
       const switchId = `switch-${Date.now()}`;
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 🚀 Starting workspace switch to: ${workspace}`);
       try {
         await executeWorkspaceSwitch(workspace, switchId);
-        console.log(`[WORKSPACE-SWITCH:${switchId}] ✅ Successfully switched to workspace: ${workspace}`);
       } catch (error) {
-        console.error(`[WORKSPACE-SWITCH:${switchId}] ❌ Failed to switch to workspace '${workspace}':`, error);
         await handleWorkspaceSwitchError(workspace, error, switchId);
       }
     };
     async function executeWorkspaceSwitch(workspace, switchId) {
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 📋 Executing switch sequence for: ${workspace}`);
       await updateUIForWorkspaceSwitch(workspace, switchId);
       await notifyMainProcessWorkspaceSwitch(workspace, switchId);
       await handleWorkspaceSpecificLogic(workspace, switchId);
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 🎯 All switch steps completed for: ${workspace}`);
     }
     async function updateUIForWorkspaceSwitch(workspace, switchId) {
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 🎨 Updating UI for workspace: ${workspace}`);
       if (window.uiManager) {
-        console.log(`[WORKSPACE-SWITCH:${switchId}] Using UIManager for animated transition`);
-        console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager status:`, {
-          isInitialized: window.uiManager.isInitialized,
-          currentWorkspace: window.uiManager.currentWorkspace,
-          methodExists: typeof window.uiManager.switchWorkspace === "function"
-        });
         try {
           await window.uiManager.switchWorkspace(workspace);
-          console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager transition completed successfully`);
           if (workspace === "blog") {
             const mainContent = document.getElementById("main-content");
-            console.log(`[WORKSPACE-SWITCH:${switchId}] Blog workspace verification:`, {
-              mainContentExists: !!mainContent,
-              hasActiveClass: mainContent?.classList.contains("active"),
-              opacity: mainContent ? window.getComputedStyle(mainContent).opacity : "N/A",
-              visibility: mainContent ? window.getComputedStyle(mainContent).visibility : "N/A"
-            });
           }
         } catch (error) {
-          console.error(`[WORKSPACE-SWITCH:${switchId}] UIManager transition failed:`, error);
-          console.log(`[WORKSPACE-SWITCH:${switchId}] Falling back to direct UI update`);
           updateUIForWorkspace2(workspace);
         }
       } else {
-        console.log(`[WORKSPACE-SWITCH:${switchId}] Using fallback UI update (no UIManager)`);
         updateUIForWorkspace2(workspace);
-        console.log(`[WORKSPACE-SWITCH:${switchId}] Fallback UI update completed`);
       }
     }
     async function notifyMainProcessWorkspaceSwitch(workspace, switchId) {
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 📡 Notifying main process of workspace switch`);
       if (window.electronAPI?.switchWorkspace) {
         const result = await window.electronAPI.switchWorkspace(workspace);
-        console.log(`[WORKSPACE-SWITCH:${switchId}] Main process response:`, result);
       } else {
-        console.warn(`[WORKSPACE-SWITCH:${switchId}] electronAPI.switchWorkspace not available`);
       }
     }
     async function handleWorkspaceSpecificLogic(workspace, switchId) {
-      console.log(`[WORKSPACE-SWITCH:${switchId}] 🔧 Handling workspace-specific logic for: ${workspace}`);
       if (workspace === "start") {
-        console.log(`[WORKSPACE-SWITCH:${switchId}] Start workspace selected, no WorkspaceManager needed`);
         return;
       }
       if (!window.workspaceManager) {
-        console.warn(`[WORKSPACE-SWITCH:${switchId}] WorkspaceManager not available for workspace: ${workspace}`);
         return;
       }
-      console.log(`[WORKSPACE-SWITCH:${switchId}] Activating WorkspaceManager for: ${workspace}`);
       await window.workspaceManager.switchToWorkspace(workspace);
-      console.log(`[WORKSPACE-SWITCH:${switchId}] WorkspaceManager activation completed`);
       await logWorkspaceComponentStatus(workspace, switchId);
     }
     async function logWorkspaceComponentStatus(workspace, switchId) {
@@ -11847,48 +11011,29 @@ document.addEventListener("DOMContentLoaded", async () => {
             type: chatComponent?.constructor?.name || "unknown"
           }
         };
-        console.log(`[WORKSPACE-SWITCH:${switchId}] 🔍 Blog workspace component status:`, componentStatus);
       }
     }
     async function handleWorkspaceSwitchError(workspace, error, switchId) {
-      console.error(`[WORKSPACE-SWITCH:${switchId}] 💥 Error details:`, {
-        workspace,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      });
       if (window.uiManager?.showNotification) {
         const errorMessage = `워크스페이스 전환 실패: ${error.message}`;
-        console.log(`[WORKSPACE-SWITCH:${switchId}] 📢 Showing error notification to user`);
         window.uiManager.showNotification(errorMessage, "error");
       } else {
-        console.warn(`[WORKSPACE-SWITCH:${switchId}] Unable to show error notification (no UIManager)`);
       }
       if (workspace !== "start") {
-        console.log(`[WORKSPACE-SWITCH:${switchId}] 🔄 Attempting recovery by switching to start workspace`);
         try {
           await executeWorkspaceSwitch("start", `${switchId}-recovery`);
-          console.log(`[WORKSPACE-SWITCH:${switchId}] ✅ Recovery successful`);
         } catch (recoveryError) {
-          console.error(`[WORKSPACE-SWITCH:${switchId}] 💀 Recovery failed:`, recoveryError);
         }
       }
     }
     ;
     document.addEventListener("click", (event) => {
       const target = event.target;
-      console.log(`[CLICK-DEBUG] Click detected on:`, {
-        tagName: target.tagName,
-        className: target.className,
-        id: target.id,
-        dataset: target.dataset
-      });
       if (target.matches(".tab, .tab *")) {
         event.preventDefault();
         event.stopPropagation();
         const tab = target.closest(".tab");
         const workspace = tab.dataset.workspace;
-        console.log(`[RENDERER] Tab clicked: ${workspace}`);
         switchWorkspace(workspace);
         return;
       }
@@ -11896,31 +11041,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         event.preventDefault();
         const button = target.closest(".workspace-btn");
         const workspace = button.dataset.workspace;
-        console.log(`[CLICK-DEBUG] Button found:`, {
-          button,
-          workspace,
-          dataset: button.dataset
-        });
         if (workspace) {
-          console.log(`[RENDERER] Workspace button clicked: ${workspace}`);
           switchWorkspace(workspace);
-        } else {
-          console.error(`[CLICK-DEBUG] No workspace found on button:`, button);
         }
         return;
       }
-      console.log(`[CLICK-DEBUG] Click not handled, target:`, target);
     });
-    console.log("[RENDERER] Initializing with start workspace.");
     updateUIForWorkspace2("start");
     setTimeout(() => {
       if (window.uiManager) {
         window.uiManager.showNotification("EG-Desk:태화 시스템 준비 완료", "success", 2e3);
       }
     }, 500);
-    console.log("[RENDERER] EG-Desk initialization complete.");
   } catch (error) {
-    console.error("💥 [RENDERER CRASH] Initialization failed:", error);
     if (window.electronAPI?.log?.error) {
       window.electronAPI.log.error(`Renderer crash: ${error.message}`);
     }
@@ -11950,7 +11083,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           return await window.electronAPI.browser.getNavigationState();
         } catch (error) {
-          console.warn("[RENDERER] getNavigationState failed:", error);
           return {
             canGoBack: false,
             canGoForward: false,
@@ -11988,18 +11120,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       },
       // Add missing updateWebContentsViewBounds method
       updateWebContentsViewBounds(preciseBounds) {
-        console.log(`[WebContentsManagerProxy] updateWebContentsViewBounds called with:`, preciseBounds);
         if (window.electronAPI?.browser?.updateBounds) {
           return window.electronAPI.browser.updateBounds(preciseBounds);
         } else {
-          console.warn(`[WebContentsManagerProxy] updateBounds not available in electronAPI.browser`);
           return Promise.resolve();
         }
       }
     };
   }
   async function initializeBlogWorkspace() {
-    console.log("[RENDERER] Initializing Blog Workspace with components...");
     if (window.electronAPI?.log?.info) {
       window.electronAPI.log.info("[CSS-DEBUG] Blog workspace initializing...");
       window.electronAPI.log.info("[CSS-DEBUG] Document ready state:", document.readyState);
@@ -12079,10 +11208,5 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
     }, 200);
-    initializeTerminalFromIndex();
-    console.log("[RENDERER] Blog Workspace initialization complete - components handled by WorkspaceManager.");
-  }
-  function initializeTerminalFromIndex() {
-    console.log("[RENDERER] Terminal initialization delegated to ChatComponent via WorkspaceManager");
   }
 });

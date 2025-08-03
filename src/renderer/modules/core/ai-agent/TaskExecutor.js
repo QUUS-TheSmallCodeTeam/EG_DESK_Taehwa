@@ -25,13 +25,10 @@ class TaskExecutor extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[TaskExecutor] Initializing...');
       this.isInitialized = true;
-      console.log('[TaskExecutor] Successfully initialized');
       this.emit('initialized');
       return true;
     } catch (error) {
-      console.error('[TaskExecutor] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -49,7 +46,6 @@ class TaskExecutor extends EventEmitter {
       retries: 0
     };
     this.tasks.set(taskId, taskObj);
-    console.log(`[TaskExecutor] Added new task: ${taskId}`);
     this.emit('task-added', taskObj);
     this.executeTask(taskId);
     return taskId;
@@ -66,22 +62,18 @@ class TaskExecutor extends EventEmitter {
     const task = this.tasks.get(taskId);
     try {
       task.status = 'running';
-      console.log(`[TaskExecutor] Executing task: ${taskId}`);
       this.emit('task-started', task);
       
       // Execute task logic here
       await task.executionLogic();
 
       task.status = 'completed';
-      console.log(`[TaskExecutor] Task completed: ${taskId}`);
       this.emit('task-completed', task);
       this.tasks.delete(taskId);
     } catch (error) {
-      console.error(`[TaskExecutor] Task execution failed: ${taskId}`, error);
       task.status = 'failed';
       task.retries++;
       if (task.retries <= this.options.retryLimit) {
-        console.log(`[TaskExecutor] Retrying task: ${taskId} (${task.retries}/${this.options.retryLimit})`);
         this.executeTask(taskId);
       } else {
         this.emit('task-failed', task);
@@ -97,7 +89,6 @@ class TaskExecutor extends EventEmitter {
     if (this.tasks.has(taskId)) {
       const task = this.tasks.get(taskId);
       task.status = 'cancelled';
-      console.log(`[TaskExecutor] Task cancelled: ${taskId}`);
       this.emit('task-cancelled', task);
       this.tasks.delete(taskId);
     } else {
@@ -135,7 +126,6 @@ class TaskExecutor extends EventEmitter {
     this.tasks.clear();
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[TaskExecutor] Destroyed');
   }
 }
 

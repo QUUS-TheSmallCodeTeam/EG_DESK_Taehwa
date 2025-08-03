@@ -26,7 +26,6 @@ class TemplateManager extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[TemplateManager] Initializing...');
       
       // Load templates from file or directory
       await this.reloadTemplates();
@@ -36,12 +35,10 @@ class TemplateManager extends EventEmitter {
       }
       
       this.isInitialized = true;
-      console.log('[TemplateManager] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[TemplateManager] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -62,11 +59,9 @@ class TemplateManager extends EventEmitter {
       };
 
       this.templates.set(exampleTemplate.id, exampleTemplate);
-      console.log(`[TemplateManager] Loaded templates from ${this.options.templatesPath}`);
       this.emit('templates-reloaded', { count: this.templates.size });
 
     } catch (error) {
-      console.error('[TemplateManager] Failed to load templates:', error);
       throw error;
     }
   }
@@ -89,7 +84,6 @@ class TemplateManager extends EventEmitter {
     const template = this.templates.get(templateId);
     const prompt = this.fillTemplate(template.prompt, variables);
 
-    console.log(`[TemplateManager] Generated prompt using template: ${templateId}`);
     return prompt;
   }
 
@@ -111,7 +105,6 @@ class TemplateManager extends EventEmitter {
     }
 
     this.templates.set(template.id, template);
-    console.log(`[TemplateManager] Added/Updated template: ${template.id}`);
     this.emit('template-updated', { id: template.id });
   }
 
@@ -124,7 +117,6 @@ class TemplateManager extends EventEmitter {
     }
 
     this.templates.delete(templateId);
-    console.log(`[TemplateManager] Deleted template: ${templateId}`);
     this.emit('template-deleted', { templateId });
   }
 
@@ -132,7 +124,6 @@ class TemplateManager extends EventEmitter {
    * Watch template files for changes
    */
   setupFileWatchers() {
-    console.log('[TemplateManager] File watchers not implemented yet. Placeholder for future enhancement.');
   }
 
   /**
@@ -142,7 +133,6 @@ class TemplateManager extends EventEmitter {
     this.templates.clear();
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[TemplateManager] Destroyed');
   }
 }
 

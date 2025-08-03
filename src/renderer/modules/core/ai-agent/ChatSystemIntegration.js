@@ -38,7 +38,6 @@ class ChatSystemIntegration extends EventEmitter {
    */
   async initialize(globalStateManager, eventBus) {
     try {
-      console.log('[ChatSystemIntegration] Initializing complete chat system...');
       
       this.globalStateManager = globalStateManager;
       this.eventBus = eventBus;
@@ -53,12 +52,10 @@ class ChatSystemIntegration extends EventEmitter {
       this.registerEventHandlers();
       
       this.isInitialized = true;
-      console.log('[ChatSystemIntegration] Chat system fully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[ChatSystemIntegration] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -81,7 +78,6 @@ class ChatSystemIntegration extends EventEmitter {
       });
       
       await this.components.conversationManager.initialize();
-      console.log('[ChatSystemIntegration] ConversationManager initialized');
     }
     
     // Initialize ClaudeIntegration
@@ -93,7 +89,6 @@ class ChatSystemIntegration extends EventEmitter {
       });
       
       await this.components.claudeIntegration.initialize();
-      console.log('[ChatSystemIntegration] ClaudeIntegration initialized');
     }
     
     // Initialize ChatHistoryManager
@@ -110,7 +105,6 @@ class ChatSystemIntegration extends EventEmitter {
         this.components.conversationManager,
         this.globalStateManager
       );
-      console.log('[ChatSystemIntegration] ChatHistoryManager initialized');
     }
     
     // Initialize SessionAnalytics
@@ -126,7 +120,6 @@ class ChatSystemIntegration extends EventEmitter {
         this.components.conversationManager,
         this.globalStateManager
       );
-      console.log('[ChatSystemIntegration] SessionAnalytics initialized');
     }
   }
 
@@ -227,7 +220,6 @@ class ChatSystemIntegration extends EventEmitter {
       this.handleChatMessage(chatComponent, data);
     });
     
-    console.log(`[ChatSystemIntegration] Registered chat component: ${chatComponent.containerId}`);
   }
 
   /**
@@ -235,7 +227,6 @@ class ChatSystemIntegration extends EventEmitter {
    */
   unregisterChatComponent(chatComponent) {
     this.chatComponents.delete(chatComponent);
-    console.log(`[ChatSystemIntegration] Unregistered chat component: ${chatComponent.containerId}`);
   }
 
   /**
@@ -268,7 +259,6 @@ class ChatSystemIntegration extends EventEmitter {
         return response;
       }
     } catch (error) {
-      console.error('[ChatSystemIntegration] Error handling chat message:', error);
       this.emit('message-error', { chatComponent, data, error });
       throw error;
     }
@@ -423,7 +413,6 @@ class ChatSystemIntegration extends EventEmitter {
       
       return results;
     } catch (error) {
-      console.error('[ChatSystemIntegration] Import failed:', error);
       results.error = error.message;
       throw error;
     }
@@ -478,7 +467,6 @@ class ChatSystemIntegration extends EventEmitter {
    * Destroy the chat system
    */
   async destroy() {
-    console.log('[ChatSystemIntegration] Shutting down chat system...');
     
     // Destroy all registered chat components
     this.chatComponents.forEach(component => {
@@ -493,9 +481,7 @@ class ChatSystemIntegration extends EventEmitter {
       if (component && component.destroy) {
         try {
           await component.destroy();
-          console.log(`[ChatSystemIntegration] Destroyed ${name}`);
         } catch (error) {
-          console.error(`[ChatSystemIntegration] Error destroying ${name}:`, error);
         }
       }
     }
@@ -514,7 +500,6 @@ class ChatSystemIntegration extends EventEmitter {
     this.removeAllListeners();
     
     this.isInitialized = false;
-    console.log('[ChatSystemIntegration] Chat system shutdown complete');
   }
 }
 

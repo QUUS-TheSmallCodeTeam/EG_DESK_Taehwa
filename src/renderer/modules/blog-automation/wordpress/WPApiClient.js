@@ -30,9 +30,6 @@ class WPApiClient extends EventEmitter {
    */
   async initialize(siteUrl, credentials) {
     try {
-      console.log('[WPApiClient] 🔍 Initializing...');
-      console.log('[WPApiClient] 📝 Received siteUrl:', siteUrl, 'type:', typeof siteUrl);
-      console.log('[WPApiClient] 📝 Received credentials:', credentials ? 'provided' : 'missing');
       
       // Validate inputs
       if (!siteUrl) {
@@ -43,21 +40,17 @@ class WPApiClient extends EventEmitter {
         throw new Error(`Site URL must be a string, received: ${typeof siteUrl} - ${siteUrl}`);
       }
       
-      console.log('[WPApiClient] 🔧 Processing siteUrl.replace()...');
       this.siteUrl = siteUrl.replace(/\/$/, ''); // Remove trailing slash
-      console.log('[WPApiClient] ✅ Processed siteUrl:', this.siteUrl);
       this.credentials = credentials;
       
       // Test API connection
       await this.testConnection();
       
       this.isInitialized = true;
-      console.log('[WPApiClient] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[WPApiClient] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -71,13 +64,11 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', '/wp-json/wp/v2/users/me');
       
       if (response.id) {
-        console.log(`[WPApiClient] Connected as user: ${response.name} (ID: ${response.id})`);
         return { success: true, user: response };
       } else {
         throw new Error('Invalid API response');
       }
     } catch (error) {
-      console.error('[WPApiClient] Connection test failed:', error);
       throw new Error(`WordPress connection failed: ${error.message}`);
     }
   }
@@ -91,7 +82,6 @@ class WPApiClient extends EventEmitter {
     }
 
     try {
-      console.log('[WPApiClient] Creating new post:', postData.title);
       
       const payload = {
         title: postData.title,
@@ -107,12 +97,10 @@ class WPApiClient extends EventEmitter {
 
       const response = await this.makeRequest('POST', '/wp-json/wp/v2/posts', payload);
       
-      console.log(`[WPApiClient] Post created successfully: ${response.id}`);
       this.emit('post-created', { id: response.id, post: response });
       
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to create post:', error);
       this.emit('post-creation-failed', { error: error.message, postData });
       throw error;
     }
@@ -127,7 +115,6 @@ class WPApiClient extends EventEmitter {
     }
 
     try {
-      console.log(`[WPApiClient] Updating post: ${postId}`);
       
       const payload = {
         title: postData.title,
@@ -150,12 +137,10 @@ class WPApiClient extends EventEmitter {
 
       const response = await this.makeRequest('POST', `/wp-json/wp/v2/posts/${postId}`, payload);
       
-      console.log(`[WPApiClient] Post updated successfully: ${postId}`);
       this.emit('post-updated', { id: postId, post: response });
       
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to update post ${postId}:`, error);
       this.emit('post-update-failed', { id: postId, error: error.message });
       throw error;
     }
@@ -173,7 +158,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', `/wp-json/wp/v2/posts/${postId}`);
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to get post ${postId}:`, error);
       throw error;
     }
   }
@@ -206,7 +190,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', endpoint);
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to get posts:', error);
       throw error;
     }
   }
@@ -220,17 +203,14 @@ class WPApiClient extends EventEmitter {
     }
 
     try {
-      console.log(`[WPApiClient] Deleting post: ${postId}`);
       
       const params = force ? '?force=true' : '';
       const response = await this.makeRequest('DELETE', `/wp-json/wp/v2/posts/${postId}${params}`);
       
-      console.log(`[WPApiClient] Post deleted successfully: ${postId}`);
       this.emit('post-deleted', { id: postId, forced: force });
       
       return response;
     } catch (error) {
-      console.error(`[WPApiClient] Failed to delete post ${postId}:`, error);
       throw error;
     }
   }
@@ -244,7 +224,6 @@ class WPApiClient extends EventEmitter {
     }
 
     try {
-      console.log('[WPApiClient] Uploading media file:', file.name);
       
       const formData = new FormData();
       formData.append('file', file);
@@ -258,12 +237,10 @@ class WPApiClient extends EventEmitter {
         'Content-Type': undefined // Let browser set multipart boundary
       });
       
-      console.log(`[WPApiClient] Media uploaded successfully: ${response.id}`);
       this.emit('media-uploaded', { id: response.id, media: response });
       
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to upload media:', error);
       this.emit('media-upload-failed', { error: error.message });
       throw error;
     }
@@ -285,7 +262,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', endpoint);
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to get categories:', error);
       throw error;
     }
   }
@@ -300,10 +276,8 @@ class WPApiClient extends EventEmitter {
 
     try {
       const response = await this.makeRequest('POST', '/wp-json/wp/v2/categories', categoryData);
-      console.log(`[WPApiClient] Category created: ${response.name} (ID: ${response.id})`);
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to create category:', error);
       throw error;
     }
   }
@@ -324,7 +298,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', endpoint);
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to get tags:', error);
       throw error;
     }
   }
@@ -339,10 +312,8 @@ class WPApiClient extends EventEmitter {
 
     try {
       const response = await this.makeRequest('POST', '/wp-json/wp/v2/tags', tagData);
-      console.log(`[WPApiClient] Tag created: ${response.name} (ID: ${response.id})`);
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to create tag:', error);
       throw error;
     }
   }
@@ -359,7 +330,6 @@ class WPApiClient extends EventEmitter {
       const response = await this.makeRequest('GET', '/wp-json');
       return response;
     } catch (error) {
-      console.error('[WPApiClient] Failed to get site info:', error);
       throw error;
     }
   }
@@ -422,7 +392,6 @@ class WPApiClient extends EventEmitter {
 
       } catch (error) {
         attempt++;
-        console.warn(`[WPApiClient] Request attempt ${attempt} failed:`, error.message);
         
         if (attempt >= this.options.retryAttempts) {
           throw error;
@@ -452,7 +421,6 @@ class WPApiClient extends EventEmitter {
    */
   updateCredentials(credentials) {
     this.credentials = credentials;
-    console.log('[WPApiClient] Credentials updated');
     this.emit('credentials-updated');
   }
 
@@ -461,12 +429,10 @@ class WPApiClient extends EventEmitter {
    */
   updateSiteUrl(siteUrl) {
     if (!siteUrl) {
-      console.warn('[WPApiClient] Cannot update with empty site URL');
       return;
     }
     
     this.siteUrl = siteUrl.replace(/\/$/, '');
-    console.log(`[WPApiClient] Site URL updated: ${this.siteUrl}`);
     this.emit('site-url-updated', { siteUrl: this.siteUrl });
   }
 
@@ -478,7 +444,6 @@ class WPApiClient extends EventEmitter {
     this.credentials = null;
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[WPApiClient] Destroyed');
   }
 }
 

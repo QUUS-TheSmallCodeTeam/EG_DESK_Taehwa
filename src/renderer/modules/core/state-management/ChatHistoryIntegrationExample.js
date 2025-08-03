@@ -23,7 +23,6 @@ class ChatHistoryIntegrationExample {
    */
   async initialize() {
     try {
-      console.log('🚀 Initializing Enhanced Chat History System...');
 
       // 1. Initialize Global State Manager
       this.stateManager = new GlobalStateManager({
@@ -44,11 +43,9 @@ class ChatHistoryIntegrationExample {
       // 4. Set up demonstration event handlers
       this.setupDemoEventHandlers();
 
-      console.log('✅ Chat History System fully initialized!');
       return true;
 
     } catch (error) {
-      console.error('❌ Failed to initialize chat history system:', error);
       throw error;
     }
   }
@@ -59,11 +56,9 @@ class ChatHistoryIntegrationExample {
   setupDemoEventHandlers() {
     // Listen for conversation events
     eventBus.subscribe('conversation-created', (eventData) => {
-      console.log('📝 New conversation created:', eventData.data.conversationId);
     });
 
     eventBus.subscribe('message-added', (eventData) => {
-      console.log('💬 Message added to conversation:', {
         conversationId: eventData.data.conversationId,
         messageId: eventData.data.messageId,
         role: eventData.data.message.role
@@ -71,14 +66,12 @@ class ChatHistoryIntegrationExample {
     });
 
     eventBus.subscribe('chat-history-searched', (eventData) => {
-      console.log('🔍 Chat history searched:', {
         query: eventData.data.query,
         results: eventData.data.results
       });
     });
 
     eventBus.subscribe('active-conversation-changed', (eventData) => {
-      console.log('🔄 Active conversation changed:', {
         new: eventData.data.conversationId,
         previous: eventData.data.previousId
       });
@@ -89,7 +82,6 @@ class ChatHistoryIntegrationExample {
    * Demonstrate creating conversations and adding messages
    */
   async demonstrateConversationFlow() {
-    console.log('\n🎯 Demonstrating Conversation Flow...');
 
     try {
       // Create a conversation about web development
@@ -133,7 +125,6 @@ class ChatHistoryIntegrationExample {
       // Set active conversation
       this.stateManager.setActiveConversation(webDevConversationId);
 
-      console.log('✅ Conversation flow demonstration completed');
       
       return {
         webDevConversationId,
@@ -141,7 +132,6 @@ class ChatHistoryIntegrationExample {
       };
 
     } catch (error) {
-      console.error('❌ Conversation flow demonstration failed:', error);
       throw error;
     }
   }
@@ -150,7 +140,6 @@ class ChatHistoryIntegrationExample {
    * Demonstrate search functionality
    */
   async demonstrateSearchFeatures() {
-    console.log('\n🔍 Demonstrating Search Features...');
 
     try {
       // Search for React-related conversations
@@ -159,7 +148,6 @@ class ChatHistoryIntegrationExample {
         limit: 10
       });
 
-      console.log('React search results:', {
         conversations: reactResults.conversations.length,
         messages: reactResults.messages.length
       });
@@ -170,7 +158,6 @@ class ChatHistoryIntegrationExample {
         includeMessages: false
       });
 
-      console.log('Web dev tag results:', {
         conversations: webDevResults.conversations.length
       });
 
@@ -182,14 +169,11 @@ class ChatHistoryIntegrationExample {
         }
       });
 
-      console.log('Recent conversations:', {
         conversations: recentResults.conversations.length
       });
 
-      console.log('✅ Search features demonstration completed');
 
     } catch (error) {
-      console.error('❌ Search demonstration failed:', error);
       throw error;
     }
   }
@@ -198,35 +182,28 @@ class ChatHistoryIntegrationExample {
    * Demonstrate analytics and insights
    */
   async demonstrateAnalytics(conversationIds) {
-    console.log('\n📊 Demonstrating Analytics and Insights...');
 
     try {
       // Get overall chat history statistics
       const stats = this.stateManager.getChatHistoryStats();
-      console.log('Chat History Stats:', stats);
 
       // Get insights for specific conversations
       for (const conversationId of conversationIds) {
         const insights = this.chatHistoryManager.getConversationInsights(conversationId);
-        console.log(`Insights for ${conversationId}:`, insights);
       }
 
       // Get manager statistics
       const managerStats = this.chatHistoryManager.getManagerStats();
-      console.log('Chat History Manager Stats:', managerStats);
 
       // Get event bus health metrics
       const healthMetrics = eventBus.getHealthMetrics();
-      console.log('Event Bus Health:', {
         status: healthMetrics.healthStatus,
         eventsPerMinute: healthMetrics.eventsPerMinute,
         chatHistoryEvents: healthMetrics.chatHistoryEventStats.totalChatHistoryEvents
       });
 
-      console.log('✅ Analytics demonstration completed');
 
     } catch (error) {
-      console.error('❌ Analytics demonstration failed:', error);
       throw error;
     }
   }
@@ -235,16 +212,13 @@ class ChatHistoryIntegrationExample {
    * Demonstrate state persistence and loading
    */
   async demonstratePersistence() {
-    console.log('\n💾 Demonstrating State Persistence...');
 
     try {
       // Force save current state
       await this.stateManager.saveState();
-      console.log('✅ State saved to persistent storage');
 
       // Simulate loading state (in real scenario, this would be on app restart)
       const currentChatHistory = this.stateManager.getState('chatHistory');
-      console.log('Current chat history structure:', {
         totalConversations: Object.keys(currentChatHistory.conversations).length,
         activeConversation: currentChatHistory.activeConversationId,
         preferences: currentChatHistory.userPreferences
@@ -257,10 +231,8 @@ class ChatHistoryIntegrationExample {
         enableSearch: true
       });
 
-      console.log('✅ Persistence demonstration completed');
 
     } catch (error) {
-      console.error('❌ Persistence demonstration failed:', error);
       throw error;
     }
   }
@@ -269,7 +241,6 @@ class ChatHistoryIntegrationExample {
    * Demonstrate cross-module event coordination
    */
   demonstrateEventCoordination() {
-    console.log('\n🔄 Demonstrating Cross-Module Event Coordination...');
 
     // Simulate events from different modules
     
@@ -302,19 +273,16 @@ class ChatHistoryIntegrationExample {
       affectedConversation: 'test-conversation'
     });
 
-    console.log('✅ Event coordination demonstration completed');
   }
 
   /**
    * Demonstrate export/import functionality
    */
   async demonstrateDataPortability() {
-    console.log('\n📤 Demonstrating Data Export/Import...');
 
     try {
       // Export all chat history
       const fullExport = this.stateManager.exportChatHistory();
-      console.log('Full export completed:', {
         conversationCount: Object.keys(fullExport.conversations).length,
         exportSize: JSON.stringify(fullExport).length,
         version: fullExport.version
@@ -325,19 +293,15 @@ class ChatHistoryIntegrationExample {
       const conversationIds = conversations.map(conv => conv.id);
       const partialExport = this.stateManager.exportChatHistory(conversationIds);
       
-      console.log('Partial export completed:', {
         selectedConversations: conversationIds.length,
         exportedConversations: Object.keys(partialExport.conversations).length
       });
 
       // Simulate import (in real usage, this would be from a file)
       await this.stateManager.importChatHistory(partialExport, { merge: true });
-      console.log('✅ Import completed successfully');
 
-      console.log('✅ Data portability demonstration completed');
 
     } catch (error) {
-      console.error('❌ Data portability demonstration failed:', error);
       throw error;
     }
   }
@@ -366,21 +330,8 @@ class ChatHistoryIntegrationExample {
       
       await this.demonstrateDataPortability();
 
-      console.log('\n🎉 Complete Chat History System Demonstration Successful!');
-      console.log('\nKey Features Demonstrated:');
-      console.log('✅ Conversation creation and management');
-      console.log('✅ Message threading and storage');
-      console.log('✅ Advanced search with filtering');
-      console.log('✅ Real-time event coordination');
-      console.log('✅ State persistence and synchronization'); 
-      console.log('✅ Analytics and insights');
-      console.log('✅ Cross-module communication');
-      console.log('✅ Data export/import capabilities');
-      console.log('✅ Conflict resolution mechanisms');
-      console.log('✅ Performance optimization strategies');
 
     } catch (error) {
-      console.error('❌ Demo failed:', error);
       throw error;
     }
   }
@@ -397,7 +348,6 @@ class ChatHistoryIntegrationExample {
       await this.stateManager.destroy();
     }
 
-    console.log('🧹 Cleanup completed');
   }
 }
 
@@ -412,7 +362,6 @@ async function runChatHistoryDemo() {
   try {
     await demo.runDemo();
   } catch (error) {
-    console.error('Demo failed:', error);
   } finally {
     await demo.cleanup();
   }

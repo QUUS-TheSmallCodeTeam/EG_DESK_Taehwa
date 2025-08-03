@@ -27,7 +27,6 @@ class SimpleEventEmitter {
       try {
         listener(...args);
       } catch (error) {
-        console.error('EventEmitter listener error:', error);
       }
     });
     return true;
@@ -74,7 +73,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async initialize() {
     try {
-      console.log('[AIIntegration] Initializing LangChain AI integration...');
       
       // Check if electronAPI is available
       if (!window.electronAPI?.langchainGetProviders) {
@@ -87,19 +85,15 @@ class ClaudeIntegration extends SimpleEventEmitter {
       // Test connection if possible
       try {
         await this.testConnection();
-        console.log('[AIIntegration] Connection test passed');
       } catch (testError) {
-        console.warn('[AIIntegration] Connection test failed, but continuing:', testError.message);
         // Don't fail initialization if connection test fails
       }
       
       this.isInitialized = true;
-      console.log('[AIIntegration] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[AIIntegration] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -110,7 +104,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async checkSystemRequirements() {
     try {
-      console.log('[AIIntegration] Checking available AI providers...');
       
       // Get available providers
       const providers = await window.electronAPI.langchainGetProviders();
@@ -128,14 +121,12 @@ class ClaudeIntegration extends SimpleEventEmitter {
         lastChecked: Date.now()
       };
       
-      console.log('[AIIntegration] System requirements check:', this.systemInfo);
       
       // Emit system status
       this.emit('system-status', this.systemInfo);
       
       // Warn about missing requirements but don't fail
       if (!this.systemInfo.isConfigured) {
-        console.warn('[AIIntegration] No AI provider is currently configured');
         this.emit('configuration-warning', {
           message: 'No AI provider configured. Please set up API keys in settings.',
           suggestions: [
@@ -148,7 +139,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
       
       return this.systemInfo;
     } catch (error) {
-      console.error('[AIIntegration] System requirements check failed:', error);
       // Don't throw error, just warn and continue
       this.systemInfo = {
         availableProviders: [],
@@ -175,10 +165,8 @@ class ClaudeIntegration extends SimpleEventEmitter {
         skipQueue: true
       });
       
-      console.log('[AIIntegration] Connection test successful:', response);
       return true;
     } catch (error) {
-      console.error('[AIIntegration] Connection test failed:', error);
       throw new Error(`AI connection failed: ${error.message}`);
     }
   }
@@ -252,7 +240,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
       };
 
     } catch (error) {
-      console.error('[AIIntegration] Stream request failed:', error);
       throw error;
     }
   }
@@ -284,11 +271,9 @@ class ClaudeIntegration extends SimpleEventEmitter {
       const request = this.requestQueue.shift();
       
       try {
-        console.log(`[AIIntegration] Processing request: ${request.id}`);
         const result = await this.executeRequest(request);
         request.resolve(result);
       } catch (error) {
-        console.error(`[AIIntegration] Request failed: ${request.id}`, error);
         request.reject(error);
       }
 
@@ -339,13 +324,11 @@ class ClaudeIntegration extends SimpleEventEmitter {
         cost: response.metadata?.cost || null
       };
 
-      console.log(`[AIIntegration] Request completed: ${request.id}`);
       this.emit('response-received', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[AIIntegration] Request execution failed:`, error);
       this.emit('request-failed', { id: request.id, error: error.message });
       throw error;
     }
@@ -356,7 +339,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
    */
   async switchProvider(providerId, modelId = null) {
     try {
-      console.log(`[AIIntegration] Switching to provider: ${providerId}, model: ${modelId}`);
       
       const response = await window.electronAPI.langchainSwitchProvider({
         providerId,
@@ -370,12 +352,10 @@ class ClaudeIntegration extends SimpleEventEmitter {
       // Refresh system info after switching
       await this.checkSystemRequirements();
       
-      console.log('[AIIntegration] Provider switched successfully');
       this.emit('provider-switched', { providerId, modelId });
       
       return response;
     } catch (error) {
-      console.error('[AIIntegration] Failed to switch provider:', error);
       throw error;
     }
   }
@@ -387,7 +367,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
     try {
       return await window.electronAPI.langchainGetProviders();
     } catch (error) {
-      console.error('[AIIntegration] Failed to get providers:', error);
       return [];
     }
   }
@@ -399,7 +378,6 @@ class ClaudeIntegration extends SimpleEventEmitter {
     try {
       return await window.electronAPI.langchainGetCurrentStatus();
     } catch (error) {
-      console.error('[AIIntegration] Failed to get current status:', error);
       return {
         provider: null,
         model: null,
@@ -461,7 +439,6 @@ HTML 형식으로 작성하되, <article> 태그로 감싸주세요.
       };
 
     } catch (error) {
-      console.error('[AIIntegration] Blog content generation failed:', error);
       throw error;
     }
   }
@@ -506,7 +483,6 @@ SEO 최적화 요구사항:
       };
 
     } catch (error) {
-      console.error('[AIIntegration] SEO optimization failed:', error);
       throw error;
     }
   }
@@ -545,7 +521,6 @@ JSON 형식으로 상세한 분석 결과를 제공해 주세요.
       };
 
     } catch (error) {
-      console.error('[AIIntegration] Website analysis failed:', error);
       throw error;
     }
   }
@@ -582,7 +557,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       };
 
     } catch (error) {
-      console.error('[AIIntegration] WordPress post generation failed:', error);
       throw error;
     }
   }
@@ -628,7 +602,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       request.reject(new Error('Queue cleared'));
     });
     this.requestQueue = [];
-    console.log('[AIIntegration] Request queue cleared');
   }
 
   /**
@@ -639,7 +612,6 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
     this.isInitialized = false;
     this.currentSession = null;
     this.removeAllListeners();
-    console.log('[AIIntegration] Destroyed');
   }
 }
 

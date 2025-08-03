@@ -61,7 +61,6 @@ class WorkspaceManager {
     this.registerWorkspaces();
     this.setupProviderIntegration();
     this.setupEventBusIntegration();
-    console.log('[WorkspaceManager] Initialized with workspaces:', Array.from(this.workspaces.keys()));
   }
 
   /**
@@ -115,8 +114,6 @@ class WorkspaceManager {
       name: 'Advanced Workspace',
       description: 'Future advanced features workspace',
       components: [],
-      onActivate: () => console.log('[WorkspaceManager] Future workspace activated'),
-      onDeactivate: () => console.log('[WorkspaceManager] Future workspace deactivated')
     });
   }
 
@@ -128,7 +125,6 @@ class WorkspaceManager {
       throw new Error(`Workspace "${workspaceId}" not found`);
     }
 
-    console.log(`[WorkspaceManager] Switching to workspace: ${workspaceId}`);
 
     try {
       // Pause any component-level animations during workspace switch
@@ -151,7 +147,6 @@ class WorkspaceManager {
         this.resumeComponentAnimations();
       }, 100);
 
-      console.log(`[WorkspaceManager] Successfully switched to: ${workspaceId}`);
       return { success: true, workspace: workspaceId };
     } catch (error) {
       // Ensure animations are resumed even on error
@@ -176,9 +171,7 @@ class WorkspaceManager {
         await workspace.onActivate();
       }
 
-      console.log(`[WorkspaceManager] Activated workspace: ${workspaceId}`);
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to activate workspace ${workspaceId}:`, error);
       throw error;
     }
   }
@@ -202,9 +195,7 @@ class WorkspaceManager {
       // Destroy workspace components (state is already saved)
       this.destroyWorkspaceComponents(workspaceId);
 
-      console.log(`[WorkspaceManager] Deactivated workspace: ${workspaceId}`);
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to deactivate workspace ${workspaceId}:`, error);
     }
   }
 
@@ -223,10 +214,8 @@ class WorkspaceManager {
         const component = await this.createComponent(componentConfig);
         if (component) {
           workspaceComponents.set(componentConfig.containerId, component);
-          console.log(`[WorkspaceManager] Initialized ${componentConfig.type} component for ${workspaceId}`);
         }
       } catch (error) {
-        console.error(`[WorkspaceManager] Failed to create ${componentConfig.type} component:`, error);
       }
     }
 
@@ -241,7 +230,6 @@ class WorkspaceManager {
    */
   async saveWorkspaceState(workspaceId) {
     try {
-      console.log(`[WorkspaceManager] Saving state for workspace: ${workspaceId}`);
       
       const workspaceKey = `workspace_${workspaceId}`;
       const workspaceComponents = this.components.get(workspaceKey);
@@ -274,7 +262,6 @@ class WorkspaceManager {
       // Save to GlobalStateManager
       if (this.globalStateManager) {
         await this.globalStateManager.setState(`workspace_${workspaceId}`, workspaceState);
-        console.log(`[WorkspaceManager] Saved state for workspace: ${workspaceId}`);
       }
 
       // Publish state saved event
@@ -286,7 +273,6 @@ class WorkspaceManager {
       }
 
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to save workspace state for ${workspaceId}:`, error);
     }
   }
 
@@ -295,16 +281,13 @@ class WorkspaceManager {
    */
   async restoreWorkspaceState(workspaceId) {
     try {
-      console.log(`[WorkspaceManager] Restoring state for workspace: ${workspaceId}`);
 
       if (!this.globalStateManager) {
-        console.warn(`[WorkspaceManager] GlobalStateManager not available for state restoration`);
         return;
       }
 
       const workspaceState = await this.globalStateManager.getState(`workspace_${workspaceId}`);
       if (!workspaceState || !workspaceState.componentStates) {
-        console.log(`[WorkspaceManager] No saved state found for workspace: ${workspaceId}`);
         return;
       }
 
@@ -317,7 +300,6 @@ class WorkspaceManager {
           const chatComponent = this.getChatComponent(workspaceId);
           if (chatComponent && typeof chatComponent.setState === 'function') {
             await chatComponent.setState(workspaceState.componentStates.chat);
-            console.log(`[WorkspaceManager] Restored chat component state for: ${workspaceId}`);
           }
         }
 
@@ -326,7 +308,6 @@ class WorkspaceManager {
           const historyPanel = this.getChatHistoryPanel(workspaceId);
           if (historyPanel && typeof historyPanel.setState === 'function') {
             await historyPanel.setState(workspaceState.componentStates.chatHistory);
-            console.log(`[WorkspaceManager] Restored chat history panel state for: ${workspaceId}`);
           }
         }
 
@@ -335,7 +316,6 @@ class WorkspaceManager {
           const browserComponent = this.getBrowserComponent(workspaceId);
           if (browserComponent && typeof browserComponent.setState === 'function') {
             await browserComponent.setState(workspaceState.componentStates.browser);
-            console.log(`[WorkspaceManager] Restored browser component state for: ${workspaceId}`);
           }
         }
       }
@@ -348,10 +328,8 @@ class WorkspaceManager {
         });
       }
 
-      console.log(`[WorkspaceManager] Successfully restored state for workspace: ${workspaceId}`);
 
     } catch (error) {
-      console.error(`[WorkspaceManager] Failed to restore workspace state for ${workspaceId}:`, error);
     }
   }
 
@@ -364,57 +342,41 @@ class WorkspaceManager {
     try {
       switch (type) {
         case 'browser':
-          console.log(`[WorkspaceManager] 🌐 Attempting to create browser component...`);
-          console.log(`[WorkspaceManager] BrowserTabComponent available:`, typeof BrowserTabComponent);
-          console.log(`[WorkspaceManager] webContentsManager available:`, !!this.webContentsManager);
           
           if (typeof BrowserTabComponent === 'undefined') {
-            console.error('[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if import is loaded');
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'BrowserTabComponent not available');
             return null;
           }
           
-          console.log(`[WorkspaceManager] 🏗️ Creating BrowserTabComponent for container: ${containerId}`);
           const browserComponent = new BrowserTabComponent(containerId, this.webContentsManager);
-          console.log(`[WorkspaceManager] ✅ BrowserTabComponent instance created`);
           
-          console.log(`[WorkspaceManager] 🚀 Initializing BrowserTabComponent...`);
           await browserComponent.initialize();
-          console.log(`[WorkspaceManager] ✅ BrowserTabComponent initialization completed`);
           
           // Mark component as initialized in UI
           if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
           
-          console.log(`[WorkspaceManager] 🌐 Scheduling initial URL load...`);
           // Load initial URL after initialization
           setTimeout(() => {
-            console.log(`[WorkspaceManager] 🔄 Triggering loadInitialURL...`);
             browserComponent.loadInitialURL().catch(error => {
-              console.error(`[WorkspaceManager] ❌ loadInitialURL failed:`, error);
             });
           }, 100);
           
-          console.log(`[WorkspaceManager] 🎉 Browser component setup complete`);
           return browserComponent;
 
         case 'chat':
           if (typeof ChatComponent === 'undefined') {
-            console.error('[WorkspaceManager] ChatComponent not available');
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'ChatComponent not available');
             return null;
           }
           
-          console.log(`[WorkspaceManager] 🤖 Creating ChatComponent for container: ${containerId}`);
           const chatComponent = new ChatComponent(containerId, componentConfig);
           
           // Integrate with state management before initialization
           if (this.globalStateManager) {
             chatComponent.globalStateManager = this.globalStateManager;
-            console.log(`[WorkspaceManager] ChatComponent integrated with GlobalStateManager`);
           }
           if (this.eventBus) {
             chatComponent.eventBus = this.eventBus;
-            console.log(`[WorkspaceManager] ChatComponent integrated with EventBus`);
           }
           
           await chatComponent.initialize();
@@ -425,17 +387,14 @@ class WorkspaceManager {
           // Set up provider state integration
           this.integrateChatComponentWithProviderState(chatComponent);
           
-          console.log(`[WorkspaceManager] ✅ ChatComponent initialization completed`);
           return chatComponent;
 
         case 'chat-history':
           if (typeof ChatHistoryPanel === 'undefined') {
-            console.error('[WorkspaceManager] ChatHistoryPanel not available');
             if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'ChatHistoryPanel not available');
             return null;
           }
           
-          console.log(`[WorkspaceManager] 📝 Creating ChatHistoryPanel for container: ${containerId}`);
           const historyPanel = new ChatHistoryPanel(containerId, {
             ...componentConfig,
             onSessionSelect: (conversation) => this.handleHistorySessionSelect(conversation),
@@ -446,11 +405,9 @@ class WorkspaceManager {
           // Integrate with state management before initialization
           if (this.globalStateManager) {
             historyPanel.globalStateManager = this.globalStateManager;
-            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with GlobalStateManager`);
           }
           if (this.eventBus) {
             historyPanel.eventBus = this.eventBus;
-            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with EventBus`);
           }
           
           await historyPanel.initialize();
@@ -458,16 +415,13 @@ class WorkspaceManager {
           // Mark component as initialized in UI
           if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
           
-          console.log(`[WorkspaceManager] ✅ ChatHistoryPanel initialization completed`);
           return historyPanel;
 
         default:
-          console.warn(`[WorkspaceManager] Unknown component type: ${type}`);
           if (window.uiManager) window.uiManager.markComponentFailed(containerId, `Unknown component type: ${type}`);
           return null;
       }
     } catch (error) {
-      console.error(`[WorkspaceManager] ❌ Component creation failed for ${type}:`, error);
       if (window.uiManager) window.uiManager.markComponentFailed(containerId, error);
       throw error;
     }
@@ -486,9 +440,7 @@ class WorkspaceManager {
           if (component.destroy) {
             component.destroy();
           }
-          console.log(`[WorkspaceManager] Destroyed component in ${containerId}`);
         } catch (error) {
-          console.error(`[WorkspaceManager] Error destroying component in ${containerId}:`, error);
         }
       });
 
@@ -548,7 +500,6 @@ class WorkspaceManager {
    * Blog workspace specific activation
    */
   async activateBlogWorkspace() {
-    console.log('[WorkspaceManager] Blog workspace specific setup...');
     
     // Initialize chat history integration
     const historyPanel = this.getChatHistoryPanel();
@@ -556,7 +507,6 @@ class WorkspaceManager {
     
     if (historyPanel && chatComponent) {
       // Set up bidirectional communication between history panel and chat component
-      console.log('[WorkspaceManager] Setting up chat history integration');
       
       // Load any existing session
       const currentSession = historyPanel.getCurrentConversation();
@@ -579,7 +529,6 @@ class WorkspaceManager {
    * Blog workspace specific deactivation
    */
   async deactivateBlogWorkspace() {
-    console.log('[WorkspaceManager] Blog workspace specific cleanup...');
     
     // Could add blog-specific cleanup here
     // e.g., saving drafts, closing WordPress connections, etc.
@@ -642,7 +591,6 @@ class WorkspaceManager {
    * Pause component-level animations during workspace transitions
    */
   pauseComponentAnimations() {
-    console.log('[WorkspaceManager] 🚫 Pausing component animations during workspace transition');
     
     // Get all active components and pause their animations
     this.components.forEach((workspaceComponents, workspaceKey) => {
@@ -650,9 +598,7 @@ class WorkspaceManager {
         if (component.pauseAnimations && typeof component.pauseAnimations === 'function') {
           try {
             component.pauseAnimations();
-            console.log(`[WorkspaceManager] Paused animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to pause animations for ${containerId}:`, error);
           }
         }
       });
@@ -663,7 +609,6 @@ class WorkspaceManager {
    * Resume component-level animations after workspace transitions
    */
   resumeComponentAnimations() {
-    console.log('[WorkspaceManager] ▶️ Resuming component animations after workspace transition');
     
     // Get all active components and resume their animations
     this.components.forEach((workspaceComponents, workspaceKey) => {
@@ -671,9 +616,7 @@ class WorkspaceManager {
         if (component.resumeAnimations && typeof component.resumeAnimations === 'function') {
           try {
             component.resumeAnimations();
-            console.log(`[WorkspaceManager] Resumed animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to resume animations for ${containerId}:`, error);
           }
         }
       });
@@ -684,16 +627,13 @@ class WorkspaceManager {
    * Clear all component animations to prevent conflicts
    */
   clearComponentAnimations() {
-    console.log('[WorkspaceManager] 🧹 Clearing all component animations');
     
     this.components.forEach((workspaceComponents, workspaceKey) => {
       workspaceComponents.forEach((component, containerId) => {
         if (component.clearAnimations && typeof component.clearAnimations === 'function') {
           try {
             component.clearAnimations();
-            console.log(`[WorkspaceManager] Cleared animations for component: ${containerId}`);
           } catch (error) {
-            console.warn(`[WorkspaceManager] Failed to clear animations for ${containerId}:`, error);
           }
         }
       });
@@ -736,7 +676,6 @@ class WorkspaceManager {
     this.providerStates.clear();
     this.currentWorkspace = null;
 
-    console.log('[WorkspaceManager] Destroyed');
   }
   
   /**
@@ -766,14 +705,12 @@ class WorkspaceManager {
       }
     });
     
-    console.log('[WorkspaceManager] Enhanced provider integration cleanup complete');
   }
 
   /**
    * Handle chat history session selection
    */
   handleHistorySessionSelect(conversation) {
-    console.log(`[WorkspaceManager] History session selected: ${conversation.id}`);
     
     const chatComponent = this.getChatComponent();
     if (chatComponent && chatComponent.loadSession) {
@@ -788,7 +725,6 @@ class WorkspaceManager {
    * Handle chat history session deletion
    */
   handleHistorySessionDelete(sessionId) {
-    console.log(`[WorkspaceManager] History session deleted: ${sessionId}`);
     
     const chatComponent = this.getChatComponent();
     if (chatComponent && chatComponent.clearSession) {
@@ -803,7 +739,6 @@ class WorkspaceManager {
    * Handle chat history panel toggle
    */
   handleHistoryPanelToggle(collapsed) {
-    console.log(`[WorkspaceManager] History panel toggled: ${collapsed ? 'collapsed' : 'expanded'}`);
     
     // Notify UI manager about layout change
     if (window.uiManager && window.uiManager.handleHistoryPanelToggle) {
@@ -890,7 +825,6 @@ class WorkspaceManager {
       }, 'WorkspaceManager-UICostCoordination')
     );
     
-    console.log('[WorkspaceManager] EventBus integration setup complete');
   }
   
   /**
@@ -899,7 +833,6 @@ class WorkspaceManager {
   handleProviderSwitchEvent(eventData) {
     const { providerId, previousProvider, reason, conversationId } = eventData;
     
-    console.log(`[WorkspaceManager] Handling provider switch: ${previousProvider} -> ${providerId}`);
     
     // Update global state
     this.globalProviderState.activeProvider = providerId;
@@ -935,7 +868,6 @@ class WorkspaceManager {
   handleProviderStatusEvent(eventData) {
     const { providerId, status, error, healthMetrics } = eventData;
     
-    console.log(`[WorkspaceManager] Provider ${providerId} status: ${status}`);
     
     // Update provider status in global state
     this.globalProviderState.providers.set(providerId, { status, error });
@@ -975,7 +907,6 @@ class WorkspaceManager {
   handleCostLimitWarning(eventData) {
     const { type, percentage, severity, recommendation } = eventData;
     
-    console.warn(`[WorkspaceManager] Cost limit warning: ${type} at ${percentage}%`);
     
     // Show workspace-level cost warning
     this.showWorkspaceCostWarning({
@@ -992,7 +923,6 @@ class WorkspaceManager {
   handleProviderHealthUpdate(eventData) {
     const { results, healthyCount, totalCount } = eventData;
     
-    console.log(`[WorkspaceManager] Provider health update: ${healthyCount}/${totalCount} healthy`);
     
     // Update workspace health indicators
     this.updateWorkspaceHealthDisplay({
@@ -1197,7 +1127,6 @@ class WorkspaceManager {
       });
     });
     
-    console.log('[WorkspaceManager] Provider integration setup complete');
   }
   
   /**
@@ -1215,7 +1144,6 @@ class WorkspaceManager {
     this.globalProviderState.activeProvider = provider;
     this.globalProviderState.switching = true;
     
-    console.log(`[WorkspaceManager] Provider changed: ${previousProvider} → ${provider} in workspace ${workspaceId}`);
     
     // Update UI to reflect provider change
     this.updateWorkspaceProviderUI(workspaceId, provider);
@@ -1247,7 +1175,6 @@ class WorkspaceManager {
       // Update global provider registry
       this.globalProviderState.providers.set(provider, { status, model });
       
-      console.log(`[WorkspaceManager] Provider ${provider} status: ${status}${model ? ` (${model})` : ''}`);
       
       // Update workspace UI
       this.updateWorkspaceProviderStatus(workspaceId, provider, status, model);
@@ -1278,7 +1205,6 @@ class WorkspaceManager {
       this.globalProviderState.costTracking.sessionTokens = sessionTokens || 0;
       this.globalProviderState.costTracking.totalTokens = totalTokens || 0;
       
-      console.log(`[WorkspaceManager] Cost updated for ${provider}: $${sessionCost?.toFixed(4) || '0.0000'}`);
       
       // Update workspace cost display
       this.updateWorkspaceCostDisplay(workspaceId, provider);
@@ -1346,7 +1272,6 @@ class WorkspaceManager {
   updateWorkspaceHeader(workspaceId, updateInfo) {
     const headerElement = document.querySelector(`[data-workspace="${workspaceId}"] .workspace-header`);
     if (!headerElement) {
-      console.warn(`[WorkspaceManager] Workspace header not found for: ${workspaceId}`);
       return;
     }
     
@@ -1528,7 +1453,6 @@ class WorkspaceManager {
     // Store interval for cleanup
     workspaceState.statusCheckInterval = checkInterval;
     
-    console.log(`[WorkspaceManager] Provider monitoring initialized for workspace: ${workspaceId}`);
   }
   
   /**
@@ -1554,7 +1478,6 @@ class WorkspaceManager {
             }
           }
         } catch (error) {
-          console.warn(`[WorkspaceManager] Provider ${provider} ping failed:`, error);
           this.handleProviderStatusChanged({
             provider,
             status: 'error',

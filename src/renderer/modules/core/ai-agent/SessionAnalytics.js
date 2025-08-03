@@ -47,7 +47,6 @@ class SessionAnalytics extends EventEmitter {
    */
   async initialize(conversationManager, globalStateManager) {
     try {
-      console.log('[SessionAnalytics] Initializing...');
       
       this.conversationManager = conversationManager;
       this.globalStateManager = globalStateManager;
@@ -62,12 +61,10 @@ class SessionAnalytics extends EventEmitter {
       this.startAggregationTimer();
       
       this.isInitialized = true;
-      console.log('[SessionAnalytics] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[SessionAnalytics] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -139,7 +136,6 @@ class SessionAnalytics extends EventEmitter {
     
     this.sessionMetrics.set(sessionId, metrics);
     
-    console.log(`[SessionAnalytics] Started tracking session: ${sessionId}`);
     this.emit('session-start-tracked', { sessionId, metrics });
   }
 
@@ -271,7 +267,6 @@ class SessionAnalytics extends EventEmitter {
       this.sessionMetrics.get(conversationId).behavior.sessionSwitches++;
     }
     
-    console.log(`[SessionAnalytics] Session switched: ${previousId} → ${conversationId}`);
   }
 
   /**
@@ -291,7 +286,6 @@ class SessionAnalytics extends EventEmitter {
     // Store completed session
     this.storeCompletedSession(sessionId, metrics);
     
-    console.log(`[SessionAnalytics] Session ended: ${sessionId} (${metrics.duration}ms)`);
     this.emit('session-end-tracked', { sessionId, metrics });
   }
 
@@ -608,7 +602,6 @@ class SessionAnalytics extends EventEmitter {
       }
     }
     
-    console.log('[SessionAnalytics] Performed data aggregation and cleanup');
   }
   
   async loadAnalyticsData() {
@@ -623,7 +616,6 @@ class SessionAnalytics extends EventEmitter {
         this.monthlyStats = new Map(Object.entries(analyticsData.monthlyStats || {}));
       }
     } catch (error) {
-      console.warn('[SessionAnalytics] Failed to load analytics data:', error);
     }
   }
   
@@ -638,7 +630,6 @@ class SessionAnalytics extends EventEmitter {
         lastSaved: Date.now()
       });
     } catch (error) {
-      console.warn('[SessionAnalytics] Failed to save analytics data:', error);
     }
   }
 
@@ -673,7 +664,6 @@ class SessionAnalytics extends EventEmitter {
     this.removeAllListeners();
     
     this.isInitialized = false;
-    console.log('[SessionAnalytics] Destroyed');
   }
 }
 

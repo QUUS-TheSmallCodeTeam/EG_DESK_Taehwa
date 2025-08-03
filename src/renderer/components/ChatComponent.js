@@ -17,7 +17,6 @@ class ChatComponent {
     this.options = {
       title: options.title || 'AI Chat',
       placeholder: options.placeholder || 'Type your message...',
-      enableProviderSelection: options.enableProviderSelection !== false,
       enableCostTracking: false,
       enableStreaming: options.enableStreaming !== false,
       maxMessages: options.maxMessages || 100,
@@ -49,8 +48,6 @@ class ChatComponent {
    * Initialize the chat component
    */
   async initialize() {
-    console.log(`[ChatComponent] Initializing messenger-style chat: ${this.containerId}`);
-    
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
       throw new Error(`Container with ID "${this.containerId}" not found`);
@@ -59,15 +56,12 @@ class ChatComponent {
     try {
       this.render();
       this.setupEventListeners();
-      await this.initializeProviders();
       this.displayWelcomeMessage();
       
       this.isInitialized = true;
-      console.log(`[ChatComponent] Messenger-style chat initialized: ${this.containerId}`);
       
       return true;
     } catch (error) {
-      console.error(`[ChatComponent] Initialization failed:`, error);
       throw error;
     }
   }
@@ -94,15 +88,6 @@ class ChatComponent {
           </div>
           
           <div class="header-right">
-            ${this.options.enableProviderSelection ? `
-            <div class="provider-controls">
-              <select id="${this.containerId}-provider-select" class="provider-selector">
-                <option value="">Select Provider...</option>
-              </select>
-              <select id="${this.containerId}-model-select" class="model-selector" disabled>
-                <option value="">Select Model...</option>
-              </select>
-            </div>` : ''}
             
             ${this.options.enableCostTracking ? `
             <div class="cost-tracker">
@@ -169,8 +154,6 @@ class ChatComponent {
     this.elements = {
       statusText: document.getElementById(`${this.containerId}-status-text`),
       statusDot: document.getElementById(`${this.containerId}-status-dot`),
-      providerSelect: document.getElementById(`${this.containerId}-provider-select`),
-      modelSelect: document.getElementById(`${this.containerId}-model-select`),
       sessionCost: document.getElementById(`${this.containerId}-session-cost`),
       totalCost: document.getElementById(`${this.containerId}-total-cost`),
       resetCostsBtn: document.getElementById(`${this.containerId}-reset-costs`),
@@ -199,7 +182,7 @@ class ChatComponent {
     const requiredClasses = [
       'messenger-chat', 'chat-header', 'messages-container', 'messages-scroll', 
       'messages-list', 'message', 'message-avatar', 'message-bubble', 
-      'message-content', 'send-btn', 'provider-selector', 'status-dot'
+      'message-content', 'send-btn', 'status-dot'
     ];
     
     const missingClasses = requiredClasses.filter(className => {
@@ -217,10 +200,7 @@ class ChatComponent {
     });
     
     if (missingClasses.length > 0) {
-      console.warn(`[ChatComponent] Missing CSS classes in index.html:`, missingClasses);
-      console.warn(`[ChatComponent] Component may not display correctly without these styles`);
-    } else {
-      console.log(`[ChatComponent] All required CSS classes found in index.html`);
+      // Component may not display correctly without required CSS styles
     }
   }
 
@@ -228,19 +208,6 @@ class ChatComponent {
    * Setup event listeners
    */
   setupEventListeners() {
-    // Provider selection
-    if (this.elements.providerSelect) {
-      this.elements.providerSelect.addEventListener('change', (e) => {
-        this.handleProviderChange(e.target.value);
-      });
-    }
-
-    // Model selection
-    if (this.elements.modelSelect) {
-      this.elements.modelSelect.addEventListener('change', (e) => {
-        this.handleModelChange(e.target.value);
-      });
-    }
 
     // Reset costs
     if (this.elements.resetCostsBtn) {
@@ -307,13 +274,9 @@ class ChatComponent {
           await window.electronAPI.chatHistory.getMetadata();
         }
         
-        console.log(`[ChatComponent] Backend services ready after ${attempt} attempts`);
         return true;
       } catch (error) {
-        console.warn(`[ChatComponent] Services not ready, attempt ${attempt}/${maxAttempts}:`, error.message);
-        
         if (attempt === maxAttempts) {
-          console.error(`[ChatComponent] Services failed to initialize after ${maxAttempts} attempts`);
           throw new Error('Backend services not available');
         }
         
@@ -323,156 +286,9 @@ class ChatComponent {
     }
   }
 
-  /**
-   * Initialize available providers
-   */
-  async initializeProviders() {
-    try {
-      // Don't show connecting status initially
-      
-      if (!window.electronAPI) {
-        throw new Error('Electron API not available');
-      }
 
-      // Wait for backend services to be ready
-      await this.waitForServicesReady();
 
-      // Get available providers
-      this.availableProviders = await window.electronAPI.invoke('langchain-get-providers');
-      
-      if (this.availableProviders.length === 0) {
-        throw new Error('No AI providers configured');
-      }
 
-      // Populate provider dropdown
-      if (this.elements.providerSelect) {
-        this.elements.providerSelect.innerHTML = '<option value="">Select Provider...</option>';
-        
-        this.availableProviders.forEach(provider => {
-          const option = document.createElement('option');
-          option.value = provider.id;
-          // Display simple provider name without emoji
-          const providerNames = {
-            'openai': 'ChatGPT',
-            'gemini': 'Gemini',
-            'claude': 'Claude'
-          };
-          option.textContent = providerNames[provider.id] || provider.name;
-          if (provider.isCurrent) {
-            option.selected = true;
-            this.currentProvider = provider.id;
-          }
-          this.elements.providerSelect.appendChild(option);
-        });
-      }
-
-      // Get current status
-      const status = await window.electronAPI.invoke('langchain-get-current-status');
-      this.updateProviderStatus(status);
-
-      this.updateStatus('Ready', 'ready');
-      
-    } catch (error) {
-      console.error('[ChatComponent] Provider initialization failed:', error);
-      this.updateStatus(`Error: ${error.message}`, 'error');
-    }
-  }
-
-  /**
-   * Handle provider change
-   */
-  async handleProviderChange(providerId) {
-    if (!providerId) return;
-
-    try {
-      this.updateStatus('Switching provider...', 'connecting');
-      
-      const result = await window.electronAPI.invoke('langchain-switch-provider', { providerId });
-      this.currentProvider = result.provider;
-      this.currentModel = result.model;
-
-      // Update model dropdown
-      this.updateModelDropdown(providerId);
-      
-      // Update status
-      const status = await window.electronAPI.invoke('langchain-get-current-status');
-      this.updateProviderStatus(status);
-      
-      this.updateStatus('Connected', 'connected');
-      
-      // Add system message
-      this.addSystemMessage(`Switched to ${result.config.name} (${result.model})`);
-      
-    } catch (error) {
-      console.error('[ChatComponent] Provider switch failed:', error);
-      this.updateStatus(`Error: ${error.message}`, 'error');
-    }
-  }
-
-  /**
-   * Handle model change
-   */
-  async handleModelChange(modelId) {
-    if (!modelId || !this.currentProvider) return;
-
-    try {
-      this.updateStatus('Updating model...', 'connecting');
-      
-      await window.electronAPI.invoke('langchain-update-provider-model', { 
-        providerId: this.currentProvider, 
-        modelId 
-      });
-      
-      this.currentModel = modelId;
-      
-      // Update status
-      const status = await window.electronAPI.invoke('langchain-get-current-status');
-      this.updateProviderStatus(status);
-      
-      this.updateStatus('Connected', 'connected');
-      
-      // Add system message
-      this.addSystemMessage(`Model updated to ${modelId}`);
-      
-    } catch (error) {
-      console.error('[ChatComponent] Model update failed:', error);
-      this.updateStatus(`Error: ${error.message}`, 'error');
-    }
-  }
-
-  /**
-   * Update model dropdown based on selected provider
-   */
-  async updateModelDropdown(providerId) {
-    if (!this.elements.modelSelect) return;
-
-    try {
-      const models = await window.electronAPI.invoke('langchain-get-provider-models', { providerId });
-      
-      this.elements.modelSelect.innerHTML = '<option value="">Select Model...</option>';
-      this.elements.modelSelect.disabled = false;
-      
-      models.forEach(model => {
-        const option = document.createElement('option');
-        option.value = model.id;
-        // Display simplified model names without token counts
-        const modelDisplayNames = {
-          'gpt-4o': 'GPT-4o',
-          'gemini-1.5-flash': 'Gemini 2.5 Flash',
-          'claude-3-5-sonnet-20241022': 'Claude 4.0 Sonnet'
-        };
-        option.textContent = modelDisplayNames[model.id] || model.name;
-        if (model.id === this.currentModel) {
-          option.selected = true;
-        }
-        this.elements.modelSelect.appendChild(option);
-      });
-      
-    } catch (error) {
-      console.error('[ChatComponent] Failed to load models:', error);
-      this.elements.modelSelect.disabled = true;
-    }
-  }
 
   /**
    * Send a message
@@ -481,10 +297,6 @@ class ChatComponent {
     const message = this.elements.messageInput.value.trim();
     if (!message || this.isStreaming) return;
 
-    if (!this.currentProvider) {
-      this.showError('Please select a provider first');
-      return;
-    }
 
     try {
       // Add user message to UI
@@ -513,7 +325,6 @@ class ChatComponent {
       }
 
     } catch (error) {
-      console.error('[ChatComponent] Send message failed:', error);
       this.showError(`Failed to send message: ${error.message}`);
     } finally {
       this.isStreaming = false;
@@ -826,11 +637,7 @@ class ChatComponent {
       this.currentProvider = status.provider.id;
       this.currentModel = status.provider.currentModel;
       
-      if (this.elements.providerSelect) {
-        this.elements.providerSelect.value = this.currentProvider;
-      }
       
-      this.updateModelDropdown(this.currentProvider);
     }
 
     if (status.costTracker) {
@@ -874,7 +681,6 @@ class ChatComponent {
       this.updateCostDisplayFromTracker();
       this.addSystemMessage('Session costs reset');
     } catch (error) {
-      console.error('[ChatComponent] Failed to reset session costs:', error);
     }
   }
 
@@ -894,7 +700,7 @@ class ChatComponent {
     welcomeDiv.className = 'welcome-message';
     welcomeDiv.innerHTML = `
       <h3>Welcome to AI Chat</h3>
-      <p>Select a provider and start chatting with AI assistants. Your conversations are powered by multiple AI providers for the best experience.</p>
+      <p>Start chatting with AI assistants. Your conversations are powered by advanced AI technology for the best experience.</p>
     `;
     
     this.elements.messagesList.appendChild(welcomeDiv);
@@ -936,20 +742,13 @@ class ChatComponent {
    */
   async setState(state) {
     try {
-      console.log(`[ChatComponent] Restoring state for: ${this.containerId}`);
       
       if (state.currentProvider !== undefined) {
         this.currentProvider = state.currentProvider;
-        if (this.elements.providerSelect) {
-          this.elements.providerSelect.value = state.currentProvider;
-        }
       }
       
       if (state.currentModel !== undefined) {
         this.currentModel = state.currentModel;
-        if (this.elements.modelSelect) {
-          this.elements.modelSelect.value = state.currentModel;
-        }
       }
       
       if (state.currentSessionId !== undefined) {
@@ -1004,7 +803,6 @@ class ChatComponent {
         });
       }
       
-      console.log(`[ChatComponent] State restored successfully`);
       
       // Emit state restored event
       if (this.eventBus) {
@@ -1017,7 +815,6 @@ class ChatComponent {
       }
       
     } catch (error) {
-      console.error(`[ChatComponent] Failed to restore state:`, error);
     }
   }
 
@@ -1064,10 +861,8 @@ class ChatComponent {
       }
       
       this.addSystemMessage('New chat session started');
-      console.log(`[ChatComponent] Started new session: ${this.currentSessionId}`);
       
     } catch (error) {
-      console.error(`[ChatComponent] Failed to start new session:`, error);
     }
   }
 
@@ -1076,7 +871,6 @@ class ChatComponent {
    */
   async loadSession(conversation) {
     try {
-      console.log(`[ChatComponent] Loading session: ${conversation.id}`);
       
       await this.setState({
         currentSessionId: conversation.id,
@@ -1089,7 +883,6 @@ class ChatComponent {
       this.addSystemMessage(`Loaded conversation: ${conversation.title || 'Untitled'}`);
       
     } catch (error) {
-      console.error(`[ChatComponent] Failed to load session:`, error);
       this.showError(`Failed to load session: ${error.message}`);
     }
   }
@@ -1121,7 +914,6 @@ class ChatComponent {
       }
       
     } catch (error) {
-      console.error(`[ChatComponent] Failed to save session:`, error);
     }
   }
 
@@ -1136,7 +928,6 @@ class ChatComponent {
     // No dynamic styles to remove since CSS is defined in index.html
     
     this.isInitialized = false;
-    console.log(`[ChatComponent] Destroyed: ${this.containerId}`);
   }
 }
 

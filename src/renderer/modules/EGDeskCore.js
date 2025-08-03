@@ -58,10 +58,8 @@ class EGDeskCore extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[EGDeskCore] 🚀 Starting EG-Desk:태화 module initialization...');
       
       if (this.isInitialized) {
-        console.warn('[EGDeskCore] Already initialized');
         return;
       }
 
@@ -75,12 +73,10 @@ class EGDeskCore extends EventEmitter {
       this.setupInterModuleCommunication();
       
       this.isInitialized = true;
-      console.log('[EGDeskCore] ✅ All modules initialized successfully');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[EGDeskCore] ❌ Initialization failed:', error);
       this.emit('initialization-failed', error);
       throw error;
     }
@@ -90,54 +86,36 @@ class EGDeskCore extends EventEmitter {
    * Create instances of all modules
    */
   async createModuleInstances() {
-    console.log('[EGDeskCore] 🏗️  Creating module instances...');
     
     try {
     
     // State Management & Communication (singleton eventBus)
-    console.log('[EGDeskCore] 📦 Creating eventBus...');
     this.modules.set('eventBus', EventBus);
-    console.log('[EGDeskCore] 📦 Creating globalStateManager...');
     this.modules.set('globalStateManager', new GlobalStateManager());
     
     // AI Agent System
-    console.log('[EGDeskCore] 📦 Creating claudeIntegration...');
     this.modules.set('claudeIntegration', new ClaudeIntegration());
-    console.log('[EGDeskCore] 📦 Creating conversationManager...');
     this.modules.set('conversationManager', new ConversationManager());
-    console.log('[EGDeskCore] 📦 Creating taskExecutor...');
     this.modules.set('taskExecutor', new TaskExecutor());
     
     // Content System
-    console.log('[EGDeskCore] 📦 Creating templateManager...');
     this.modules.set('templateManager', new TemplateManager());
-    console.log('[EGDeskCore] 📦 Creating contentGenerator...');
     const contentGenerator = new ContentGenerator(
       this.modules.get('claudeIntegration'),
       this.modules.get('templateManager')
     );
     this.modules.set('contentGenerator', contentGenerator);
-    console.log('[EGDeskCore] 📦 Creating seoOptimizer...');
     this.modules.set('seoOptimizer', new SEOOptimizer());
-    console.log('[EGDeskCore] 📦 Creating qualityChecker...');
     this.modules.set('qualityChecker', new QualityChecker());
     
     // Blog Automation - REMOVED to prevent initialization errors
-    console.log('[EGDeskCore] ⚠️  WPApiClient NOT created - will be created only when WordPress settings provided');
     // this.modules.set('wpApiClient', new WPApiClient()); // COMMENTED OUT
     
     // Workspace Management (will be integrated with WebContentsManager proxy)
     this.modules.set('workspaceManager', null); // Will be set later with proper proxy
     
-    console.log(`[EGDeskCore] ✅ Created ${this.modules.size} module instances successfully`);
     
     } catch (error) {
-      console.error('[EGDeskCore] ❌ Error during module instance creation:', error);
-      console.error('[EGDeskCore] 📊 Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -146,26 +124,21 @@ class EGDeskCore extends EventEmitter {
    * Initialize modules in dependency order
    */
   async initializeModules() {
-    console.log('[EGDeskCore] Initializing modules in dependency order...');
     
     for (const moduleName of this.initializationOrder) {
       const module = this.modules.get(moduleName);
       
       if (!module) {
-        console.warn(`[EGDeskCore] Module ${moduleName} not found, skipping...`);
         continue;
       }
 
       try {
-        console.log(`[EGDeskCore] Initializing ${moduleName}...`);
         
         if (typeof module.initialize === 'function') {
           await module.initialize();
         }
         
-        console.log(`[EGDeskCore] ✅ ${moduleName} initialized`);
       } catch (error) {
-        console.error(`[EGDeskCore] ❌ Failed to initialize ${moduleName}:`, error);
         throw new Error(`Module initialization failed: ${moduleName} - ${error.message}`);
       }
     }
@@ -175,7 +148,6 @@ class EGDeskCore extends EventEmitter {
    * Set up inter-module communication via EventBus
    */
   setupInterModuleCommunication() {
-    console.log('[EGDeskCore] Setting up inter-module communication...');
     
     const eventBus = this.modules.get('eventBus');
     
@@ -195,21 +167,17 @@ class EGDeskCore extends EventEmitter {
 
     // WordPress publishing events
     eventBus.subscribe('wordpress:publish-request', async (eventData) => {
-      console.log('[EGDeskCore] 🔍 WordPress publish request received, checking wpApiClient...');
       const wpApiClient = this.modules.get('wpApiClient');
       
       if (!wpApiClient) {
-        console.error('[EGDeskCore] ❌ wpApiClient not available for publish request');
         eventBus.publish('wordpress:publish-failed', { error: 'WordPress API client not initialized' });
         return;
       }
       
       try {
-        console.log('[EGDeskCore] 📤 Creating WordPress post via wpApiClient...');
         const result = await wpApiClient.createPost(eventData.data);
         eventBus.publish('wordpress:published', result);
       } catch (error) {
-        console.error('[EGDeskCore] ❌ WordPress publish failed:', error);
         eventBus.publish('wordpress:publish-failed', { error: error.message });
       }
     }, 'EGDeskCore');
@@ -228,7 +196,6 @@ class EGDeskCore extends EventEmitter {
       eventBus.publish('ai:message-response', result);
     }, 'EGDeskCore');
 
-    console.log('[EGDeskCore] Inter-module communication established');
   }
 
   /**
@@ -257,7 +224,6 @@ class EGDeskCore extends EventEmitter {
       window.globalStateManager = globalStateManager;
       window.eventBus = eventBus;
       
-      console.log('[EGDeskCore] WorkspaceManager integrated with state management');
     }
   }
 
@@ -280,30 +246,18 @@ class EGDeskCore extends EventEmitter {
    */
   async initializeWordPressClient(siteUrl, credentials) {
     try {
-      console.log('[EGDeskCore] 🔍 Initializing WordPress API client...');
-      console.log('[EGDeskCore] 📝 Received siteUrl:', siteUrl, 'type:', typeof siteUrl);
-      console.log('[EGDeskCore] 📝 Received credentials:', credentials ? 'provided' : 'missing');
       
       // Create wpApiClient if it doesn't exist
       let wpApiClient = this.modules.get('wpApiClient');
       if (!wpApiClient) {
-        console.log('[EGDeskCore] 🏗️  Creating new WPApiClient instance...');
         wpApiClient = new WPApiClient();
         this.modules.set('wpApiClient', wpApiClient);
       }
       
-      console.log('[EGDeskCore] 🚀 Calling wpApiClient.initialize...');
       await wpApiClient.initialize(siteUrl, credentials);
-      console.log('[EGDeskCore] ✅ WordPress API client initialized successfully');
       
       return true;
     } catch (error) {
-      console.error('[EGDeskCore] ❌ WordPress API initialization failed:', error);
-      console.error('[EGDeskCore] 📊 Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -338,18 +292,15 @@ class EGDeskCore extends EventEmitter {
     }
 
     const workflowId = `workflow_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-    console.log(`[EGDeskCore] 📝 Starting blog workflow: ${workflowId}`);
     
     try {
       const eventBus = this.modules.get('eventBus');
       
       // Step 1: Generate content
-      console.log(`[EGDeskCore] Step 1: Generating content for topic: ${request.topic}`);
       eventBus.publish('content:generate-request', request);
       const contentResult = await eventBus.waitForEvent('content:generated', 60000);
       
       // Step 2: Optimize for SEO
-      console.log(`[EGDeskCore] Step 2: Optimizing content for SEO`);
       eventBus.publish('content:optimize-request', {
         content: contentResult.data.content,
         options: { targetKeywords: request.keywords || [] }
@@ -357,7 +308,6 @@ class EGDeskCore extends EventEmitter {
       const seoResult = await eventBus.waitForEvent('content:optimized', 30000);
       
       // Step 3: Quality check
-      console.log(`[EGDeskCore] Step 3: Checking content quality`);
       eventBus.publish('content:quality-check-request', {
         content: seoResult.data.optimizedContent
       });
@@ -366,7 +316,6 @@ class EGDeskCore extends EventEmitter {
       // Step 4: Publish to WordPress (if requested)
       let publishResult = null;
       if (request.autoPublish) {
-        console.log(`[EGDeskCore] Step 4: Publishing to WordPress`);
         eventBus.publish('wordpress:publish-request', {
           title: contentResult.data.title,
           content: seoResult.data.optimizedContent,
@@ -389,13 +338,11 @@ class EGDeskCore extends EventEmitter {
         completedAt: Date.now()
       };
       
-      console.log(`[EGDeskCore] ✅ Blog workflow completed: ${workflowId}`);
       this.emit('workflow-completed', workflowResult);
       
       return workflowResult;
       
     } catch (error) {
-      console.error(`[EGDeskCore] ❌ Blog workflow failed: ${workflowId}`, error);
       
       const errorResult = {
         workflowId,
@@ -413,7 +360,6 @@ class EGDeskCore extends EventEmitter {
    * Destroy all modules
    */
   async destroy() {
-    console.log('[EGDeskCore] 🔄 Destroying all modules...');
     
     // Destroy in reverse order
     const destroyOrder = [...this.initializationOrder].reverse();
@@ -424,9 +370,7 @@ class EGDeskCore extends EventEmitter {
       if (module && typeof module.destroy === 'function') {
         try {
           await module.destroy();
-          console.log(`[EGDeskCore] ✅ ${moduleName} destroyed`);
         } catch (error) {
-          console.error(`[EGDeskCore] ❌ Failed to destroy ${moduleName}:`, error);
         }
       }
     }
@@ -435,7 +379,6 @@ class EGDeskCore extends EventEmitter {
     this.isInitialized = false;
     this.removeAllListeners();
     
-    console.log('[EGDeskCore] 🔄 All modules destroyed');
   }
 }
 

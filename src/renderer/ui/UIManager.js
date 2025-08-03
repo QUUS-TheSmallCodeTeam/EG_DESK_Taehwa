@@ -50,7 +50,6 @@ class UIManager {
    * Add event listener (EventTarget compatibility)
    */
   addEventListener(type, listener, options) {
-    console.log(`[UIManager] 🎧 Adding event listener for: ${type}`);
     this.eventTarget.addEventListener(type, listener, options);
   }
 
@@ -65,7 +64,6 @@ class UIManager {
    * Dispatch custom event (EventTarget compatibility)
    */
   dispatchEvent(event) {
-    console.log(`[UIManager] 📢 Dispatching event: ${event.type}`, event.detail);
     return this.eventTarget.dispatchEvent(event);
   }
 
@@ -74,7 +72,6 @@ class UIManager {
    */
   async initialize() {
     try {
-      console.log('[UIManager] 🎨 Initializing UI management system...');
       
       // Apply initial theme
       this.applyTheme(this.currentTheme);
@@ -106,12 +103,10 @@ class UIManager {
       this.startAutoSave();
       
       this.isInitialized = true;
-      console.log('[UIManager] ✅ UI Manager initialized successfully');
       this.dispatchEvent(new CustomEvent('initialized'));
       
       return true;
     } catch (error) {
-      console.error('[UIManager] ❌ Initialization failed:', error);
       this.dispatchEvent(new CustomEvent('error', { detail: error }));
       throw error;
     }
@@ -137,14 +132,6 @@ class UIManager {
     
     // Set initial loading states for component containers
     this.setComponentLoadingState();
-    
-    console.log('[UIManager] Cached DOM elements:', Object.keys(this.elements));
-    console.log('[UIManager] Critical elements status:', {
-      startScreen: !!this.elements.startScreen,
-      mainContent: !!this.elements.mainContent,
-      workspaceLayout: !!this.elements.workspaceLayout,
-      workspaceTabs: !!this.elements.workspaceTabs
-    });
   }
 
   /**
@@ -157,7 +144,6 @@ class UIManager {
     this.elements.workspaceLayout = document.getElementById('workspace-layout');
     this.elements.workspaceTabs = document.querySelector('.workspace-tabs');
     
-    console.log('[UIManager] DOM element cache refreshed');
   }
 
   /**
@@ -180,7 +166,6 @@ class UIManager {
     if (container) {
       container.classList.remove('loading', 'error');
       container.classList.add('component-initialized');
-      console.log(`[UIManager] Component marked as initialized: ${containerId}`);
     }
   }
 
@@ -192,7 +177,6 @@ class UIManager {
     if (container) {
       container.classList.remove('loading');
       container.classList.add('error');
-      console.error(`[UIManager] Component marked as failed: ${containerId}`, error);
     }
   }
 
@@ -200,7 +184,6 @@ class UIManager {
    * Apply theme to the application
    */
   applyTheme(themeName) {
-    console.log(`[UIManager] 🎨 Applying theme: ${themeName}`);
     
     const themes = {
       'light-grey': {
@@ -253,10 +236,8 @@ class UIManager {
       this.currentTheme = themeName;
       document.body.setAttribute('data-theme', themeName);
       
-      console.log(`[UIManager] ✅ Theme applied: ${themeName}`);
       this.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: themeName } }));
     } else {
-      console.warn(`[UIManager] Theme not found: ${themeName}`);
     }
   }
 
@@ -282,7 +263,6 @@ class UIManager {
           .replace(/screen-\w+/g, '')
           .trim() + ` screen-${newSize}`;
         
-        console.log(`[UIManager] 📱 Screen size changed: ${previousSize} → ${newSize}`);
         this.dispatchEvent(new CustomEvent('screen-size-changed', { 
           detail: { 
             previous: previousSize, 
@@ -302,7 +282,6 @@ class UIManager {
     // Listen for resize events
     window.addEventListener('resize', updateScreenSize);
     
-    console.log('[UIManager] 📱 Responsive design system activated');
   }
 
   /**
@@ -348,7 +327,6 @@ class UIManager {
     // Apply mobile-specific chat layout
     this.applyChatLayoutForScreenSize('mobile');
     
-    console.log('[UIManager] 📱 Mobile layout applied');
   }
 
   /**
@@ -364,7 +342,6 @@ class UIManager {
     // Apply tablet-specific chat layout
     this.applyChatLayoutForScreenSize('tablet');
     
-    console.log('[UIManager] 📱 Tablet layout applied');
   }
 
   /**
@@ -380,7 +357,6 @@ class UIManager {
     // Apply desktop-specific chat layout
     this.applyChatLayoutForScreenSize('desktop');
     
-    console.log('[UIManager] 🖥️ Desktop layout applied');
   }
 
   /**
@@ -425,7 +401,6 @@ class UIManager {
       }
     }));
     
-    console.log(`[UIManager] 💬 Chat layout applied for ${screenSize} (history ${this.historyPanelCollapsed ? 'collapsed' : 'expanded'})`);
   }
 
   /**
@@ -464,7 +439,6 @@ class UIManager {
       }
     });
     
-    console.log('[UIManager] ⌨️ Keyboard shortcuts activated');
   }
 
   /**
@@ -472,14 +446,12 @@ class UIManager {
    */
   setupAnimationSystem() {
     // Animation styles are now defined in index.html - no dynamic CSS injection
-    console.log('[UIManager] ✨ Animation system initialized');
   }
 
   /**
    * Pause all animations temporarily
    */
   pauseAnimations() {
-    console.log('[UIManager] 🚫 Pausing animations during workspace transition');
     const animationStyle = document.getElementById('ui-animations');
     if (animationStyle) {
       animationStyle.disabled = true;
@@ -495,7 +467,6 @@ class UIManager {
    * Resume animations after workspace transition
    */
   resumeAnimations() {
-    console.log('[UIManager] ▶️ Resuming animations after workspace transition');
     const animationStyle = document.getElementById('ui-animations');
     if (animationStyle) {
       animationStyle.disabled = false;
@@ -516,7 +487,6 @@ class UIManager {
     // Clear active animation tracking
     this.activeAnimations.clear();
     
-    console.log('[UIManager] 🧹 Cleared all active animations');
   }
 
   /**
@@ -559,15 +529,12 @@ class UIManager {
    */
   async switchWorkspace(workspace) {
     if (this.currentWorkspace === workspace) {
-      console.log(`[UIManager] Already in workspace: ${workspace}`);
       return;
     }
 
-    console.log(`[UIManager] 🔄 Switching workspace: ${this.currentWorkspace} → ${workspace}`);
     
     // If already transitioning, queue this request
     if (this.isTransitioning) {
-      console.log(`[UIManager] ⏳ Queueing workspace switch (already transitioning)`);
       return this.queueAnimation(() => this.switchWorkspace(workspace));
     }
 
@@ -608,10 +575,8 @@ class UIManager {
         }
       }));
 
-      console.log(`[UIManager] ✅ Workspace switched to: ${workspace}`);
       
     } catch (error) {
-      console.error(`[UIManager] ❌ Workspace switch failed:`, error);
       
       // Resume animations even on error
       this.resumeAnimations();
@@ -666,111 +631,57 @@ class UIManager {
    * Update workspace UI without animations
    */
   updateWorkspaceUI(workspace) {
-    console.log(`[UIManager] 🎯 updateWorkspaceUI called for workspace: ${workspace}`);
     
     // Refresh DOM element cache to ensure we have current elements
     this.refreshDOMElementCache();
     
-    // Log current DOM element states
-    console.log('[UIManager] DOM element status:');
-    console.log('  startScreen:', {
-      exists: !!this.elements.startScreen,
-      currentDisplay: this.elements.startScreen?.style.display,
-      computedDisplay: this.elements.startScreen ? window.getComputedStyle(this.elements.startScreen).display : 'N/A'
-    });
-    console.log('  mainContent:', {
-      exists: !!this.elements.mainContent,
-      hasActiveClass: this.elements.mainContent?.classList.contains('active'),
-      currentDisplay: this.elements.mainContent?.style.display,
-      computedDisplay: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).display : 'N/A'
-    });
-    console.log('  workspaceTabs:', {
-      exists: !!this.elements.workspaceTabs,
-      hasShowClass: this.elements.workspaceTabs?.classList.contains('show')
-    });
-    console.log('  workspaceLayout:', {
-      exists: !!this.elements.workspaceLayout,
-      currentDisplay: this.elements.workspaceLayout?.style.display,
-      computedDisplay: this.elements.workspaceLayout ? window.getComputedStyle(this.elements.workspaceLayout).display : 'N/A'
-    });
-    
     // Update visibility
     if (workspace === 'start') {
-      console.log('[UIManager] 📋 Switching to start workspace');
       if (this.elements.startScreen) {
         this.elements.startScreen.style.display = 'flex';
         this.elements.startScreen.style.visibility = 'visible';
         this.elements.startScreen.style.opacity = '1';
-        console.log('[UIManager] ✅ startScreen shown');
       }
       if (this.elements.mainContent) {
         this.elements.mainContent.classList.remove('active');
-        console.log('[UIManager] ✅ mainContent active class removed');
       }
       if (this.elements.workspaceTabs) {
         this.elements.workspaceTabs.classList.remove('show');
-        console.log('[UIManager] ✅ workspaceTabs show class removed');
       }
     } else {
-      console.log(`[UIManager] 📋 Switching to ${workspace} workspace`);
       if (this.elements.startScreen) {
         this.elements.startScreen.style.display = 'none';
-        console.log('[UIManager] ✅ startScreen hidden');
       }
       if (this.elements.mainContent) {
         this.elements.mainContent.classList.add('active');
-        console.log('[UIManager] ✅ mainContent active class added');
         
         // Force visibility for blog workspace
         if (workspace === 'blog') {
           this.elements.mainContent.style.opacity = '1';
           this.elements.mainContent.style.visibility = 'visible';
           this.elements.mainContent.style.pointerEvents = 'auto';
-          console.log('[UIManager] 🔧 Forced blog workspace visibility');
         }
       }
       if (this.elements.workspaceTabs) {
         this.elements.workspaceTabs.classList.add('show');
-        console.log('[UIManager] ✅ workspaceTabs show class added');
       }
       if (this.elements.workspaceLayout && workspace === 'blog') {
         // Ensure workspace layout is visible for blog workspace
         this.elements.workspaceLayout.style.display = 'flex';
-        console.log('[UIManager] ✅ workspaceLayout display set to flex for blog');
       }
     }
-    
-    // Log DOM element states after changes
-    console.log('[UIManager] DOM element status after changes:');
-    console.log('  startScreen:', {
-      currentDisplay: this.elements.startScreen?.style.display,
-      computedDisplay: this.elements.startScreen ? window.getComputedStyle(this.elements.startScreen).display : 'N/A'
-    });
-    console.log('  mainContent:', {
-      hasActiveClass: this.elements.mainContent?.classList.contains('active'),
-      currentDisplay: this.elements.mainContent?.style.display,
-      computedDisplay: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).display : 'N/A',
-      opacity: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).opacity : 'N/A',
-      visibility: this.elements.mainContent ? window.getComputedStyle(this.elements.mainContent).visibility : 'N/A'
-    });
-    console.log('  workspaceLayout:', {
-      currentDisplay: this.elements.workspaceLayout?.style.display,
-      computedDisplay: this.elements.workspaceLayout ? window.getComputedStyle(this.elements.workspaceLayout).display : 'N/A'
-    });
     
     // Update body class for workspace-specific styling
     const oldClassName = document.body.className;
     document.body.className = document.body.className
       .replace(/workspace-\w+/g, '')
       .trim() + ` workspace-${workspace}`;
-    console.log(`[UIManager] Body class updated: '${oldClassName}' → '${document.body.className}'`);
     
     // Emit UI update event for other components to listen to
     this.dispatchEvent(new CustomEvent('ui-updated', { 
       detail: { workspace }
     }));
     
-    console.log(`[UIManager] ✅ updateWorkspaceUI completed for workspace: ${workspace}`);
   }
 
   /**
@@ -799,7 +710,6 @@ class UIManager {
       setTimeout(() => notification.remove(), 300);
     }, duration);
     
-    console.log(`[UIManager] 📢 Notification: ${type} - ${message}`);
   }
 
   /**
@@ -808,10 +718,8 @@ class UIManager {
   toggleFullscreen() {
     if (document.fullscreenElement) {
       document.exitFullscreen();
-      console.log('[UIManager] 📺 Exited fullscreen');
     } else {
       document.documentElement.requestFullscreen();
-      console.log('[UIManager] 📺 Entered fullscreen');
     }
   }
 
@@ -820,7 +728,6 @@ class UIManager {
    */
   showHelp() {
     this.showNotification('도움말 기능은 개발 중입니다', 'info');
-    console.log('[UIManager] ❓ Help requested');
   }
 
   /**
@@ -844,7 +751,6 @@ class UIManager {
    */
   registerComponent(name, component) {
     this.uiComponents.set(name, component);
-    console.log(`[UIManager] 📦 Registered UI component: ${name}`);
     this.dispatchEvent(new CustomEvent('component-registered', { 
       detail: { name, component }
     }));
@@ -884,7 +790,6 @@ class UIManager {
     // Custom Event Target does not require manual cleanup of listeners
     this.eventTarget = null;
     
-    console.log('[UIManager] 🗑️ UI Manager destroyed');
   }
 
   /**
@@ -906,7 +811,6 @@ class UIManager {
       }
     }));
     
-    console.log(`[UIManager] 📝 History panel ${shouldCollapse ? 'collapsed' : 'expanded'}`);
   }
 
   /**
@@ -916,7 +820,6 @@ class UIManager {
     this.historyPanelCollapsed = collapsed;
     this.applyChatLayoutForScreenSize(this.screenSize);
     
-    console.log(`[UIManager] 📝 History panel state updated: ${collapsed ? 'collapsed' : 'expanded'}`);
   }
 
   /**
@@ -976,7 +879,6 @@ class UIManager {
         localStorage.setItem('uiPreferences', JSON.stringify(preferences));
       }
     } catch (error) {
-      console.warn('[UIManager] Failed to save UI preferences:', error);
     }
   }
 
@@ -1003,10 +905,8 @@ class UIManager {
         // Apply loaded theme
         this.applyTheme(this.currentTheme);
         
-        console.log('[UIManager] 💾 UI preferences loaded');
       }
     } catch (error) {
-      console.warn('[UIManager] Failed to load UI preferences:', error);
     }
   }
 
@@ -1032,14 +932,12 @@ class UIManager {
    * Enable chat history specific shortcuts
    */
   enableChatHistoryShortcuts() {
-    console.log('[UIManager] ⌨️ Chat history shortcuts enabled');
   }
 
   /**
    * Disable chat history specific shortcuts
    */
   disableChatHistoryShortcuts() {
-    console.log('[UIManager] ⌨️ Chat history shortcuts disabled');
   }
 
   /**
@@ -1133,7 +1031,6 @@ class UIManager {
     // Initialize provider status indicators
     this.initializeProviderIndicators();
     
-    console.log('[UIManager] Provider UI integration setup complete');
   }
   
   /**
@@ -1266,7 +1163,6 @@ class UIManager {
       }
     });
     
-    console.log(`[UIManager] Provider state updated: ${activeProvider}${switching ? ' (switching)' : ''}`);
   }
   
   /**
@@ -1301,7 +1197,6 @@ class UIManager {
       modelInfo.textContent = model || '';
     });
     
-    console.log(`[UIManager] Provider status updated: ${provider} - ${status}${model ? ` (${model})` : ''}`);
   }
   
   /**
@@ -1332,7 +1227,6 @@ class UIManager {
       }
     });
     
-    console.log(`[UIManager] Cost display updated: $${sessionCost?.toFixed(4) || '0.0000'}`);
   }
   
   /**

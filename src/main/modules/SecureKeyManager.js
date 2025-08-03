@@ -61,7 +61,6 @@ class SecureKeyManager {
    */
   async initialize() {
     try {
-      console.log('[SecureKeyManager] Initializing...');
       
       // Check if safeStorage is available
       if (!safeStorage.isEncryptionAvailable()) {
@@ -81,11 +80,9 @@ class SecureKeyManager {
       // Check for environment variables and auto-store them
       await this.loadEnvironmentVariables();
       
-      console.log('[SecureKeyManager] Successfully initialized');
       
       return true;
     } catch (error) {
-      console.error('[SecureKeyManager] Initialization failed:', error);
       this.isInitialized = false; // Reset on error
       throw error;
     }
@@ -102,16 +99,13 @@ class SecureKeyManager {
       try {
         const existingKey = await fs.readFile(keyPath);
         this.encryptionKey = existingKey;
-        console.log('[SecureKeyManager] Loaded existing encryption key');
       } catch (error) {
         // Generate new key
         this.encryptionKey = crypto.randomBytes(32);
         await fs.writeFile(keyPath, this.encryptionKey, { mode: 0o600 });
-        console.log('[SecureKeyManager] Generated new encryption key');
       }
       
     } catch (error) {
-      console.error('[SecureKeyManager] Encryption initialization failed:', error);
       throw error;
     }
   }
@@ -147,11 +141,9 @@ class SecureKeyManager {
       // Persist to disk
       await this.saveProviderConfigs();
       
-      console.log(`[SecureKeyManager] Stored API key for provider: ${providerId}`);
       return true;
       
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to store key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -176,11 +168,9 @@ class SecureKeyManager {
       // Update last used timestamp
       providerData.lastUsed = Date.now();
       
-      console.log(`[SecureKeyManager] Retrieved API key for provider: ${providerId}`);
       return decryptedData;
       
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to retrieve key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -197,11 +187,9 @@ class SecureKeyManager {
       this.providers.delete(providerId);
       await this.saveProviderConfigs();
       
-      console.log(`[SecureKeyManager] Removed API key for provider: ${providerId}`);
       return true;
       
     } catch (error) {
-      console.error(`[SecureKeyManager] Failed to remove key for ${providerId}:`, error);
       throw error;
     }
   }
@@ -288,7 +276,6 @@ class SecureKeyManager {
       return testResult;
       
     } catch (error) {
-      console.error(`[SecureKeyManager] API test failed for ${providerId}:`, error);
       
       const providerData = this.providers.get(providerId);
       if (providerData) {
@@ -319,7 +306,6 @@ class SecureKeyManager {
     
     await this.saveProviderConfigs();
     
-    console.log(`[SecureKeyManager] Updated configuration for provider: ${providerId}`);
     return true;
   }
 
@@ -395,7 +381,6 @@ class SecureKeyManager {
       await this.saveProviderConfigs();
     }
     
-    console.log(`[SecureKeyManager] Imported ${importedCount} provider configurations`);
     return importedCount;
   }
 
@@ -404,7 +389,6 @@ class SecureKeyManager {
    */
   async loadEnvironmentVariables() {
     try {
-      console.log('[SecureKeyManager] Checking environment variables for API keys...');
       
       const environmentMappings = {
         'claude': 'CLAUDE_API_KEY',
@@ -421,30 +405,23 @@ class SecureKeyManager {
           // Only auto-store if we don't already have a key for this provider
           if (!this.hasProviderKey(providerId)) {
             try {
-              console.log(`[SecureKeyManager] Found ${envVarName} in environment, auto-storing...`);
               
               const keyData = { api_key: envValue.trim() };
               await this.storeProviderKey(providerId, keyData);
               
               autoStoredCount++;
-              console.log(`[SecureKeyManager] Successfully auto-stored API key for ${providerId}`);
             } catch (error) {
-              console.warn(`[SecureKeyManager] Failed to auto-store ${providerId} key from environment:`, error);
             }
           } else {
-            console.log(`[SecureKeyManager] ${providerId} key already exists, skipping environment auto-store`);
           }
         }
       }
 
       if (autoStoredCount > 0) {
-        console.log(`[SecureKeyManager] Auto-stored ${autoStoredCount} API keys from environment variables`);
       } else {
-        console.log('[SecureKeyManager] No new API keys found in environment variables');
       }
 
     } catch (error) {
-      console.warn('[SecureKeyManager] Failed to load environment variables:', error);
       // Don't throw error - this is not critical for operation
     }
   }
@@ -513,7 +490,6 @@ class SecureKeyManager {
         if (this.supportedProviders[providerId]) {
           // Check if we need to migrate old Buffer format
           if (config.encrypted && typeof config.encrypted === 'object' && config.encrypted.type === 'Buffer') {
-            console.log(`[SecureKeyManager] Migrating old format for ${providerId}`);
             // Convert old Buffer format to base64 string
             config.encrypted = Buffer.from(config.encrypted.data).toString('base64');
           }
@@ -521,7 +497,6 @@ class SecureKeyManager {
         }
       }
       
-      console.log(`[SecureKeyManager] Loaded ${this.providers.size} provider configurations`);
       
       // Save migrated data if any changes were made
       if (this.providers.size > 0) {
@@ -529,7 +504,6 @@ class SecureKeyManager {
       }
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.warn('[SecureKeyManager] Failed to load provider configs:', error);
       }
     }
   }
@@ -549,10 +523,8 @@ class SecureKeyManager {
       }
       
       await fs.writeFile(this.configPath, JSON.stringify(configs, null, 2), { mode: 0o600 });
-      console.log('[SecureKeyManager] Saved provider configurations');
       
     } catch (error) {
-      console.error('[SecureKeyManager] Failed to save provider configs:', error);
       throw error;
     }
   }
@@ -604,10 +576,8 @@ class SecureKeyManager {
       this.encryptionKey = null;
       
       this.isInitialized = false;
-      console.log('[SecureKeyManager] Destroyed successfully');
       
     } catch (error) {
-      console.error('[SecureKeyManager] Cleanup failed:', error);
     }
   }
 }

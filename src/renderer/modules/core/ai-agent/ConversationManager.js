@@ -37,16 +37,13 @@ class ConversationManager extends EventEmitter {
    */
   async initialize(chatHistoryManager = null) {
     try {
-      console.log('[ConversationManager] Initializing...');
       
       // Set up ChatHistoryManager integration
       this.chatHistoryManager = chatHistoryManager;
       
       if (this.chatHistoryManager) {
-        console.log('[ConversationManager] ChatHistoryManager integration enabled');
         this.setupChatHistoryIntegration();
       } else {
-        console.log('[ConversationManager] Running in standalone mode');
         // Load existing conversations from storage (legacy mode)
         await this.loadConversations();
       }
@@ -57,12 +54,10 @@ class ConversationManager extends EventEmitter {
       }
       
       this.isInitialized = true;
-      console.log('[ConversationManager] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[ConversationManager] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -87,7 +82,6 @@ class ConversationManager extends EventEmitter {
       this.handleHistoryActiveConversationChanged(data);
     });
     
-    console.log('[ConversationManager] ChatHistoryManager event listeners set up');
   }
   
   /**
@@ -161,9 +155,7 @@ class ConversationManager extends EventEmitter {
         conversation._historyIntegrated = true;
         this.conversations.set(conversationId, conversation);
         
-        console.log(`[ConversationManager] Created session via ChatHistoryManager: ${conversationId}`);
       } catch (error) {
-        console.error('[ConversationManager] Failed to create via ChatHistoryManager, falling back to local:', error);
         // Fall back to local storage
         this.conversations.set(conversationId, conversation);
       }
@@ -187,7 +179,6 @@ class ConversationManager extends EventEmitter {
     // Manage session limits
     this.enforceSessionLimits();
     
-    console.log(`[ConversationManager] Created session: ${conversationId}`);
     this.emit('conversation-created', { conversationId, conversation });
     return conversationId;
   }
@@ -203,7 +194,6 @@ class ConversationManager extends EventEmitter {
     const previousId = this.currentConversationId;
     this.currentConversationId = conversationId;
     
-    console.log(`[ConversationManager] Switched to conversation: ${conversationId}`);
     this.emit('conversation-switched', { 
       conversationId, 
       previousId,
@@ -250,9 +240,7 @@ class ConversationManager extends EventEmitter {
     if (this.chatHistoryManager && conversation._historyIntegrated) {
       try {
         await this.chatHistoryManager.addMessage(targetId, messageObj);
-        console.log(`[ConversationManager] Added message via ChatHistoryManager: ${targetId}`);
       } catch (error) {
-        console.error('[ConversationManager] Failed to add message via ChatHistoryManager:', error);
         // Continue with local storage as fallback
       }
     }
@@ -347,7 +335,6 @@ class ConversationManager extends EventEmitter {
       this.trimConversation(conversation);
     }
 
-    console.log(`[ConversationManager] Added message to session ${targetId}`);
     this.emit('message-added', { conversationId: targetId, message: messageObj });
 
     return messageObj;
@@ -393,7 +380,6 @@ class ConversationManager extends EventEmitter {
     
     conversation.metadata.updatedAt = Date.now();
     
-    console.log(`[ConversationManager] Switched provider from ${previousProvider} to ${providerId} for conversation ${targetId}`);
     this.emit('provider-switched', { 
       conversationId: targetId, 
       previousProvider, 
@@ -465,7 +451,6 @@ class ConversationManager extends EventEmitter {
     
     conversation.metadata.updatedAt = Date.now();
     
-    console.log(`[ConversationManager] Reset session costs for conversation ${targetId}`);
     this.emit('session-costs-reset', { conversationId: targetId });
     
     return conversation.metadata.costTracking;
@@ -582,13 +567,11 @@ class ConversationManager extends EventEmitter {
         conversation.context.set(key, value);
         conversation.metadata.updatedAt = Date.now();
         
-        console.log(`[ConversationManager] Updated context for conversation ${targetId}: ${key}`);
         this.emit('context-updated', { conversationId: targetId, key, value });
       }
     } else {
       // Update global context
       this.globalContext.set(key, value);
-      console.log(`[ConversationManager] Updated global context: ${key}`);
       this.emit('global-context-updated', { key, value });
     }
   }
@@ -598,7 +581,6 @@ class ConversationManager extends EventEmitter {
    */
   setGlobalContext(key, value) {
     this.globalContext.set(key, value);
-    console.log(`[ConversationManager] Set global context: ${key}`);
     this.emit('global-context-updated', { key, value });
   }
 
@@ -675,7 +657,6 @@ class ConversationManager extends EventEmitter {
     // Sort by relevance (most recently updated first)
     searchResults.sort((a, b) => b.updatedAt - a.updatedAt);
     
-    console.log(`[ConversationManager] Search for "${query}" found ${searchResults.length} results`);
     return searchResults;
   }
 
@@ -778,13 +759,11 @@ class ConversationManager extends EventEmitter {
       
       this.conversations.set(importId, conversation);
       
-      console.log(`[ConversationManager] Imported conversation: ${importId}`);
       this.emit('conversation-imported', { conversationId: importId, conversation });
       
       return importId;
       
     } catch (error) {
-      console.error('[ConversationManager] Import failed:', error);
       throw error;
     }
   }
@@ -805,7 +784,6 @@ class ConversationManager extends EventEmitter {
       this.currentConversationId = remaining.length > 0 ? remaining[0] : null;
     }
 
-    console.log(`[ConversationManager] Deleted conversation: ${conversationId}`);
     this.emit('conversation-deleted', { conversationId });
   }
 
@@ -852,7 +830,6 @@ class ConversationManager extends EventEmitter {
     
     this.switchToConversation(this.lastSessionId);
     
-    console.log(`[ConversationManager] Continuing session: ${this.lastSessionId}`);
     this.emit('session-continued', { conversationId: this.lastSessionId, conversation });
     
     return conversation;
@@ -879,7 +856,6 @@ class ConversationManager extends EventEmitter {
     this.switchToConversation(sessionId);
     this.lastSessionId = sessionId;
     
-    console.log(`[ConversationManager] Resumed session: ${sessionId}`);
     this.emit('session-resumed', { conversationId: sessionId, conversation });
     
     return conversation;
@@ -906,7 +882,6 @@ class ConversationManager extends EventEmitter {
     conversation.metadata.tokenUsage = { input: 0, output: 0, total: 0 };
     conversation.sessionState.contextSummary = null;
     
-    console.log(`[ConversationManager] Cleared conversation: ${targetId}`);
     this.emit('conversation-cleared', { conversationId: targetId });
     
     return conversation;
@@ -928,7 +903,6 @@ class ConversationManager extends EventEmitter {
     }
 
     if (conversation.messages.length < 5) {
-      console.log(`[ConversationManager] Conversation too short to compact: ${targetId}`);
       return conversation;
     }
 
@@ -959,7 +933,6 @@ class ConversationManager extends EventEmitter {
     conversation.metadata.updatedAt = Date.now();
     conversation.sessionState.contextSummary = summary;
     
-    console.log(`[ConversationManager] Compacted conversation: ${targetId}`);
     this.emit('conversation-compacted', { conversationId: targetId, summary });
     
     return conversation;
@@ -1097,7 +1070,6 @@ class ConversationManager extends EventEmitter {
       const [sessionId] = sessions[i];
       this.conversations.delete(sessionId);
       this.sessionHistory.delete(sessionId);
-      console.log(`[ConversationManager] Removed old session: ${sessionId}`);
     }
   }
   
@@ -1120,7 +1092,6 @@ class ConversationManager extends EventEmitter {
   trimConversation(conversation) {
     if (conversation.messages.length > this.options.maxHistorySize) {
       const removed = conversation.messages.splice(0, conversation.messages.length - this.options.maxHistorySize);
-      console.log(`[ConversationManager] Trimmed ${removed.length} old messages from conversation ${conversation.id}`);
     }
   }
 
@@ -1182,26 +1153,21 @@ class ConversationManager extends EventEmitter {
             };
             this.conversations.set(id, conversation);
           }
-          console.log(`[ConversationManager] Loaded ${this.conversations.size} conversations`);
         }
         
         if (savedSessionHistory) {
           this.sessionHistory = new Map(Object.entries(savedSessionHistory));
-          console.log(`[ConversationManager] Loaded ${this.sessionHistory.size} session records`);
         }
         
         if (savedGlobalContext) {
           this.globalContext = new Map(Object.entries(savedGlobalContext));
-          console.log(`[ConversationManager] Loaded global context`);
         }
         
         if (savedLastSession && this.conversations.has(savedLastSession)) {
           this.lastSessionId = savedLastSession;
-          console.log(`[ConversationManager] Restored last session: ${savedLastSession}`);
         }
       }
     } catch (error) {
-      console.warn('[ConversationManager] Failed to load conversations:', error);
     }
   }
 
@@ -1228,10 +1194,8 @@ class ConversationManager extends EventEmitter {
           await window.electronAPI.storage.set('lastSessionId', this.lastSessionId);
         }
         
-        console.log(`[ConversationManager] Saved ${this.conversations.size} conversations and ${this.sessionHistory.size} session records`);
       }
     } catch (error) {
-      console.error('[ConversationManager] Failed to save conversations:', error);
     }
   }
 
@@ -1247,7 +1211,6 @@ class ConversationManager extends EventEmitter {
       this.saveConversations();
     }, this.options.saveInterval);
     
-    console.log('[ConversationManager] Auto-save started');
   }
 
   /**
@@ -1257,7 +1220,6 @@ class ConversationManager extends EventEmitter {
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
-      console.log('[ConversationManager] Auto-save stopped');
     }
   }
 
@@ -1291,7 +1253,6 @@ class ConversationManager extends EventEmitter {
       };
       
       this.conversations.set(conversationId, localConversation);
-      console.log(`[ConversationManager] Synced conversation from ChatHistoryManager: ${conversationId}`);
     }
   }
   
@@ -1307,7 +1268,6 @@ class ConversationManager extends EventEmitter {
       conversation.metadata.messageCount = conversation.messages.length;
       conversation.metadata.updatedAt = Date.now();
       
-      console.log(`[ConversationManager] Synced message addition from ChatHistoryManager: ${conversationId}`);
     }
   }
   
@@ -1321,7 +1281,6 @@ class ConversationManager extends EventEmitter {
     this.currentConversationId = conversationId;
     this.lastSessionId = conversationId;
     
-    console.log(`[ConversationManager] Synced active conversation change from ChatHistoryManager: ${conversationId}`);
     this.emit('conversation-switched', { conversationId, previousId });
   }
   
@@ -1360,11 +1319,9 @@ class ConversationManager extends EventEmitter {
         };
         
         this.conversations.set(conversationId, localConversation);
-        console.log(`[ConversationManager] Loaded conversation from ChatHistoryManager: ${conversationId}`);
         return localConversation;
       }
     } catch (error) {
-      console.error(`[ConversationManager] Failed to load from ChatHistoryManager: ${conversationId}`, error);
     }
     
     return null;
@@ -1402,7 +1359,6 @@ class ConversationManager extends EventEmitter {
     
     conversation.metadata.updatedAt = Date.now();
     
-    console.log(`[ConversationManager] Switched provider from ${oldProvider} to ${newProvider} for conversation ${targetId}`);
     this.emit('provider-switched', { conversationId: targetId, oldProvider, newProvider });
     
     return conversation;
@@ -1491,7 +1447,6 @@ class ConversationManager extends EventEmitter {
       conversation.settings.providerModel = model;
       conversation.metadata.updatedAt = Date.now();
       
-      console.log(`[ConversationManager] Updated model to ${model} for provider ${provider} in conversation ${targetId}`);
       this.emit('model-updated', { conversationId: targetId, provider, model });
     }
     
@@ -1556,7 +1511,6 @@ class ConversationManager extends EventEmitter {
     this.isInitialized = false;
     this.removeAllListeners();
     
-    console.log('[ConversationManager] Destroyed');
   }
 }
 

@@ -51,33 +51,26 @@ class ChatMessageHistory {
    * Initialize the message history component
    */
   async initialize() {
-    console.log(`[ChatMessageHistory] Starting initialization for: ${this.containerId}`);
     
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[ChatMessageHistory] Container with ID "${this.containerId}" not found`);
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
 
     try {
       this.render();
-      console.log(`[ChatMessageHistory] Render completed`);
       
       this.setupEventListeners();
-      console.log(`[ChatMessageHistory] Event listeners setup`);
       
       this.setupKeyboardShortcuts();
-      console.log(`[ChatMessageHistory] Keyboard shortcuts setup`);
       
       this.isInitialized = true;
-      console.log(`[ChatMessageHistory] Initialized successfully in container: ${this.containerId}`);
       
       // Dispatch initialization event
       this.dispatchEvent('message-history-initialized', {
         containerId: this.containerId
       });
     } catch (error) {
-      console.error(`[ChatMessageHistory] Initialization failed:`, error);
       throw error;
     }
   }
@@ -385,7 +378,6 @@ class ChatMessageHistory {
       return;
     }
 
-    console.log(`[ChatMessageHistory] Loading conversation: ${conversation.id}`);
     
     this.currentConversation = conversation;
     this.updateHeader();
@@ -407,7 +399,6 @@ class ChatMessageHistory {
       }
       
     } catch (error) {
-      console.error('[ChatMessageHistory] Failed to load conversation:', error);
       this.showError('Failed to load conversation messages');
     } finally {
       this.showLoading(false);
@@ -792,7 +783,6 @@ class ChatMessageHistory {
       await navigator.clipboard.writeText(message.content || '');
       this.showNotification('Message copied to clipboard', 'success');
     } catch (error) {
-      console.error('Failed to copy message:', error);
       this.showNotification('Failed to copy message', 'error');
     }
   }
@@ -1124,7 +1114,6 @@ class ChatMessageHistory {
       containerId: this.containerId
     });
     
-    console.log(`[ChatMessageHistory] Destroyed: ${this.containerId}`);
   }
 }
 

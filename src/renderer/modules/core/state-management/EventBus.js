@@ -144,7 +144,6 @@ class EventBus extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[EventBus] Initializing...');
       
       this.isInitialized = true;
       // Set up event coordination
@@ -152,12 +151,10 @@ class EventBus extends EventEmitter {
       this.setupProviderEventHandlers();
       this.setupEnhancedProviderCoordination();
       
-      console.log('[EventBus] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[EventBus] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -168,7 +165,6 @@ class EventBus extends EventEmitter {
    */
   publish(eventName, data = {}) {
     if (!this.isInitialized) {
-      console.warn('[EventBus] Cannot publish before initialization');
       return;
     }
 
@@ -188,7 +184,6 @@ class EventBus extends EventEmitter {
     }
 
     if (this.options.enableLogging) {
-      console.log(`[EventBus] Publishing event: ${eventName}`, data);
     }
 
     // Emit the event
@@ -201,7 +196,6 @@ class EventBus extends EventEmitter {
    */
   subscribe(eventName, callback, moduleName = null) {
     if (!this.isInitialized) {
-      console.warn('[EventBus] Cannot subscribe before initialization');
       return null;
     }
 
@@ -216,7 +210,6 @@ class EventBus extends EventEmitter {
     this.on(eventName, callback);
 
     if (this.options.enableLogging) {
-      console.log(`[EventBus] Subscribed to event: ${eventName}${moduleName ? ` (module: ${moduleName})` : ''}`);
     }
 
     // Return unsubscribe function
@@ -242,7 +235,6 @@ class EventBus extends EventEmitter {
     this.off(eventName, callback);
     
     if (this.options.enableLogging) {
-      console.log(`[EventBus] Unsubscribed from event: ${eventName}`);
     }
   }
 
@@ -319,7 +311,6 @@ class EventBus extends EventEmitter {
    */
   clearHistory() {
     this.eventHistory = [];
-    console.log('[EventBus] Event history cleared');
     this.emit('history-cleared');
   }
 
@@ -335,7 +326,6 @@ class EventBus extends EventEmitter {
       });
       
       this.moduleSubscriptions.delete(moduleName);
-      console.log(`[EventBus] Unsubscribed all events for module: ${moduleName}`);
     }
   }
 
@@ -423,7 +413,6 @@ class EventBus extends EventEmitter {
       }, 'EventBus-ChatHistoryCoordinator');
     });
     
-    console.log('[EventBus] Chat history event coordination set up');
   }
   
   /**
@@ -437,7 +426,6 @@ class EventBus extends EventEmitter {
       }, 'EventBus-ProviderCoordinator');
     });
     
-    console.log('[EventBus] Provider event coordination set up');
   }
   
   /**
@@ -445,7 +433,6 @@ class EventBus extends EventEmitter {
    */
   handleChatHistoryEvent(eventType, eventData) {
     if (this.options.enableLogging) {
-      console.log(`[EventBus] Chat history event: ${eventType}`, eventData.data);
     }
     
     // Coordinate with other modules based on event type
@@ -562,7 +549,6 @@ class EventBus extends EventEmitter {
    */
   handleProviderEvent(eventType, eventData) {
     if (this.options.enableLogging) {
-      console.log(`[EventBus] Provider event: ${eventType}`, eventData.data);
     }
     
     // Coordinate with other modules based on event type
@@ -784,7 +770,6 @@ class EventBus extends EventEmitter {
    */
   publishChatHistoryEvent(eventType, data = {}) {
     if (!this.chatHistoryEventTypes.has(eventType)) {
-      console.warn(`[EventBus] Unknown chat history event type: ${eventType}`);
       return;
     }
     
@@ -802,7 +787,6 @@ class EventBus extends EventEmitter {
    */
   publishProviderEvent(eventType, data = {}) {
     if (!this.providerEventTypes.has(eventType)) {
-      console.warn(`[EventBus] Unknown provider event type: ${eventType}`);
       return;
     }
     
@@ -823,7 +807,6 @@ class EventBus extends EventEmitter {
     
     if (validEventTypes.length !== eventTypes.length) {
       const invalidTypes = eventTypes.filter(type => !this.chatHistoryEventTypes.has(type));
-      console.warn(`[EventBus] Invalid chat history event types: ${invalidTypes.join(', ')}`);
     }
     
     return this.subscribeMultiple(validEventTypes, callback, moduleName);
@@ -837,7 +820,6 @@ class EventBus extends EventEmitter {
     
     if (validEventTypes.length !== eventTypes.length) {
       const invalidTypes = eventTypes.filter(type => !this.providerEventTypes.has(type));
-      console.warn(`[EventBus] Invalid provider event types: ${invalidTypes.join(', ')}`);
     }
     
     return this.subscribeMultiple(validEventTypes, callback, moduleName);
@@ -976,7 +958,6 @@ class EventBus extends EventEmitter {
    */
   setupConflictResolution() {
     this.subscribe('state-conflict-detected', (eventData) => {
-      console.warn('[EventBus] State conflict detected:', eventData.data);
       
       // Implement conflict resolution strategy
       const resolutionStrategy = this.determineResolutionStrategy(eventData.data);
@@ -1086,7 +1067,6 @@ class EventBus extends EventEmitter {
       this.coordinateProviderHealth(eventData.data);
     }, 'EventBus-HealthCoordinator');
     
-    console.log('[EventBus] Enhanced provider coordination set up');
   }
   
   /**
@@ -1245,7 +1225,6 @@ class EventBus extends EventEmitter {
     this.providerEventTypes.clear();
     
     this.isInitialized = false;
-    console.log('[EventBus] Enhanced destruction completed');
   }
 }
 

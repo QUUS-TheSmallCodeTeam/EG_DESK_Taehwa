@@ -39,7 +39,6 @@ class ChatHistoryManager extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[ChatHistoryManager] Initializing...');
 
       // Check IPC connectivity
       await this.checkIPCConnectivity();
@@ -56,7 +55,6 @@ class ChatHistoryManager extends EventEmitter {
       this.setupEventHandlers();
 
       this.isInitialized = true;
-      console.log('[ChatHistoryManager] Successfully initialized');
       this.emit('initialized');
 
       // Notify event bus
@@ -67,7 +65,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return true;
     } catch (error) {
-      console.error('[ChatHistoryManager] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -89,11 +86,9 @@ class ChatHistoryManager extends EventEmitter {
       }
 
       this.isOnline = true;
-      console.log('[ChatHistoryManager] IPC connectivity verified');
       return true;
     } catch (error) {
       this.isOnline = false;
-      console.error('[ChatHistoryManager] IPC connectivity failed:', error);
       throw error;
     }
   }
@@ -119,7 +114,6 @@ class ChatHistoryManager extends EventEmitter {
           });
         });
 
-        console.log(`[ChatHistoryManager] Cached ${result.conversations.length} conversations`);
       }
 
       // Load sessions
@@ -133,11 +127,9 @@ class ChatHistoryManager extends EventEmitter {
           this.sessionCache.set(session.id, session);
         });
 
-        console.log(`[ChatHistoryManager] Cached ${sessionResult.sessions.length} sessions`);
       }
 
     } catch (error) {
-      console.warn('[ChatHistoryManager] Failed to load initial data:', error);
       // Continue initialization even if this fails
     }
   }
@@ -182,7 +174,6 @@ class ChatHistoryManager extends EventEmitter {
       // Set as active conversation
       await this.setActiveConversation(conversationId);
 
-      console.log(`[ChatHistoryManager] Created conversation: ${conversationId}`);
       this.emit('conversation-created', { conversationId, conversation });
 
       // Notify event bus
@@ -193,7 +184,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return conversationId;
     } catch (error) {
-      console.error('[ChatHistoryManager] Create conversation failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -239,7 +229,6 @@ class ChatHistoryManager extends EventEmitter {
         }
       }
 
-      console.log(`[ChatHistoryManager] Loaded conversation: ${conversationId}`);
       this.emit('conversation-loaded', { conversationId, conversation });
 
       // Notify event bus
@@ -250,7 +239,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return conversation;
     } catch (error) {
-      console.error('[ChatHistoryManager] Load conversation failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -293,11 +281,9 @@ class ChatHistoryManager extends EventEmitter {
           });
 
           if (!result.success) {
-            console.warn(`[ChatHistoryManager] Failed to save message: ${result.error}`);
             this.addToPendingUpdates(conversationId, 'add-message', messageData);
           }
         } catch (error) {
-          console.warn('[ChatHistoryManager] Message save failed, adding to pending:', error);
           this.addToPendingUpdates(conversationId, 'add-message', messageData);
         }
       } else {
@@ -307,7 +293,6 @@ class ChatHistoryManager extends EventEmitter {
       // Update search index
       this.updateSearchIndex(conversationId, messageData);
 
-      console.log(`[ChatHistoryManager] Added message to conversation: ${conversationId}`);
       this.emit('message-added', { conversationId, messageId: messageData.id, message: messageData });
 
       // Notify event bus
@@ -319,7 +304,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return messageData.id;
     } catch (error) {
-      console.error('[ChatHistoryManager] Add message failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -338,7 +322,6 @@ class ChatHistoryManager extends EventEmitter {
       const previousId = this.activeConversationId;
       this.activeConversationId = conversationId;
 
-      console.log(`[ChatHistoryManager] Active conversation changed: ${conversationId}`);
       this.emit('active-conversation-changed', { conversationId, previousId });
 
       // Notify event bus
@@ -349,7 +332,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return conversationId;
     } catch (error) {
-      console.error('[ChatHistoryManager] Set active conversation failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -435,7 +417,6 @@ class ChatHistoryManager extends EventEmitter {
         return result;
       }
     } catch (error) {
-      console.error('[ChatHistoryManager] List conversations failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -505,7 +486,6 @@ class ChatHistoryManager extends EventEmitter {
         return result;
       }
     } catch (error) {
-      console.error('[ChatHistoryManager] Search failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -535,7 +515,6 @@ class ChatHistoryManager extends EventEmitter {
         throw new Error(`Failed to delete conversation: ${result.error}`);
       }
 
-      console.log(`[ChatHistoryManager] Deleted conversation: ${conversationId}`);
       this.emit('conversation-deleted', { conversationId, conversation });
 
       // Notify event bus
@@ -546,7 +525,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return result;
     } catch (error) {
-      console.error('[ChatHistoryManager] Delete conversation failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -571,7 +549,6 @@ class ChatHistoryManager extends EventEmitter {
         // Add to session cache
         this.sessionCache.set(result.sessionId, result.session);
 
-        console.log(`[ChatHistoryManager] Created session: ${result.sessionId}`);
         this.emit('session-created', { sessionId: result.sessionId, session: result.session });
 
         // Notify event bus
@@ -583,7 +560,6 @@ class ChatHistoryManager extends EventEmitter {
 
       return result;
     } catch (error) {
-      console.error('[ChatHistoryManager] Create session failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -623,7 +599,6 @@ class ChatHistoryManager extends EventEmitter {
         this.sessionCache.set(lastSession.id, updateResult.session);
       }
 
-      console.log(`[ChatHistoryManager] Continuing session: ${lastSession.id}`);
       this.emit('session-continued', { sessionId: lastSession.id, session: lastSession });
 
       // Notify event bus
@@ -638,7 +613,6 @@ class ChatHistoryManager extends EventEmitter {
         conversationId: lastSession.conversationId
       };
     } catch (error) {
-      console.error('[ChatHistoryManager] Continue session failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -685,7 +659,6 @@ class ChatHistoryManager extends EventEmitter {
         session = updateResult.session;
       }
 
-      console.log(`[ChatHistoryManager] Resumed session: ${sessionId}`);
       this.emit('session-resumed', { sessionId, session });
 
       // Notify event bus
@@ -700,7 +673,6 @@ class ChatHistoryManager extends EventEmitter {
         conversationId: session.conversationId
       };
     } catch (error) {
-      console.error('[ChatHistoryManager] Resume session failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -737,7 +709,6 @@ class ChatHistoryManager extends EventEmitter {
     try {
       return await window.electronAPI.chatHistory.saveConversation(conversation);
     } catch (error) {
-      console.error('[ChatHistoryManager] Save conversation failed:', error);
       return {
         success: false,
         error: error.message
@@ -759,7 +730,6 @@ class ChatHistoryManager extends EventEmitter {
       timestamp: Date.now()
     });
 
-    console.log(`[ChatHistoryManager] Added pending update: ${operation} for ${conversationId}`);
   }
 
   /**
@@ -864,7 +834,6 @@ class ChatHistoryManager extends EventEmitter {
    * Handle state synchronization events
    */
   handleStateSyncEvent(syncData) {
-    console.log('[ChatHistoryManager] Handling state sync event:', syncData);
     
     // Implement synchronization logic based on sync type
     if (syncData.type === 'conversation-updated') {
@@ -878,7 +847,6 @@ class ChatHistoryManager extends EventEmitter {
    * Handle network status changes
    */
   handleNetworkStatusChange(isOnline) {
-    console.log(`[ChatHistoryManager] Network status changed: ${isOnline ? 'online' : 'offline'}`);
     
     const wasOffline = !this.isOnline;
     this.isOnline = isOnline;
@@ -897,7 +865,6 @@ class ChatHistoryManager extends EventEmitter {
       return;
     }
 
-    console.log(`[ChatHistoryManager] Syncing ${this.pendingUpdates.size} pending updates`);
 
     for (const [conversationId, updates] of this.pendingUpdates) {
       try {
@@ -915,7 +882,6 @@ class ChatHistoryManager extends EventEmitter {
         // Clear processed updates
         this.pendingUpdates.delete(conversationId);
       } catch (error) {
-        console.error(`[ChatHistoryManager] Failed to sync updates for ${conversationId}:`, error);
       }
     }
   }
@@ -934,7 +900,6 @@ class ChatHistoryManager extends EventEmitter {
       }
     }, this.options.syncInterval);
 
-    console.log('[ChatHistoryManager] Auto-sync started');
   }
 
   /**
@@ -944,7 +909,6 @@ class ChatHistoryManager extends EventEmitter {
     if (this.syncTimer) {
       clearInterval(this.syncTimer);
       this.syncTimer = null;
-      console.log('[ChatHistoryManager] Auto-sync stopped');
     }
   }
 
@@ -1023,7 +987,6 @@ class ChatHistoryManager extends EventEmitter {
       try {
         await this.syncPendingUpdates();
       } catch (error) {
-        console.warn('[ChatHistoryManager] Failed to sync pending updates during destroy:', error);
       }
     }
 
@@ -1040,7 +1003,6 @@ class ChatHistoryManager extends EventEmitter {
     this.activeConversationId = null;
     this.removeAllListeners();
 
-    console.log('[ChatHistoryManager] Destroyed');
   }
 }
 

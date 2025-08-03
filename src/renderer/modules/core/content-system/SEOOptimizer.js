@@ -32,15 +32,12 @@ class SEOOptimizer extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[SEOOptimizer] Initializing...');
       
       this.isInitialized = true;
-      console.log('[SEOOptimizer] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[SEOOptimizer] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -55,7 +52,6 @@ class SEOOptimizer extends EventEmitter {
     }
 
     const optimizationId = this.generateId();
-    console.log(`[SEOOptimizer] Starting content optimization: ${optimizationId}`);
     
     try {
       this.emit('optimization-started', { id: optimizationId, content: content.substring(0, 100) + '...' });
@@ -74,13 +70,11 @@ class SEOOptimizer extends EventEmitter {
         optimizedAt: Date.now()
       };
 
-      console.log(`[SEOOptimizer] Content optimization completed: ${optimizationId}`);
       this.emit('optimization-completed', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[SEOOptimizer] Content optimization failed: ${optimizationId}`, error);
       this.emit('optimization-failed', { id: optimizationId, error: error.message });
       throw error;
     }
@@ -486,7 +480,6 @@ class SEOOptimizer extends EventEmitter {
   destroy() {
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[SEOOptimizer] Destroyed');
   }
 }
 

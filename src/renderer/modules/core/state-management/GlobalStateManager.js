@@ -44,7 +44,6 @@ class GlobalStateManager extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[GlobalStateManager] Initializing...');
       
       // Load persisted state
       if (this.options.persistState) {
@@ -69,12 +68,10 @@ class GlobalStateManager extends EventEmitter {
       this.startProviderMonitoring();
       
       this.isInitialized = true;
-      console.log('[GlobalStateManager] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[GlobalStateManager] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -87,7 +84,6 @@ class GlobalStateManager extends EventEmitter {
     const previousValue = this.state.get(key);
     this.state.set(key, value);
     
-    console.log(`[GlobalStateManager] State updated: ${key}`);
     this.emit('state-changed', { key, value, previousValue });
     this.emit(`state-changed:${key}`, { value, previousValue });
   }
@@ -115,7 +111,6 @@ class GlobalStateManager extends EventEmitter {
     const value = this.state.get(key);
     this.state.delete(key);
     
-    console.log(`[GlobalStateManager] State removed: ${key}`);
     this.emit('state-removed', { key, value });
   }
 
@@ -131,7 +126,6 @@ class GlobalStateManager extends EventEmitter {
    */
   clearState() {
     this.state.clear();
-    console.log('[GlobalStateManager] State cleared');
     this.emit('state-cleared');
   }
 
@@ -164,7 +158,6 @@ class GlobalStateManager extends EventEmitter {
         
         if (savedState) {
           this.state = new Map(Object.entries(savedState));
-          console.log(`[GlobalStateManager] Loaded state with ${this.state.size} entries`);
           this.emit('state-loaded', { size: this.state.size });
         }
         
@@ -172,14 +165,12 @@ class GlobalStateManager extends EventEmitter {
         const savedChatHistory = await window.electronAPI.storage.get('chatHistory');
         if (savedChatHistory) {
           this.state.set('chatHistory', savedChatHistory);
-          console.log(`[GlobalStateManager] Loaded chat history with ${Object.keys(savedChatHistory.conversations || {}).length} conversations`);
         }
         
         // Load AI provider state separately for better performance
         const savedAIProviders = await window.electronAPI.storage.get('aiProviders');
         if (savedAIProviders) {
           this.state.set('aiProviders', savedAIProviders);
-          console.log(`[GlobalStateManager] Loaded AI provider state with ${Object.keys(savedAIProviders.availableProviders || {}).length} providers`);
           
           // Restore active provider reference
           this.activeProvider = savedAIProviders.activeProvider;
@@ -209,7 +200,6 @@ class GlobalStateManager extends EventEmitter {
         }
       }
     } catch (error) {
-      console.warn('[GlobalStateManager] Failed to load state:', error);
     }
   }
 
@@ -240,11 +230,9 @@ class GlobalStateManager extends EventEmitter {
           await this.saveAIProviderState(aiProviders);
         }
         
-        console.log(`[GlobalStateManager] Saved state with ${this.state.size} entries`);
         this.emit('state-saved', { size: this.state.size });
       }
     } catch (error) {
-      console.error('[GlobalStateManager] Failed to save state:', error);
     }
   }
   
@@ -260,7 +248,6 @@ class GlobalStateManager extends EventEmitter {
       // This would involve maintaining a changeSet and only persisting modified conversations
       
       const conversationCount = Object.keys(chatHistory.conversations || {}).length;
-      console.log(`[GlobalStateManager] Saved chat history with ${conversationCount} conversations`);
       
       eventBus.publish('chat-history-persisted', { 
         conversationCount,
@@ -268,7 +255,6 @@ class GlobalStateManager extends EventEmitter {
       });
       
     } catch (error) {
-      console.error('[GlobalStateManager] Failed to save chat history:', error);
       throw error;
     }
   }
@@ -307,7 +293,6 @@ class GlobalStateManager extends EventEmitter {
       await window.electronAPI.storage.set('aiProviders', enhancedProviderState);
       
       const providerCount = Object.keys(aiProviders.availableProviders || {}).length;
-      console.log(`[GlobalStateManager] Saved AI provider state with ${providerCount} providers`);
       
       eventBus.publish('provider-state-persisted', {
         providerCount,
@@ -317,7 +302,6 @@ class GlobalStateManager extends EventEmitter {
       });
       
     } catch (error) {
-      console.error('[GlobalStateManager] Failed to save AI provider state:', error);
       throw error;
     }
   }
@@ -334,7 +318,6 @@ class GlobalStateManager extends EventEmitter {
       this.saveState();
     }, this.options.saveInterval);
     
-    console.log('[GlobalStateManager] Auto-save started');
   }
 
   /**
@@ -344,7 +327,6 @@ class GlobalStateManager extends EventEmitter {
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
       this.saveTimer = null;
-      console.log('[GlobalStateManager] Auto-save stopped');
     }
   }
 
@@ -398,13 +380,11 @@ class GlobalStateManager extends EventEmitter {
       
       this.setState('chatHistory', chatHistory);
       
-      console.log('[GlobalStateManager] Chat history state initialized for coordination');
       eventBus.publish('chat-history-state-initialized', { 
         preferences: chatHistory.userPreferences 
       });
       
     } catch (error) {
-      console.error('[GlobalStateManager] Failed to initialize chat history state:', error);
       throw error;
     }
   }
@@ -421,7 +401,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Active conversation state updated: ${conversationId}`);
     eventBus.publish('state-active-conversation-changed', {
       conversationId,
       previousId
@@ -456,7 +435,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Updated cached conversation: ${conversationId}`);
     eventBus.publish('state-conversation-cached', { conversationId });
   }
   
@@ -486,7 +464,6 @@ class GlobalStateManager extends EventEmitter {
       
       this.setState('chatHistory', chatHistory);
       
-      console.log(`[GlobalStateManager] Removed cached conversation: ${conversationId}`);
       eventBus.publish('state-conversation-removed', { conversationId });
     }
   }
@@ -529,7 +506,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Updated search state: "${query}"`);
     eventBus.publish('state-search-updated', { query, hasResults: !!results });
   }
   
@@ -546,7 +522,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log('[GlobalStateManager] Updated filter state');
     eventBus.publish('state-filter-updated', { filterState: chatHistory.uiState.filterState });
   }
   
@@ -561,7 +536,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Updated sort state: ${sortBy} ${sortOrder}`);
     eventBus.publish('state-sort-updated', { sortBy, sortOrder });
   }
   
@@ -581,7 +555,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Active conversation changed: ${conversationId}`);
     eventBus.publish('active-conversation-changed', { 
       conversationId, 
       previousId 
@@ -617,7 +590,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Deleted conversation: ${conversationId}`);
     eventBus.publish('conversation-deleted', { conversationId, conversation });
   }
   
@@ -691,11 +663,6 @@ class GlobalStateManager extends EventEmitter {
     results.conversations = results.conversations.slice(0, limit);
     results.messages = results.messages.slice(0, limit * 2);
     
-    console.log(`[GlobalStateManager] Search completed: ${query}`, {
-      conversationResults: results.conversations.length,
-      messageResults: results.messages.length
-    });
-    
     eventBus.publish('chat-history-searched', { 
       query, 
       results: {
@@ -757,7 +724,6 @@ class GlobalStateManager extends EventEmitter {
     }
     
     this.setState('chatHistory', chatHistory);
-    console.log('[GlobalStateManager] Search index rebuilt');
   }
   
   /**
@@ -777,7 +743,6 @@ class GlobalStateManager extends EventEmitter {
       });
     }
     
-    console.log(`[GlobalStateManager] Loaded metadata for ${this.conversationMetadata.size} conversations`);
   }
   
   /**
@@ -793,7 +758,6 @@ class GlobalStateManager extends EventEmitter {
       this.performHistoryCleanup();
     }, 6 * 60 * 60 * 1000);
     
-    console.log('[GlobalStateManager] History cleanup timer started');
   }
   
   /**
@@ -829,7 +793,6 @@ class GlobalStateManager extends EventEmitter {
     }
     
     if (cleanupCount > 0) {
-      console.log(`[GlobalStateManager] Cleaned up ${cleanupCount} old conversations`);
       eventBus.publish('chat-history-cleanup-completed', { cleanupCount });
     }
     
@@ -897,7 +860,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log('[GlobalStateManager] Chat history preferences updated');
     eventBus.publish('chat-history-preferences-updated', { preferences });
   }
   
@@ -911,7 +873,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Connection status updated: ${isOnline ? 'online' : 'offline'}`);
     eventBus.publish('state-connection-changed', { isOnline });
   }
   
@@ -994,7 +955,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Imported chat history with ${Object.keys(importData.conversations || {}).length} conversations`);
     eventBus.publish('chat-history-imported', { 
       conversationCount: Object.keys(importData.conversations || {}).length,
       merged: merge 
@@ -1069,7 +1029,6 @@ class GlobalStateManager extends EventEmitter {
       this.setState('aiProviders', providerState);
       this.activeProvider = providerState.activeProvider;
       
-      console.log('[GlobalStateManager] AI providers state initialized');
       eventBus.publish('ai-providers-initialized', { 
         activeProvider: providerState.activeProvider,
         availableProviders: Object.keys(providerState.availableProviders),
@@ -1081,7 +1040,6 @@ class GlobalStateManager extends EventEmitter {
       });
       
     } catch (error) {
-      console.error('[GlobalStateManager] Failed to initialize AI providers state:', error);
       throw error;
     }
   }
@@ -1093,7 +1051,6 @@ class GlobalStateManager extends EventEmitter {
     const providerState = this.getState('aiProviders');
     
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider: ${providerId}`);
       return;
     }
     
@@ -1111,7 +1068,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log(`[GlobalStateManager] Provider status updated: ${providerId} -> ${status}`);
     eventBus.publish('provider-status-changed', {
       providerId,
       status,
@@ -1128,7 +1084,6 @@ class GlobalStateManager extends EventEmitter {
     
     if (!providerState.availableProviders[newProviderId]) {
       const error = new Error(`Unknown provider: ${newProviderId}`);
-      console.error('[GlobalStateManager] Provider switch failed:', error);
       eventBus.publish('provider-switch-failed', {
         providerId: newProviderId,
         reason: error.message,
@@ -1142,7 +1097,6 @@ class GlobalStateManager extends EventEmitter {
     // Check if provider is available and configured
     if (provider.status !== 'connected' && provider.status !== 'ready') {
       const warning = `Provider ${newProviderId} is not ready (status: ${provider.status})`;
-      console.warn('[GlobalStateManager]', warning);
       eventBus.publish('provider-switch-warning', {
         providerId: newProviderId,
         status: provider.status,
@@ -1193,7 +1147,6 @@ class GlobalStateManager extends EventEmitter {
     this.setState('aiProviders', providerState);
     this.activeProvider = newProviderId;
     
-    console.log(`[GlobalStateManager] Active provider switched: ${previousProvider} -> ${newProviderId} (reason: ${reason})`);
     
     // Publish enhanced switch event
     eventBus.publish('active-provider-changed', {
@@ -1252,7 +1205,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log(`[GlobalStateManager] Provider model updated: ${providerId} -> ${model}`);
     eventBus.publish('provider-model-changed', {
       providerId,
       model,
@@ -1276,7 +1228,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log(`[GlobalStateManager] Provider configuration updated: ${providerId}`);
     eventBus.publish('provider-config-changed', {
       providerId,
       config: provider.config
@@ -1291,7 +1242,6 @@ class GlobalStateManager extends EventEmitter {
     const providerState = this.getState('aiProviders');
     
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider for usage tracking: ${providerId}`);
       return;
     }
     
@@ -1318,7 +1268,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log(`[GlobalStateManager] Usage tracked for ${providerId}: ${tokens} tokens, $${cost.toFixed(4)}`);
     eventBus.publish('provider-usage-tracked', {
       providerId,
       tokens,
@@ -1350,7 +1299,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log('[GlobalStateManager] Session cost tracking reset');
     eventBus.publish('session-cost-reset');
   }
   
@@ -1387,7 +1335,6 @@ class GlobalStateManager extends EventEmitter {
     const providerState = this.getState('aiProviders');
     
     if (!providerState.availableProviders[providerId]) {
-      console.warn(`[GlobalStateManager] Unknown provider: ${providerId}`);
       return;
     }
     
@@ -1403,7 +1350,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log(`[GlobalStateManager] Provider key status updated: ${providerId} -> ${hasKey ? 'available' : 'missing'}`);
     eventBus.publish('provider-key-status-changed', {
       providerId,
       hasKey,
@@ -1487,7 +1433,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('aiProviders', providerState);
     
-    console.log('[GlobalStateManager] Provider preferences updated');
     eventBus.publish('provider-preferences-updated', { preferences });
   }
   
@@ -1505,7 +1450,6 @@ class GlobalStateManager extends EventEmitter {
       try {
         await this.checkProviderHealth();
       } catch (error) {
-        console.error('[GlobalStateManager] Provider monitoring error:', error);
         eventBus.publish('provider-monitoring-error', {
           error: error.message,
           timestamp: Date.now()
@@ -1522,7 +1466,6 @@ class GlobalStateManager extends EventEmitter {
       this.performProviderHealthAnalysis();
     }, 60000); // Every minute
     
-    console.log('[GlobalStateManager] Enhanced provider monitoring started');
     eventBus.publish('provider-monitoring-started', { timestamp: Date.now() });
   }
   
@@ -1566,7 +1509,6 @@ class GlobalStateManager extends EventEmitter {
           }
           
         } catch (error) {
-          console.warn(`[GlobalStateManager] Provider health check failed for ${providerId}:`, error);
           
           healthCheck.error = error.message;
           healthCheck.currentStatus = 'error';
@@ -1659,7 +1601,6 @@ class GlobalStateManager extends EventEmitter {
       return provider.hasApiKey && provider.status !== 'error';
       
     } catch (error) {
-      console.error(`[GlobalStateManager] Health check implementation error for ${providerId}:`, error);
       return false;
     }
   }
@@ -1713,7 +1654,6 @@ class GlobalStateManager extends EventEmitter {
       if (alternatives.length > 0) {
         const [alternativeId] = alternatives[0];
         
-        console.log(`[GlobalStateManager] Auto-switching from ${failedProviderId} to ${alternativeId} due to ${reason}`);
         
         this.switchActiveProvider(alternativeId, `auto-switch-${reason}`);
         
@@ -1726,7 +1666,6 @@ class GlobalStateManager extends EventEmitter {
         
         return alternativeId;
       } else {
-        console.warn('[GlobalStateManager] No healthy alternative providers available for auto-switch');
         eventBus.publish('provider-auto-switch-failed', {
           failedProvider: failedProviderId,
           reason: 'no-alternatives',
@@ -1734,7 +1673,6 @@ class GlobalStateManager extends EventEmitter {
         });
       }
     } catch (error) {
-      console.error('[GlobalStateManager] Auto-switch attempt failed:', error);
       eventBus.publish('provider-auto-switch-error', {
         failedProvider: failedProviderId,
         error: error.message,
@@ -1830,7 +1768,6 @@ class GlobalStateManager extends EventEmitter {
     const chatHistory = this.getState('chatHistory');
     
     if (!chatHistory.cachedConversations[conversationId]) {
-      console.warn(`[GlobalStateManager] Conversation ${conversationId} not found in cache`);
       return;
     }
     
@@ -1869,7 +1806,6 @@ class GlobalStateManager extends EventEmitter {
     
     this.setState('chatHistory', chatHistory);
     
-    console.log(`[GlobalStateManager] Updated provider for conversation ${conversationId}: ${previousProvider} -> ${providerId}`);
     
     eventBus.publish('conversation-provider-updated', {
       conversationId,
@@ -2265,7 +2201,6 @@ class GlobalStateManager extends EventEmitter {
       }
     });
     
-    console.log('[GlobalStateManager] Destroyed');
   }
 }
 

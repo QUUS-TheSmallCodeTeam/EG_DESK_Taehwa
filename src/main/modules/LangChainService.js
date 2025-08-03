@@ -58,7 +58,6 @@ class LangChainService {
    */
   async initialize() {
     try {
-      console.log('[LangChainService] Initializing...');
       
       if (!this.secureKeyManager || !this.secureKeyManager.isInitialized) {
         throw new Error('SecureKeyManager not initialized');
@@ -67,10 +66,8 @@ class LangChainService {
       await this.initializeProviders();
       this.isInitialized = true;
       
-      console.log('[LangChainService] Successfully initialized');
       return true;
     } catch (error) {
-      console.error('[LangChainService] Initialization failed:', error);
       throw error;
     }
   }
@@ -104,11 +101,9 @@ class LangChainService {
           }
         }
       } catch (error) {
-        console.warn(`[LangChainService] Failed to initialize provider ${providerId}:`, error);
       }
     }
     
-    console.log(`[LangChainService] Initialized providers: ${availableProviders.join(', ')}`);
     
     if (availableProviders.length === 0) {
       throw new Error('No AI providers available. Please configure API keys.');
@@ -181,7 +176,6 @@ class LangChainService {
     this.currentProvider = providerId;
     this.currentModel = provider.currentModel;
     
-    console.log(`[LangChainService] Switched to provider: ${providerId}, model: ${this.currentModel}`);
     return {
       provider: providerId,
       model: this.currentModel,
@@ -205,7 +199,6 @@ class LangChainService {
       const provider = this.providers.get(this.currentProvider);
       const messages = this.buildMessageHistory(message, conversationHistory, systemPrompt);
       
-      console.log(`[LangChainService] Sending message to ${this.currentProvider}...`);
       
       const startTime = Date.now();
       const response = await provider.instance.invoke(messages);
@@ -233,11 +226,9 @@ class LangChainService {
         }
       };
       
-      console.log(`[LangChainService] Response received from ${this.currentProvider} in ${result.metadata.responseTime}ms`);
       return result;
       
     } catch (error) {
-      console.error(`[LangChainService] Error sending message to ${this.currentProvider}:`, error);
       
       return {
         success: false,
@@ -267,7 +258,6 @@ class LangChainService {
       const provider = this.providers.get(this.currentProvider);
       const messages = this.buildMessageHistory(message, conversationHistory, systemPrompt);
       
-      console.log(`[LangChainService] Streaming message to ${this.currentProvider}...`);
       
       const startTime = Date.now();
       let fullResponse = '';
@@ -309,11 +299,9 @@ class LangChainService {
         }
       };
       
-      console.log(`[LangChainService] Stream completed from ${this.currentProvider} in ${result.metadata.responseTime}ms`);
       return result;
       
     } catch (error) {
-      console.error(`[LangChainService] Error streaming message to ${this.currentProvider}:`, error);
       
       return {
         success: false,
@@ -450,7 +438,6 @@ class LangChainService {
    */
   resetSessionCosts() {
     this.costTracker.session = { input: 0, output: 0, total: 0 };
-    console.log('[LangChainService] Session costs reset');
   }
 
   /**
@@ -520,7 +507,6 @@ class LangChainService {
       provider.instance.model = modelId;
     }
     
-    console.log(`[LangChainService] Updated ${providerId} model to ${modelId}`);
     return true;
   }
 
@@ -534,9 +520,7 @@ class LangChainService {
       this.currentModel = null;
       this.isInitialized = false;
       
-      console.log('[LangChainService] Destroyed successfully');
     } catch (error) {
-      console.error('[LangChainService] Cleanup failed:', error);
     }
   }
 }

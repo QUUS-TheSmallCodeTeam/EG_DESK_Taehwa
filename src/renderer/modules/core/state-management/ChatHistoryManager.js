@@ -23,7 +23,6 @@ class ChatHistoryManager {
    */
   async initialize() {
     try {
-      console.log('[ChatHistoryManager] Initializing...');
       
       // Subscribe to state changes
       this.stateManager.subscribe('chatHistory', this.handleStateChanges);
@@ -32,11 +31,9 @@ class ChatHistoryManager {
       this.setupEventSubscriptions();
       
       this.isInitialized = true;
-      console.log('[ChatHistoryManager] Successfully initialized');
       
       return true;
     } catch (error) {
-      console.error('[ChatHistoryManager] Initialization failed:', error);
       throw error;
     }
   }
@@ -89,7 +86,6 @@ class ChatHistoryManager {
 
       return conversationId;
     } catch (error) {
-      console.error('[ChatHistoryManager] Failed to create conversation:', error);
       throw error;
     }
   }
@@ -125,7 +121,6 @@ class ChatHistoryManager {
 
       return messageId;
     } catch (error) {
-      console.error('[ChatHistoryManager] Failed to add message:', error);
       throw error;
     }
   }
@@ -164,7 +159,6 @@ class ChatHistoryManager {
 
       return results;
     } catch (error) {
-      console.error('[ChatHistoryManager] Search failed:', error);
       throw error;
     }
   }
@@ -234,7 +228,6 @@ class ChatHistoryManager {
    * Handle conversation creation
    */
   onConversationCreated(eventData) {
-    console.log(`[ChatHistoryManager] New conversation created: ${eventData.conversationId}`);
     
     // Notify other components
     eventBus.publish('ui-conversation-list-update', {
@@ -247,7 +240,6 @@ class ChatHistoryManager {
    * Handle message addition
    */
   onMessageAdded(eventData) {
-    console.log(`[ChatHistoryManager] Message added to conversation: ${eventData.conversationId}`);
     
     // Update conversation insights
     const insights = this.getConversationInsights(eventData.conversationId);
@@ -262,7 +254,6 @@ class ChatHistoryManager {
    * Handle active conversation changes
    */
   onActiveConversationChanged(eventData) {
-    console.log(`[ChatHistoryManager] Active conversation changed: ${eventData.conversationId}`);
     
     if (eventData.conversationId) {
       const insights = this.getConversationInsights(eventData.conversationId);
@@ -278,7 +269,6 @@ class ChatHistoryManager {
    * Handle history searches
    */
   onHistorySearched(eventData) {
-    console.log(`[ChatHistoryManager] History searched: "${eventData.query}"`);
     
     // Track search analytics
     this.eventNamespace.publish('search-analytics', {
@@ -311,7 +301,6 @@ class ChatHistoryManager {
    * Handle workspace synchronization
    */
   handleWorkspaceSync(syncData) {
-    console.log('[ChatHistoryManager] Synchronizing with workspace');
     
     // Coordinate with workspace manager for chat history sync
     eventBus.publish('workspace-sync-response', {
@@ -514,7 +503,6 @@ class ChatHistoryManager {
     eventBus.unsubscribeModule('ChatHistoryManager');
     
     this.isInitialized = false;
-    console.log('[ChatHistoryManager] Destroyed');
   }
 }
 

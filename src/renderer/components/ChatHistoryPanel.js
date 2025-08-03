@@ -53,32 +53,25 @@ class ChatHistoryPanel {
    * Initialize the chat history panel
    */
   async initialize() {
-    console.log(`[ChatHistoryPanel] Starting initialization for: ${this.containerId}`);
     
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[ChatHistoryPanel] Container with ID "${this.containerId}" not found`);
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
 
     try {
       this.render();
-      console.log(`[ChatHistoryPanel] Render completed`);
       
       this.setupEventListeners();
-      console.log(`[ChatHistoryPanel] Event listeners setup`);
       
       // Initialize workspace integration
       this.setupWorkspaceIntegration();
-      console.log(`[ChatHistoryPanel] Workspace integration setup`);
       
       // Load panel preferences first
       await this.loadPanelPreferences();
-      console.log(`[ChatHistoryPanel] Panel preferences loaded`);
       
       // Load initial data if available
       await this.loadConversations();
-      console.log(`[ChatHistoryPanel] Initial conversations loaded`);
       
       // Set initial collapsed state (if not overridden by preferences)
       if (this.options.defaultCollapsed && !this.preferencesLoaded) {
@@ -87,10 +80,8 @@ class ChatHistoryPanel {
       
       // Set up real-time synchronization
       this.setupRealTimeSync();
-      console.log(`[ChatHistoryPanel] Real-time sync setup`);
       
       this.isInitialized = true;
-      console.log(`[ChatHistoryPanel] Initialized successfully in container: ${this.containerId}`);
       
       // Notify initialization complete
       this.dispatchEvent('chat-history-panel-initialized', {
@@ -99,7 +90,6 @@ class ChatHistoryPanel {
         isCollapsed: this.isCollapsed
       });
     } catch (error) {
-      console.error(`[ChatHistoryPanel] Initialization failed:`, error);
       throw error;
     }
   }
@@ -278,9 +268,7 @@ class ChatHistoryPanel {
       if (this.globalStateManager) {
         try {
           conversations = await this.globalStateManager.loadChatHistory('blog') || [];
-          console.log('[ChatHistoryPanel] Conversations loaded via GlobalStateManager');
         } catch (error) {
-          console.warn('[ChatHistoryPanel] GlobalStateManager failed, trying alternatives:', error);
         }
       }
       
@@ -289,7 +277,6 @@ class ChatHistoryPanel {
         const result = await window.electronAPI.state.loadChatHistory();
         if (result.success && result.data) {
           conversations = result.data;
-          console.log('[ChatHistoryPanel] Conversations loaded via state-manager');
         }
       }
       
@@ -298,7 +285,6 @@ class ChatHistoryPanel {
         const result = await window.electronAPI.chatHistory.getConversations();
         if (result.success) {
           conversations = result.data || [];
-          console.log('[ChatHistoryPanel] Conversations loaded via chatHistory API');
         }
       }
       
@@ -307,7 +293,6 @@ class ChatHistoryPanel {
         const stored = localStorage.getItem('chatHistory');
         if (stored) {
           conversations = JSON.parse(stored);
-          console.log('[ChatHistoryPanel] Conversations loaded from localStorage');
         }
       }
       
@@ -317,7 +302,6 @@ class ChatHistoryPanel {
       this.updateStats();
       
     } catch (error) {
-      console.error('[ChatHistoryPanel] Failed to load conversations:', error);
       this.showError('Failed to load conversation history');
     } finally {
       this.showLoading(false);
@@ -548,7 +532,6 @@ class ChatHistoryPanel {
     // Notify parent component
     this.onSessionSelect(conversation);
     
-    console.log(`[ChatHistoryPanel] Selected conversation: ${sessionId}`);
   }
 
   /**
@@ -570,7 +553,6 @@ class ChatHistoryPanel {
     // Save to storage
     this.saveConversations();
     
-    console.log(`[ChatHistoryPanel] Created new chat session: ${newSession.id}`);
   }
 
   /**
@@ -592,7 +574,6 @@ class ChatHistoryPanel {
       // Notify parent component
       this.onSessionDelete(sessionId);
       
-      console.log(`[ChatHistoryPanel] Deleted conversation: ${sessionId}`);
     }
   }
 
@@ -607,7 +588,6 @@ class ChatHistoryPanel {
       this.renderConversations();
       this.saveConversations();
       
-      console.log(`[ChatHistoryPanel] Toggled pin for conversation: ${sessionId}`);
     }
   }
 
@@ -626,7 +606,6 @@ class ChatHistoryPanel {
     // Notify parent component about size change
     this.onToggleCollapse(shouldCollapse);
     
-    console.log(`[ChatHistoryPanel] Panel ${shouldCollapse ? 'collapsed' : 'expanded'}`);
   }
 
   /**
@@ -677,7 +656,6 @@ class ChatHistoryPanel {
    */
   showError(message) {
     // Could implement toast notification or inline error display
-    console.error(`[ChatHistoryPanel] Error: ${message}`);
   }
 
   /**
@@ -735,7 +713,6 @@ class ChatHistoryPanel {
       if (this.globalStateManager) {
         try {
           await this.globalStateManager.saveChatHistory('blog', this.conversations);
-          console.log('[ChatHistoryPanel] Conversations saved via GlobalStateManager');
           
           // Emit state change event
           if (this.eventBus) {
@@ -747,7 +724,6 @@ class ChatHistoryPanel {
           }
           return;
         } catch (error) {
-          console.warn('[ChatHistoryPanel] GlobalStateManager save failed, trying alternatives:', error);
         }
       }
       
@@ -755,7 +731,6 @@ class ChatHistoryPanel {
       if (window.electronAPI?.state?.saveChatHistory) {
         const result = await window.electronAPI.state.saveChatHistory(this.conversations);
         if (result.success) {
-          console.log('[ChatHistoryPanel] Conversations saved via state-manager');
           return;
         }
       }
@@ -763,16 +738,13 @@ class ChatHistoryPanel {
       // Try legacy chat history API
       if (window.electronAPI?.chatHistory) {
         await window.electronAPI.chatHistory.saveConversations(this.conversations);
-        console.log('[ChatHistoryPanel] Conversations saved via chatHistory API');
         return;
       }
       
       // Fallback to localStorage
       localStorage.setItem('chatHistory', JSON.stringify(this.conversations));
-      console.log('[ChatHistoryPanel] Conversations saved to localStorage');
       
     } catch (error) {
-      console.error('[ChatHistoryPanel] Failed to save conversations:', error);
     }
   }
 
@@ -822,7 +794,6 @@ class ChatHistoryPanel {
    */
   async setState(state) {
     try {
-      console.log(`[ChatHistoryPanel] Restoring state for: ${this.containerId}`);
       
       if (state.conversations && Array.isArray(state.conversations)) {
         this.conversations = state.conversations;
@@ -864,7 +835,6 @@ class ChatHistoryPanel {
       this.renderConversations();
       this.updateStats();
       
-      console.log(`[ChatHistoryPanel] State restored successfully`);
       
       // Publish state restored event
       this.dispatchEvent('chat-history-panel-state-restored', {
@@ -873,7 +843,6 @@ class ChatHistoryPanel {
       });
       
     } catch (error) {
-      console.error(`[ChatHistoryPanel] Failed to restore state:`, error);
     }
   }
 
@@ -894,7 +863,6 @@ class ChatHistoryPanel {
         localStorage.setItem('historyPanelPreferences', JSON.stringify(preferences));
       }
     } catch (error) {
-      console.warn('[ChatHistoryPanel] Failed to save panel preferences:', error);
     }
   }
 
@@ -926,7 +894,6 @@ class ChatHistoryPanel {
         }
       }
     } catch (error) {
-      console.warn('[ChatHistoryPanel] Failed to load panel preferences:', error);
     }
   }
 
@@ -973,7 +940,6 @@ class ChatHistoryPanel {
       try {
         await this.syncWithStorage();
       } catch (error) {
-        console.warn('[ChatHistoryPanel] Sync failed:', error);
       }
     }, 10000); // Sync every 10 seconds
 
@@ -1198,7 +1164,6 @@ class ChatHistoryPanel {
       this.renderConversations();
       this.saveConversations();
       
-      console.log(`[ChatHistoryPanel] Renamed conversation: ${sessionId}`);
     }
   }
 
@@ -1223,7 +1188,6 @@ class ChatHistoryPanel {
     this.updateStats();
     this.saveConversations();
     
-    console.log(`[ChatHistoryPanel] Duplicated conversation: ${sessionId} -> ${duplicated.id}`);
   }
 
   /**
@@ -1291,7 +1255,6 @@ class ChatHistoryPanel {
       this.elements.panel.classList.toggle('blog-mode', mode === 'blog');
     }
     
-    console.log(`[ChatHistoryPanel] Workspace mode set to: ${mode}`);
   }
 
   /**
@@ -1371,7 +1334,6 @@ class ChatHistoryPanel {
         const lastStoredUpdate = Math.max(...storedConversations.map(c => new Date(c.lastModified || c.createdAt).getTime()));
         
         if (lastStoredUpdate > lastLocalUpdate) {
-          console.log('[ChatHistoryPanel] Syncing with newer storage data');
           this.conversations = storedConversations;
           this.updateFilteredConversations();
           this.renderConversations();
@@ -1379,7 +1341,6 @@ class ChatHistoryPanel {
         }
       }
     } catch (error) {
-      console.warn('[ChatHistoryPanel] Storage sync failed:', error);
     }
   }
 
@@ -1390,14 +1351,12 @@ class ChatHistoryPanel {
     if (event.key === 'chatHistory' && event.newValue) {
       try {
         const newConversations = JSON.parse(event.newValue);
-        console.log('[ChatHistoryPanel] Detected storage change, updating conversations');
         
         this.conversations = newConversations;
         this.updateFilteredConversations();
         this.renderConversations();
         this.updateStats();
       } catch (error) {
-        console.warn('[ChatHistoryPanel] Failed to handle storage change:', error);
       }
     }
   }
@@ -1443,7 +1402,6 @@ class ChatHistoryPanel {
     // Save preference
     this.debouncedSavePreferences();
     
-    console.log(`[ChatHistoryPanel] Provider filter changed to: ${provider}`);
   }
   
   /**
@@ -1515,7 +1473,6 @@ class ChatHistoryPanel {
       this.handleProviderFilterChange(newProvider);
     }
     
-    console.log(`[ChatHistoryPanel] Provider changed: ${previousProvider} → ${newProvider}`);
   }
   
   /**
@@ -1530,7 +1487,6 @@ class ChatHistoryPanel {
       this.renderConversations();
     }
     
-    console.log(`[ChatHistoryPanel] Provider metadata ${enabled ? 'enabled' : 'disabled'}`);
   }
   
   /**
@@ -1604,7 +1560,6 @@ class ChatHistoryPanel {
       containerId: this.containerId
     });
     
-    console.log(`[ChatHistoryPanel] Destroyed: ${this.containerId}`);
   }
 }
 

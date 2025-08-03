@@ -30,15 +30,12 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // Global error handlers
 process.on('uncaughtException', (error) => {
-  console.error('💥 [FATAL] Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 [FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 app.on('render-process-gone', (event, webContents, details) => {
-  console.error('💥 [FATAL] Render process gone:', details);
 });
 
 class EGDeskTaehwa {
@@ -55,27 +52,21 @@ class EGDeskTaehwa {
 
   setupApp() {
     app.whenReady().then(async () => {
-      console.log('🚀 Electron 앱 시작됨');
       
       // Initialize chat history store
       try {
         await this.chatHistoryStore.initialize();
-        console.log('[MAIN] Chat history store initialized');
       } catch (error) {
-        console.warn('[MAIN] Chat history store initialization failed:', error);
       }
       
       // Initialize secure key manager
       try {
         await this.secureKeyManager.initialize();
-        console.log('[MAIN] Secure key manager initialized');
         
         // Initialize LangChain service with SecureKeyManager
         this.langChainService = new LangChainService(this.secureKeyManager);
         await this.langChainService.initialize();
-        console.log('[MAIN] LangChain service initialized');
       } catch (error) {
-        console.warn('[MAIN] Secure key manager initialization failed:', error);
       }
       
       this.createMainWindow();
@@ -84,14 +75,12 @@ class EGDeskTaehwa {
     });
 
     app.on('window-all-closed', () => {
-      console.log('🔴 모든 창이 닫힘');
       if (process.platform !== 'darwin') {
         app.quit();
       }
     });
 
     app.on('activate', () => {
-      console.log('🔵 앱 활성화됨');
       if (BrowserWindow.getAllWindows().length === 0) {
         this.createMainWindow();
       }
@@ -99,7 +88,6 @@ class EGDeskTaehwa {
   }
 
   createMainWindow() {
-    console.log('📱 Main Window 생성 시작');
     this.mainWindow = new BrowserWindow({
       width: 1600,
       height: 1000,
@@ -130,7 +118,6 @@ class EGDeskTaehwa {
     } else {
       // In production or preview mode, load the built file
       const rendererPath = path.join(__dirname, '../renderer/index.html');
-      console.log(`🔍 Loading renderer from: ${rendererPath}`);
       this.mainWindow.loadFile(rendererPath);
     }
 
@@ -138,7 +125,6 @@ class EGDeskTaehwa {
     this.initializeWebContentsManager();
 
     this.mainWindow.once('ready-to-show', () => {
-      console.log('🎉 Main Window 표시 준비 완료');
       this.mainWindow.show();
       
       // Temporarily enable dev tools to debug renderer issues
@@ -146,11 +132,9 @@ class EGDeskTaehwa {
     });
 
     this.mainWindow.webContents.once('did-finish-load', () => {
-      console.log('✅ 페이지 로딩 완료');
     });
 
     this.mainWindow.on('closed', () => {
-      console.log('❌ Main Window 닫힘');
       this.webContentsManager.destroy();
       this.chatHistoryStore.destroy();
       this.mainWindow = null;
@@ -158,20 +142,14 @@ class EGDeskTaehwa {
     
     // Updated crash handlers - use render-process-gone (crashed is deprecated)
     this.mainWindow.webContents.on('render-process-gone', (event, details) => {
-      console.error('💥 [CRASH] Render process gone:', details);
-      console.error('💥 [CRASH] Reason:', details.reason);
-      console.error('💥 [CRASH] Exit code:', details.exitCode);
     });
     
     this.mainWindow.on('unresponsive', () => {
-      console.error('💥 [CRASH] Window became unresponsive!');
     });
 
-    console.log('📱 Main Window 생성 완료');
   }
 
   initializeWebContentsManager() {
-    console.log('🌐 WebContentsManager 초기화');
     this.webContentsManager.initialize(this.mainWindow);
     
     // Resize handling is now done by BrowserTabComponent
@@ -183,7 +161,6 @@ class EGDeskTaehwa {
   }
 
   async setupBlogWorkspace() {
-    console.log('🚀 블로그 워크스페이스 설정');
     
     try {
       // Create and switch to a new tab with default WordPress URL
@@ -192,14 +169,11 @@ class EGDeskTaehwa {
       this.currentTabId = tabId;
       
       // Don't update bounds immediately - let BrowserTabComponent handle it
-      console.log(`[EGDeskTaehwa] Blog workspace ready with tab ${tabId} - bounds will be updated by BrowserTabComponent`);
     } catch (error) {
-      console.error('[EGDeskTaehwa] Failed to setup blog workspace:', error);
     }
   }
 
   hideWebContentsView() {
-    console.log('🙈 WebContents View 숨김');
     // Remove all WebContentsViews with proper API fallback
     if (this.currentTabId && this.webContentsManager) {
       try {
@@ -208,11 +182,9 @@ class EGDeskTaehwa {
           // Try new contentView API first (Electron 30+)
           if (this.mainWindow.contentView && this.mainWindow.contentView.children.includes(currentView)) {
             this.mainWindow.contentView.removeChildView(currentView);
-            console.log('🙈 Successfully removed WebContentsView with contentView');
           }
         }
       } catch (error) {
-        console.error('🙈 Failed to remove WebContentsView:', error);
       }
     }
     this.currentTabId = null;
@@ -222,27 +194,22 @@ class EGDeskTaehwa {
     // WebContentsManager handles browser events internally
     // Set up communication between main process and renderer
     this.webContentsManager.on('navigation', (data) => {
-      console.log('🧭 Browser 네비게이션:', data.url);
       this.mainWindow.webContents.send('browser-navigated', data);
     });
 
     this.webContentsManager.on('loading-failed', (data) => {
-      console.error('❌ Browser 로드 실패:', data.errorDescription);
       this.mainWindow.webContents.send('browser-load-failed', data);
     });
 
     this.webContentsManager.on('loading-finished', (data) => {
-      console.log('✅ Browser 로드 완료');
       this.mainWindow.webContents.send('browser-load-finished', data);
     });
 
     this.webContentsManager.on('loading-started', (data) => {
-      console.log('🔄 Browser 로드 시작');
       this.mainWindow.webContents.send('browser-load-started', data);
     });
 
     this.webContentsManager.on('loading-stopped', (data) => {
-      console.log('⏹️ Browser 로드 중지');
       this.mainWindow.webContents.send('browser-load-stopped', data);
     });
   }
@@ -328,15 +295,12 @@ class EGDeskTaehwa {
   }
 
   setupIPC() {
-    console.log('[MAIN] Setting up IPC handlers');
     // Store operations
     ipcMain.handle('store-get', (event, key) => {
-      console.log(`[MAIN] IPC store-get: ${key}`);
       return store.get(key);
     });
 
     ipcMain.handle('store-set', (event, key, value) => {
-      console.log(`[MAIN] IPC store-set: ${key}`);
       store.set(key, value);
       return true;
     });
@@ -350,73 +314,57 @@ class EGDeskTaehwa {
 
     // Workspace switching
     ipcMain.handle('switch-workspace', async (event, workspace) => {
-      console.log(`[MAIN] IPC switch-workspace received: ${workspace}`);
       this.currentWorkspace = workspace;
       
       if (workspace === 'blog') {
-        console.log('[MAIN] Setting up blog workspace');
         await this.setupBlogWorkspace();
       } else {
-        console.log('[MAIN] Hiding web contents view');
         this.hideWebContentsView();
       }
       
-      console.log(`[MAIN] Workspace switched to ${workspace}`);
       return { success: true, workspace };
     });
 
     // Browser navigation APIs (via WebContentsManager)
     ipcMain.handle('browser-create-tab', async (event, { url, options }) => {
-      console.log(`[MAIN] IPC browser-create-tab: ${url}`);
       
       try {
         const tabId = await this.webContentsManager.createTab(url, options);
-        console.log(`[MAIN] Browser tab created: ${tabId}`);
         return { success: true, tabId, url };
       } catch (error) {
-        console.error(`[MAIN] Browser tab creation failed: ${error}`);
         throw error;
       }
     });
 
     ipcMain.handle('browser-switch-tab', async (event, { tabId }) => {
-      console.log(`[MAIN] IPC browser-switch-tab: ${tabId}`);
       
       try {
         const result = await this.webContentsManager.switchTab(tabId);
-        console.log(`[MAIN] Browser tab switched: ${tabId}`);
         return result;
       } catch (error) {
-        console.error(`[MAIN] Browser tab switch failed: ${error}`);
         throw error;
       }
     });
 
     ipcMain.handle('browser-load-url', async (event, { url, tabId }) => {
-      console.log(`[MAIN] IPC browser-load-url: ${url} in tab: ${tabId || 'current'}`);
       
       try {
         const result = await this.webContentsManager.loadURL(url, tabId);
-        console.log(`[MAIN] Browser URL loaded: ${url}`);
         return result;
       } catch (error) {
-        console.error(`[MAIN] Browser URL load failed: ${error}`);
         throw error;
       }
     });
 
     ipcMain.handle('browser-go-back', async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-go-back for tab: ${tabId || 'current'}`);
       return await this.webContentsManager.goBack(tabId);
     });
 
     ipcMain.handle('browser-go-forward', async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-go-forward for tab: ${tabId || 'current'}`);
       return await this.webContentsManager.goForward(tabId);
     });
 
     ipcMain.handle('browser-reload', async (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-reload for tab: ${tabId || 'current'}`);
       return await this.webContentsManager.reload(tabId);
     });
 
@@ -437,41 +385,33 @@ class EGDeskTaehwa {
 
     // WebContentsManager API access
     ipcMain.handle('browser-execute-script', async (event, { script, tabId }) => {
-      console.log(`[MAIN] IPC browser-execute-script in tab: ${tabId || 'current'}`);
       try {
         return await this.webContentsManager.executeScript(script, tabId);
       } catch (error) {
-        console.error('[MAIN] Script execution failed:', error);
         throw error;
       }
     });
 
     ipcMain.handle('browser-get-navigation-state', (event, { tabId } = {}) => {
-      console.log(`[MAIN] IPC browser-get-navigation-state for tab: ${tabId || 'current'}`);
       return this.webContentsManager.getNavigationState(tabId);
     });
 
     ipcMain.handle('browser-close-tab', async (event, { tabId }) => {
-      console.log(`[MAIN] IPC browser-close-tab: ${tabId}`);
       
       try {
         this.webContentsManager.closeTab(tabId);
-        console.log(`[MAIN] Browser tab closed: ${tabId}`);
         return { success: true, tabId };
       } catch (error) {
-        console.error(`[MAIN] Browser tab close failed: ${error}`);
         throw error;
       }
     });
 
     // WebContentsView bounds update
     ipcMain.handle('browser-update-bounds', (event, bounds) => {
-      console.log(`[MAIN] IPC browser-update-bounds:`, bounds);
       try {
         this.webContentsManager.updateWebContentsViewBounds(bounds);
         return { success: true };
       } catch (error) {
-        console.error(`[MAIN] Failed to update browser bounds:`, error);
         throw error;
       }
     });
@@ -479,12 +419,10 @@ class EGDeskTaehwa {
 
     // Window control handlers
     ipcMain.on('window-minimize', () => {
-      console.log('[MAIN] Minimizing window');
       this.mainWindow.minimize();
     });
 
     ipcMain.on('window-maximize', () => {
-      console.log('[MAIN] Maximizing/unmaximizing window');
       if (this.mainWindow.isMaximized()) {
         this.mainWindow.unmaximize();
       } else {
@@ -493,135 +431,110 @@ class EGDeskTaehwa {
     });
 
     ipcMain.on('window-close', () => {
-      console.log('[MAIN] Closing window');
       this.mainWindow.close();
     });
 
 
     // Storage handlers for secure data
     ipcMain.handle('storage-get', async (event, key) => {
-      console.log(`[MAIN] IPC storage-get: ${key}`);
       return store.get(key);
     });
 
     ipcMain.handle('storage-set', async (event, key, value) => {
-      console.log(`[MAIN] IPC storage-set: ${key}`);
       store.set(key, value);
       return true;
     });
 
     ipcMain.handle('storage-delete', async (event, key) => {
-      console.log(`[MAIN] IPC storage-delete: ${key}`);
       store.delete(key);
       return true;
     });
 
     ipcMain.handle('storage-has', async (event, key) => {
-      console.log(`[MAIN] IPC storage-has: ${key}`);
       return store.has(key);
     });
 
     // AI Provider and Secure Key Management
     ipcMain.handle('ai-provider-store-key', async (event, { providerId, keyData }) => {
-      console.log(`[MAIN] IPC ai-provider-store-key: ${providerId}`);
       try {
         return await this.secureKeyManager.storeProviderKey(providerId, keyData);
       } catch (error) {
-        console.error('[MAIN] Failed to store provider key:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-get-key', async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-get-key: ${providerId}`);
       try {
         return await this.secureKeyManager.getProviderKey(providerId);
       } catch (error) {
-        console.error('[MAIN] Failed to get provider key:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-remove-key', async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-remove-key: ${providerId}`);
       try {
         return await this.secureKeyManager.removeProviderKey(providerId);
       } catch (error) {
-        console.error('[MAIN] Failed to remove provider key:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-has-key', (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-has-key: ${providerId}`);
       return this.secureKeyManager.hasProviderKey(providerId);
     });
 
     ipcMain.handle('ai-provider-get-info', (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-get-info: ${providerId}`);
       return this.secureKeyManager.getProviderInfo(providerId);
     });
 
     ipcMain.handle('ai-provider-get-all', (event) => {
-      console.log('[MAIN] IPC ai-provider-get-all');
       return this.secureKeyManager.getAllProviders();
     });
 
     ipcMain.handle('ai-provider-test-key', async (event, { providerId }) => {
-      console.log(`[MAIN] IPC ai-provider-test-key: ${providerId}`);
       try {
         return await this.secureKeyManager.testProviderKey(providerId);
       } catch (error) {
-        console.error('[MAIN] Provider key test failed:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-update-config', async (event, { providerId, config }) => {
-      console.log(`[MAIN] IPC ai-provider-update-config: ${providerId}`);
       try {
         return await this.secureKeyManager.updateProviderConfig(providerId, config);
       } catch (error) {
-        console.error('[MAIN] Failed to update provider config:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-get-stats', (event) => {
-      console.log('[MAIN] IPC ai-provider-get-stats');
       return this.secureKeyManager.getProviderStats();
     });
 
     ipcMain.handle('ai-provider-export-config', async (event) => {
-      console.log('[MAIN] IPC ai-provider-export-config');
       try {
         return await this.secureKeyManager.exportConfig();
       } catch (error) {
-        console.error('[MAIN] Failed to export provider config:', error);
         throw error;
       }
     });
 
     ipcMain.handle('ai-provider-import-config', async (event, { importData }) => {
-      console.log('[MAIN] IPC ai-provider-import-config');
       try {
         return await this.secureKeyManager.importConfig(importData);
       } catch (error) {
-        console.error('[MAIN] Failed to import provider config:', error);
         throw error;
       }
     });
 
     // LangChain Service Handlers
     ipcMain.handle('langchain-send-message', async (event, { message, conversationHistory, systemPrompt }) => {
-      console.log('[MAIN] IPC langchain-send-message');
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error('LangChain service not initialized');
         }
         return await this.langChainService.sendMessage(message, conversationHistory, systemPrompt);
       } catch (error) {
-        console.error('[MAIN] LangChain send message failed:', error);
         return {
           success: false,
           error: error.message,
@@ -632,7 +545,6 @@ class EGDeskTaehwa {
     });
 
     ipcMain.handle('langchain-stream-message', async (event, { message, conversationHistory, systemPrompt }) => {
-      console.log('[MAIN] IPC langchain-stream-message');
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error('LangChain service not initialized');
@@ -648,7 +560,6 @@ class EGDeskTaehwa {
           }
         );
       } catch (error) {
-        console.error('[MAIN] LangChain stream message failed:', error);
         return {
           success: false,
           error: error.message,
@@ -659,33 +570,28 @@ class EGDeskTaehwa {
     });
 
     ipcMain.handle('langchain-switch-provider', async (event, { providerId, modelId }) => {
-      console.log(`[MAIN] IPC langchain-switch-provider: ${providerId}, model: ${modelId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error('LangChain service not initialized');
         }
         return await this.langChainService.switchProvider(providerId, modelId);
       } catch (error) {
-        console.error('[MAIN] LangChain switch provider failed:', error);
         throw error;
       }
     });
 
     ipcMain.handle('langchain-get-providers', (event) => {
-      console.log('[MAIN] IPC langchain-get-providers');
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return [];
         }
         return this.langChainService.getAvailableProviders();
       } catch (error) {
-        console.error('[MAIN] LangChain get providers failed:', error);
         return [];
       }
     });
 
     ipcMain.handle('langchain-get-current-status', (event) => {
-      console.log('[MAIN] IPC langchain-get-current-status');
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return {
@@ -697,7 +603,6 @@ class EGDeskTaehwa {
         }
         return this.langChainService.getCurrentProviderStatus();
       } catch (error) {
-        console.error('[MAIN] LangChain get current status failed:', error);
         return {
           provider: null,
           model: null,
@@ -709,14 +614,12 @@ class EGDeskTaehwa {
     });
 
     ipcMain.handle('langchain-test-provider', async (event, { providerId }) => {
-      console.log(`[MAIN] IPC langchain-test-provider: ${providerId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error('LangChain service not initialized');
         }
         return await this.langChainService.testProvider(providerId);
       } catch (error) {
-        console.error('[MAIN] LangChain test provider failed:', error);
         return {
           success: false,
           provider: providerId,
@@ -726,33 +629,28 @@ class EGDeskTaehwa {
     });
 
     ipcMain.handle('langchain-get-provider-models', (event, { providerId }) => {
-      console.log(`[MAIN] IPC langchain-get-provider-models: ${providerId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return [];
         }
         return this.langChainService.getProviderModels(providerId);
       } catch (error) {
-        console.error('[MAIN] LangChain get provider models failed:', error);
         return [];
       }
     });
 
     ipcMain.handle('langchain-update-provider-model', async (event, { providerId, modelId }) => {
-      console.log(`[MAIN] IPC langchain-update-provider-model: ${providerId}, model: ${modelId}`);
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           throw new Error('LangChain service not initialized');
         }
         return await this.langChainService.updateProviderModel(providerId, modelId);
       } catch (error) {
-        console.error('[MAIN] LangChain update provider model failed:', error);
         throw error;
       }
     });
 
     ipcMain.handle('langchain-reset-session-costs', (event) => {
-      console.log('[MAIN] IPC langchain-reset-session-costs');
       try {
         if (!this.langChainService || !this.langChainService.isInitialized) {
           return false;
@@ -760,7 +658,6 @@ class EGDeskTaehwa {
         this.langChainService.resetSessionCosts();
         return true;
       } catch (error) {
-        console.error('[MAIN] LangChain reset session costs failed:', error);
         return false;
       }
     });

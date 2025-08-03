@@ -26,17 +26,14 @@ class QualityChecker extends EventEmitter {
    */
   async initialize() {
     try {
-      console.log('[QualityChecker] Initializing...');
 
       // Placeholder for actual initialization logic, such as loading external spell check libraries.
 
       this.isInitialized = true;
-      console.log('[QualityChecker] Successfully initialized');
       this.emit('initialized');
 
       return true;
     } catch (error) {
-      console.error('[QualityChecker] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
@@ -73,7 +70,6 @@ class QualityChecker extends EventEmitter {
 
       return qualityReport;
     } catch (error) {
-      console.error('[QualityChecker] Quality check failed:', error);
       this.emit('quality-check-failed', { error: error.message });
       throw error;
     }
@@ -137,7 +133,6 @@ class QualityChecker extends EventEmitter {
   destroy() {
     this.isInitialized = false;
     this.removeAllListeners();
-    console.log('[QualityChecker] Destroyed');
   }
 }
 
