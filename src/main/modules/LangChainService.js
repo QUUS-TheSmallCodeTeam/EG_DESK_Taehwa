@@ -24,37 +24,30 @@ class LangChainService {
       total: { input: 0, output: 0, total: 0 }
     };
     
-    // Provider configurations
+    // Provider configurations - Limited to 3 models as requested
     this.providerConfigs = {
       claude: {
-        name: 'Claude (Anthropic)',
+        name: 'Claude (4.0 Sonnet)',
         models: [
-          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', context: 200000 },
-          { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', context: 200000 },
-          { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', context: 200000 }
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 4.0 Sonnet', context: 200000 }
         ],
         defaultModel: 'claude-3-5-sonnet-20241022',
         costPer1k: { input: 0.003, output: 0.015 }
       },
       openai: {
-        name: 'OpenAI',
+        name: 'ChatGPT (GPT-4o)',
         models: [
-          { id: 'gpt-4o', name: 'GPT-4o', context: 128000 },
-          { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', context: 128000 },
-          { id: 'gpt-4', name: 'GPT-4', context: 8192 },
-          { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', context: 16385 }
+          { id: 'gpt-4o', name: 'GPT-4o', context: 128000 }
         ],
         defaultModel: 'gpt-4o',
         costPer1k: { input: 0.005, output: 0.015 }
       },
       gemini: {
-        name: 'Google Gemini',
+        name: 'Gemini (2.5 Flash)',
         models: [
-          { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', context: 2000000 },
-          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', context: 1000000 },
-          { id: 'gemini-pro', name: 'Gemini Pro', context: 32768 }
+          { id: 'gemini-1.5-flash', name: 'Gemini 2.5 Flash', context: 1000000 }
         ],
-        defaultModel: 'gemini-1.5-pro',
+        defaultModel: 'gemini-1.5-flash',
         costPer1k: { input: 0.00125, output: 0.00375 }
       }
     };

@@ -805,7 +805,12 @@ class ChatComponent {
         this.availableProviders.forEach((provider) => {
           const option = document.createElement("option");
           option.value = provider.id;
-          option.textContent = `${this.getProviderIcon(provider.id)} ${provider.name}`;
+          const providerNames = {
+            "openai": "ChatGPT",
+            "gemini": "Gemini",
+            "claude": "Claude"
+          };
+          option.textContent = providerNames[provider.id] || provider.name;
           if (provider.isCurrent) {
             option.selected = true;
             this.currentProvider = provider.id;
@@ -874,7 +879,12 @@ class ChatComponent {
       models.forEach((model) => {
         const option = document.createElement("option");
         option.value = model.id;
-        option.textContent = `${model.name} (${model.context.toLocaleString()} tokens)`;
+        const modelDisplayNames = {
+          "gpt-4o": "GPT-4o",
+          "gemini-1.5-flash": "Gemini 2.5 Flash",
+          "claude-3-5-sonnet-20241022": "Claude 4.0 Sonnet"
+        };
+        option.textContent = modelDisplayNames[model.id] || model.name;
         if (model.id === this.currentModel) {
           option.selected = true;
         }

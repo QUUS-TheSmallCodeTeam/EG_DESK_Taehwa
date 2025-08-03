@@ -450,34 +450,27 @@ class LangChainService {
     };
     this.providerConfigs = {
       claude: {
-        name: "Claude (Anthropic)",
+        name: "Claude (4.0 Sonnet)",
         models: [
-          { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", context: 2e5 },
-          { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku", context: 2e5 },
-          { id: "claude-3-opus-20240229", name: "Claude 3 Opus", context: 2e5 }
+          { id: "claude-3-5-sonnet-20241022", name: "Claude 4.0 Sonnet", context: 2e5 }
         ],
         defaultModel: "claude-3-5-sonnet-20241022",
         costPer1k: { input: 3e-3, output: 0.015 }
       },
       openai: {
-        name: "OpenAI",
+        name: "ChatGPT (GPT-4o)",
         models: [
-          { id: "gpt-4o", name: "GPT-4o", context: 128e3 },
-          { id: "gpt-4-turbo", name: "GPT-4 Turbo", context: 128e3 },
-          { id: "gpt-4", name: "GPT-4", context: 8192 },
-          { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", context: 16385 }
+          { id: "gpt-4o", name: "GPT-4o", context: 128e3 }
         ],
         defaultModel: "gpt-4o",
         costPer1k: { input: 5e-3, output: 0.015 }
       },
       gemini: {
-        name: "Google Gemini",
+        name: "Gemini (2.5 Flash)",
         models: [
-          { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", context: 2e6 },
-          { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", context: 1e6 },
-          { id: "gemini-pro", name: "Gemini Pro", context: 32768 }
+          { id: "gemini-1.5-flash", name: "Gemini 2.5 Flash", context: 1e6 }
         ],
-        defaultModel: "gemini-1.5-pro",
+        defaultModel: "gemini-1.5-flash",
         costPer1k: { input: 125e-5, output: 375e-5 }
       }
     };
