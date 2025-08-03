@@ -61,28 +61,42 @@ class SecureKeyManager {
    */
   async initialize() {
     try {
+      console.log('🔐 SecureKeyManager: Starting initialization...');
       
       // Check if safeStorage is available
       if (!safeStorage.isEncryptionAvailable()) {
+        console.error('❌ SecureKeyManager: System encryption is not available');
         throw new Error('System encryption is not available');
       }
       
+      console.log('✅ SecureKeyManager: System encryption is available');
+      
       // Generate or load encryption key
       await this.initializeEncryption();
+      console.log('✅ SecureKeyManager: Encryption initialized');
       
       // Load existing provider configurations
       await this.loadProviderConfigs();
+      console.log('✅ SecureKeyManager: Provider configs loaded');
       
       // Set initialized flag before loading environment variables
       // so that storeProviderKey() can be called during loadEnvironmentVariables()
       this.isInitialized = true;
+      console.log('✅ SecureKeyManager: Set as initialized');
       
       // Check for environment variables and auto-store them
       await this.loadEnvironmentVariables();
+      console.log('✅ SecureKeyManager: Environment variables processed');
       
+      console.log('📊 SecureKeyManager: Initialization complete. Summary:', {
+        isInitialized: this.isInitialized,
+        providersCount: this.providers.size,
+        providers: Array.from(this.providers.keys())
+      });
       
       return true;
     } catch (error) {
+      console.error('❌ SecureKeyManager: Initialization failed:', error);
       this.isInitialized = false; // Reset on error
       throw error;
     }
@@ -152,18 +166,27 @@ class SecureKeyManager {
    * Retrieve API key for a provider
    */
   async getProviderKey(providerId) {
+    console.log(`🔓 SecureKeyManager: Getting provider key for ${providerId}`);
+    
     if (!this.isInitialized) {
+      console.error('❌ SecureKeyManager: Not initialized when getting provider key');
       throw new Error('SecureKeyManager not initialized');
     }
     
     const providerData = this.providers.get(providerId);
     if (!providerData) {
+      console.log(`⚠️ SecureKeyManager: No provider data found for ${providerId}`);
       return null;
     }
     
+    console.log(`✅ SecureKeyManager: Found provider data for ${providerId}`);
+    
     try {
       // Decrypt the key data
+      console.log(`🔓 SecureKeyManager: Decrypting key data for ${providerId}`);
       const decryptedData = this.decryptData(providerData.encrypted);
+      
+      console.log(`✅ SecureKeyManager: Successfully decrypted key for ${providerId}, key length:`, decryptedData.api_key?.length || 0);
       
       // Update last used timestamp
       providerData.lastUsed = Date.now();
@@ -171,6 +194,7 @@ class SecureKeyManager {
       return decryptedData;
       
     } catch (error) {
+      console.error(`❌ SecureKeyManager: Failed to decrypt key for ${providerId}:`, error.message);
       throw error;
     }
   }
@@ -198,7 +222,9 @@ class SecureKeyManager {
    * Check if provider has stored key
    */
   hasProviderKey(providerId) {
-    return this.providers.has(providerId);
+    const hasKey = this.providers.has(providerId);
+    console.log(`🔑 SecureKeyManager: Provider ${providerId} has key: ${hasKey}`);
+    return hasKey;
   }
 
   /**
@@ -389,6 +415,7 @@ class SecureKeyManager {
    */
   async loadEnvironmentVariables() {
     try {
+      console.log('🌍 SecureKeyManager: Loading environment variables...');
       
       const environmentMappings = {
         'claude': 'CLAUDE_API_KEY',
@@ -397,31 +424,43 @@ class SecureKeyManager {
       };
 
       let autoStoredCount = 0;
+      console.log('🔍 SecureKeyManager: Checking environment variables for providers...');
 
       for (const [providerId, envVarName] of Object.entries(environmentMappings)) {
+        console.log(`🔍 SecureKeyManager: Checking ${envVarName} for provider ${providerId}`);
         const envValue = process.env[envVarName];
         
         if (envValue && envValue.trim()) {
+          console.log(`✅ SecureKeyManager: Found ${envVarName} with length: ${envValue.trim().length}`);
+          
           // Only auto-store if we don't already have a key for this provider
           if (!this.hasProviderKey(providerId)) {
             try {
-              
+              console.log(`💾 SecureKeyManager: Auto-storing key for ${providerId} from ${envVarName}`);
               const keyData = { api_key: envValue.trim() };
               await this.storeProviderKey(providerId, keyData);
               
+              console.log(`✅ SecureKeyManager: Successfully auto-stored key for ${providerId}`);
               autoStoredCount++;
             } catch (error) {
+              console.error(`❌ SecureKeyManager: Failed to auto-store key for ${providerId}:`, error.message);
             }
           } else {
+            console.log(`📝 SecureKeyManager: Provider ${providerId} already has stored key, skipping env variable`);
           }
+        } else {
+          console.log(`⚠️ SecureKeyManager: No value found for ${envVarName}`);
         }
       }
 
       if (autoStoredCount > 0) {
+        console.log(`✅ SecureKeyManager: Auto-stored ${autoStoredCount} API keys from environment variables`);
       } else {
+        console.log('📝 SecureKeyManager: No new API keys auto-stored from environment variables');
       }
 
     } catch (error) {
+      console.error('❌ SecureKeyManager: Error loading environment variables:', error);
       // Don't throw error - this is not critical for operation
     }
   }

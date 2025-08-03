@@ -45,9 +45,9 @@ class LangChainService {
       gemini: {
         name: 'Gemini (2.5 Flash)',
         models: [
-          { id: 'gemini-1.5-flash', name: 'Gemini 2.5 Flash', context: 1000000 }
+          { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', context: 1000000 }
         ],
-        defaultModel: 'gemini-1.5-flash',
+        defaultModel: 'gemini-2.5-flash',
         costPer1k: { input: 0.00125, output: 0.00375 }
       }
     };
@@ -58,16 +58,29 @@ class LangChainService {
    */
   async initialize() {
     try {
+      console.log('🔧 LangChainService: Starting initialization...');
       
       if (!this.secureKeyManager || !this.secureKeyManager.isInitialized) {
+        console.error('❌ LangChainService: SecureKeyManager not initialized');
         throw new Error('SecureKeyManager not initialized');
       }
+      
+      console.log('✅ LangChainService: SecureKeyManager is ready');
       
       await this.initializeProviders();
       this.isInitialized = true;
       
+      console.log('✅ LangChainService: Initialization complete');
+      console.log('📊 LangChainService: Current status:', {
+        isInitialized: this.isInitialized,
+        currentProvider: this.currentProvider,
+        currentModel: this.currentModel,
+        availableProviders: Array.from(this.providers.keys())
+      });
+      
       return true;
     } catch (error) {
+      console.error('❌ LangChainService: Initialization failed:', error);
       throw error;
     }
   }
@@ -76,15 +89,33 @@ class LangChainService {
    * Initialize available providers based on stored API keys
    */
   async initializeProviders() {
+    console.log('🔍 LangChainService: Starting provider initialization...');
     const availableProviders = [];
+    
+    // Always set default provider to openai
+    this.currentProvider = 'openai';
+    this.currentModel = this.providerConfigs.openai.defaultModel;
+    console.log('📝 LangChainService: Set default provider to OpenAI with model:', this.currentModel);
+    
+    console.log('🔑 LangChainService: Checking API keys for all providers...');
     
     for (const [providerId, config] of Object.entries(this.providerConfigs)) {
       try {
-        if (this.secureKeyManager.hasProviderKey(providerId)) {
+        console.log(`🔍 LangChainService: Checking provider ${providerId}...`);
+        
+        const hasKey = this.secureKeyManager.hasProviderKey(providerId);
+        console.log(`🔑 LangChainService: Provider ${providerId} has API key:`, hasKey);
+        
+        if (hasKey) {
+          console.log(`🔓 LangChainService: Getting API key for ${providerId}...`);
           const keyData = await this.secureKeyManager.getProviderKey(providerId);
+          console.log(`✅ LangChainService: Got API key for ${providerId}, key length:`, keyData.api_key?.length || 0);
+          
+          console.log(`🏗️ LangChainService: Creating provider instance for ${providerId}...`);
           const provider = await this.createProvider(providerId, keyData.api_key);
           
           if (provider) {
+            console.log(`✅ LangChainService: Successfully created provider ${providerId}`);
             this.providers.set(providerId, {
               instance: provider,
               config: config,
@@ -93,20 +124,42 @@ class LangChainService {
             });
             availableProviders.push(providerId);
             
+            console.log(`📊 LangChainService: Provider ${providerId} added to available providers`);
+            
             // Set first available provider as current
             if (!this.currentProvider || !this.providers.has(this.currentProvider)) {
+              console.log(`🎯 LangChainService: Setting ${providerId} as current provider`);
               this.currentProvider = providerId;
               this.currentModel = config.defaultModel;
             }
+          } else {
+            console.warn(`⚠️ LangChainService: Failed to create provider instance for ${providerId}`);
           }
+        } else {
+          console.log(`🔒 LangChainService: No API key found for ${providerId}`);
         }
       } catch (error) {
+        console.error(`❌ LangChainService: Error initializing provider ${providerId}:`, error.message);
       }
     }
     
+    console.log('📊 LangChainService: Provider initialization summary:', {
+      availableProviders: availableProviders,
+      totalProviders: availableProviders.length,
+      currentProvider: this.currentProvider,
+      currentModel: this.currentModel,
+      providersMap: Array.from(this.providers.keys())
+    });
     
     if (availableProviders.length === 0) {
-      throw new Error('No AI providers available. Please configure API keys.');
+      console.warn('⚠️ LangChainService: No AI providers available. Please configure API keys.');
+      // Don't throw error, allow initialization to continue
+      // Set default provider anyway for UI purposes
+      this.currentProvider = 'openai';
+      this.currentModel = this.providerConfigs.openai.defaultModel;
+      console.log('🎯 LangChainService: Fallback - Set default provider to OpenAI for UI purposes');
+    } else {
+      console.log(`✅ LangChainService: Successfully initialized ${availableProviders.length} providers`);
     }
   }
 
@@ -114,33 +167,52 @@ class LangChainService {
    * Create provider instance based on type
    */
   async createProvider(providerId, apiKey) {
-    switch (providerId) {
-      case 'claude':
-        return new ChatAnthropic({
-          apiKey: apiKey,
-          model: this.providerConfigs.claude.defaultModel,
-          temperature: 0.7,
-          maxTokens: 4000
-        });
-        
-      case 'openai':
-        return new ChatOpenAI({
-          apiKey: apiKey,
-          model: this.providerConfigs.openai.defaultModel,
-          temperature: 0.7,
-          maxTokens: 4000
-        });
-        
-      case 'gemini':
-        return new ChatGoogleGenerativeAI({
-          apiKey: apiKey,
-          model: this.providerConfigs.gemini.defaultModel,
-          temperature: 0.7,
-          maxOutputTokens: 4000
-        });
-        
-      default:
-        throw new Error(`Unsupported provider: ${providerId}`);
+    console.log(`🏗️ LangChainService: Creating provider ${providerId} with key length:`, apiKey?.length || 0);
+    
+    try {
+      let provider;
+      
+      switch (providerId) {
+        case 'claude':
+          console.log('🤖 LangChainService: Creating ChatAnthropic instance...');
+          provider = new ChatAnthropic({
+            apiKey: apiKey,
+            model: this.providerConfigs.claude.defaultModel,
+            temperature: 0.7,
+            maxTokens: 4000
+          });
+          break;
+          
+        case 'openai':
+          console.log('🧠 LangChainService: Creating ChatOpenAI instance...');
+          provider = new ChatOpenAI({
+            apiKey: apiKey,
+            model: this.providerConfigs.openai.defaultModel,
+            temperature: 0.7,
+            maxTokens: 4000
+          });
+          break;
+          
+        case 'gemini':
+          console.log('💎 LangChainService: Creating ChatGoogleGenerativeAI instance...');
+          provider = new ChatGoogleGenerativeAI({
+            apiKey: apiKey,
+            model: this.providerConfigs.gemini.defaultModel,
+            temperature: 0.7,
+            maxOutputTokens: 4000
+          });
+          break;
+          
+        default:
+          throw new Error(`Unsupported provider: ${providerId}`);
+      }
+      
+      console.log(`✅ LangChainService: Successfully created provider instance for ${providerId}`);
+      return provider;
+      
+    } catch (error) {
+      console.error(`❌ LangChainService: Failed to create provider ${providerId}:`, error.message);
+      throw error;
     }
   }
 
@@ -148,39 +220,77 @@ class LangChainService {
    * Switch to a different provider
    */
   async switchProvider(providerId, modelId = null) {
+    console.log(`🔄 LangChainService: Switching to provider ${providerId} with model ${modelId}`);
+    
     if (!this.isInitialized) {
+      console.error('❌ LangChainService: Service not initialized for provider switch');
       throw new Error('LangChainService not initialized');
     }
     
+    // Always allow provider switching, even without API key
+    this.currentProvider = providerId;
+    console.log(`📝 LangChainService: Set current provider to ${providerId}`);
+    
+    // Check if provider has API key and is available
     if (!this.providers.has(providerId)) {
-      throw new Error(`Provider ${providerId} not available`);
+      console.log(`⚠️ LangChainService: Provider ${providerId} not in initialized providers map`);
+      
+      // Provider not initialized (no API key), but still allow selection
+      const config = this.providerConfigs[providerId];
+      if (!config) {
+        console.error(`❌ LangChainService: Unknown provider ${providerId}`);
+        throw new Error(`Unknown provider ${providerId}`);
+      }
+      
+      this.currentModel = modelId || config.defaultModel;
+      console.log(`📝 LangChainService: Set model to ${this.currentModel} for provider without API key`);
+      
+      const result = {
+        success: true,
+        provider: providerId,
+        model: this.currentModel,
+        status: 'no_api_key',
+        message: `Provider ${providerId} selected but API key not configured`
+      };
+      
+      console.log('✅ LangChainService: Provider switch result (no API key):', result);
+      return result;
     }
     
+    console.log(`✅ LangChainService: Provider ${providerId} found in initialized providers`);
     const provider = this.providers.get(providerId);
     
     // Update model if specified
     if (modelId) {
+      console.log(`🔄 LangChainService: Updating model to ${modelId}`);
       const config = this.providerConfigs[providerId];
       const model = config.models.find(m => m.id === modelId);
       if (!model) {
+        console.error(`❌ LangChainService: Model ${modelId} not available for provider ${providerId}`);
         throw new Error(`Model ${modelId} not available for provider ${providerId}`);
       }
       
       // Update provider instance with new model
+      console.log(`🔄 LangChainService: Recreating provider instance with new model...`);
       const keyData = await this.secureKeyManager.getProviderKey(providerId);
       provider.instance = await this.createProvider(providerId, keyData.api_key);
       provider.instance.model = modelId;
       provider.currentModel = modelId;
+      console.log(`✅ LangChainService: Updated provider instance with model ${modelId}`);
     }
     
     this.currentProvider = providerId;
     this.currentModel = provider.currentModel;
     
-    return {
+    const result = {
+      success: true,
       provider: providerId,
       model: this.currentModel,
       config: provider.config
     };
+    
+    console.log('✅ LangChainService: Provider switch result (with API key):', result);
+    return result;
   }
 
   /**
@@ -192,7 +302,16 @@ class LangChainService {
     }
     
     if (!this.providers.has(this.currentProvider)) {
-      throw new Error(`Current provider ${this.currentProvider} not available`);
+      return {
+        success: false,
+        error: `${this.currentProvider} API key not configured. Please add your API key in settings.`,
+        provider: this.currentProvider,
+        model: this.currentModel,
+        metadata: {
+          timestamp: Date.now(),
+          needsApiKey: true
+        }
+      };
     }
     
     try {
@@ -251,7 +370,17 @@ class LangChainService {
     }
     
     if (!this.providers.has(this.currentProvider)) {
-      throw new Error(`Current provider ${this.currentProvider} not available`);
+      return {
+        success: false,
+        error: `${this.currentProvider} API key not configured. Please add your API key in settings.`,
+        provider: this.currentProvider,
+        model: this.currentModel,
+        metadata: {
+          timestamp: Date.now(),
+          needsApiKey: true,
+          streamed: true
+        }
+      };
     }
     
     try {
@@ -409,7 +538,17 @@ class LangChainService {
    * Get current provider status
    */
   getCurrentProviderStatus() {
-    if (!this.currentProvider || !this.providers.has(this.currentProvider)) {
+    console.log('📊 LangChainService: Getting current provider status...');
+    console.log('📊 LangChainService: Current state:', {
+      currentProvider: this.currentProvider,
+      currentModel: this.currentModel,
+      isInitialized: this.isInitialized,
+      providersCount: this.providers.size,
+      availableProviders: Array.from(this.providers.keys())
+    });
+    
+    if (!this.currentProvider) {
+      console.log('⚠️ LangChainService: No current provider set');
       return {
         provider: null,
         model: null,
@@ -418,19 +557,54 @@ class LangChainService {
       };
     }
     
-    const provider = this.providers.get(this.currentProvider);
     const config = this.providerConfigs[this.currentProvider];
+    if (!config) {
+      console.log(`❌ LangChainService: No config found for provider ${this.currentProvider}`);
+      return {
+        provider: null,
+        model: null,
+        status: 'disconnected',
+        costTracker: this.costTracker
+      };
+    }
     
-    return {
+    console.log(`📝 LangChainService: Found config for provider ${this.currentProvider}`);
+    
+    // If provider has API key configured
+    if (this.providers.has(this.currentProvider)) {
+      console.log(`✅ LangChainService: Provider ${this.currentProvider} is initialized with API key`);
+      const provider = this.providers.get(this.currentProvider);
+      
+      const status = {
+        provider: {
+          id: this.currentProvider,
+          name: config.name,
+          currentModel: this.currentModel
+        },
+        model: config.models.find(m => m.id === this.currentModel),
+        status: provider.status,
+        costTracker: this.costTracker
+      };
+      
+      console.log('📊 LangChainService: Status with API key:', status);
+      return status;
+    }
+    
+    // Provider selected but no API key configured
+    console.log(`⚠️ LangChainService: Provider ${this.currentProvider} selected but no API key configured`);
+    const status = {
       provider: {
         id: this.currentProvider,
         name: config.name,
         currentModel: this.currentModel
       },
       model: config.models.find(m => m.id === this.currentModel),
-      status: provider.status,
+      status: 'no_api_key',
       costTracker: this.costTracker
     };
+    
+    console.log('📊 LangChainService: Status without API key:', status);
+    return status;
   }
 
   /**

@@ -474,6 +474,7 @@ class ChatComponent {
     try {
       this.render();
       this.setupEventListeners();
+      this.initializeProviders();
       this.displayWelcomeMessage();
       this.isInitialized = true;
       return true;
@@ -494,15 +495,23 @@ class ChatComponent {
               <div class="avatar-icon">🤖</div>
             </div>
             <div class="chat-info">
-              <h3 class="chat-title">${this.options.title}</h3>
+              <h3 class="chat-title">AI 블로그 어시스턴트</h3>
               <div class="chat-status">
-                <span id="${this.containerId}-status-text" class="status-text">Ready</span>
+                <span id="${this.containerId}-status-text" class="status-text">준비됨</span>
                 <div id="${this.containerId}-status-dot" class="status-dot"></div>
               </div>
             </div>
           </div>
           
           <div class="header-right">
+            <!-- Provider Controls -->
+            <div class="provider-controls">
+              <select id="${this.containerId}-provider-select" class="provider-selector">
+              </select>
+              <select id="${this.containerId}-model-select" class="model-selector" disabled style="pointer-events: none; opacity: 0.8;">
+                <option value="">모델 선택</option>
+              </select>
+            </div>
             
             ${this.options.enableCostTracking ? `
             <div class="cost-tracker">
@@ -514,11 +523,11 @@ class ChatComponent {
                 <span class="cost-label">Total:</span>
                 <span id="${this.containerId}-total-cost" class="cost-value">$0.00</span>
               </div>
-              <button id="${this.containerId}-reset-costs" class="reset-costs-btn" title="Reset Session Costs">🔄</button>
+              <button id="${this.containerId}-reset-costs" class="reset-costs-btn" title="세션 비용 초기화">🔄</button>
             </div>` : ""}
             
             <div class="header-actions">
-              <button id="${this.containerId}-settings-btn" class="action-btn" title="Settings">⚙️</button>
+              <button id="${this.containerId}-settings-btn" class="action-btn" title="설정">⚙️</button>
             </div>
           </div>
         </div>
@@ -539,7 +548,7 @@ class ChatComponent {
               <textarea 
                 id="${this.containerId}-input" 
                 class="message-input" 
-                placeholder="${this.options.placeholder}"
+                placeholder="메시지를 입력하세요..."
                 rows="1"
                 maxlength="10000"
               ></textarea>
@@ -567,6 +576,8 @@ class ChatComponent {
     this.elements = {
       statusText: document.getElementById(`${this.containerId}-status-text`),
       statusDot: document.getElementById(`${this.containerId}-status-dot`),
+      providerSelect: document.getElementById(`${this.containerId}-provider-select`),
+      modelSelect: document.getElementById(`${this.containerId}-model-select`),
       sessionCost: document.getElementById(`${this.containerId}-session-cost`),
       totalCost: document.getElementById(`${this.containerId}-total-cost`),
       resetCostsBtn: document.getElementById(`${this.containerId}-reset-costs`),
@@ -616,6 +627,16 @@ class ChatComponent {
    * Setup event listeners
    */
   setupEventListeners() {
+    if (this.elements.providerSelect) {
+      this.elements.providerSelect.addEventListener("change", (e) => {
+        this.handleProviderChange(e.target.value);
+      });
+    }
+    if (this.elements.modelSelect) {
+      this.elements.modelSelect.addEventListener("change", (e) => {
+        this.handleModelChange(e.target.value);
+      });
+    }
     if (this.elements.resetCostsBtn) {
       this.elements.resetCostsBtn.addEventListener("click", () => {
         this.resetSessionCosts();
@@ -656,8 +677,8 @@ class ChatComponent {
         if (window.electronAPI?.claude?.checkConfiguration) {
           await window.electronAPI.claude.checkConfiguration();
         }
-        if (window.electronAPI?.invoke) {
-          await window.electronAPI.invoke("langchain-get-current-status");
+        if (window.electronAPI?.langchainGetCurrentStatus) {
+          await window.electronAPI.langchainGetCurrentStatus();
         }
         if (window.electronAPI?.chatHistory?.getMetadata) {
           await window.electronAPI.chatHistory.getMetadata();
@@ -677,6 +698,18 @@ class ChatComponent {
   async sendMessage() {
     const message = this.elements.messageInput.value.trim();
     if (!message || this.isStreaming) return;
+    console.log("💬 ChatComponent: Attempting to send message...");
+    console.log("📊 ChatComponent: Current state:", {
+      currentProvider: this.currentProvider,
+      currentModel: this.currentModel,
+      messageLength: message.length
+    });
+    if (!this.currentProvider || !this.currentModel) {
+      console.error("❌ ChatComponent: No provider or model selected");
+      this.showError("프로바이더와 모델을 먼저 선택해주세요");
+      return;
+    }
+    console.log("✅ ChatComponent: Provider and model validated, proceeding with message send...");
     try {
       this.addUserMessage(message);
       this.elements.messageInput.value = "";
@@ -695,7 +728,11 @@ class ChatComponent {
         await this.sendRegularMessage(message, apiHistory);
       }
     } catch (error) {
-      this.showError(`Failed to send message: ${error.message}`);
+      if (error.message && error.message.includes("API key not configured")) {
+        this.showError(`${this.currentProvider} API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.`);
+      } else {
+        this.showError(`메시지 전송 실패: ${error.message}`);
+      }
     } finally {
       this.isStreaming = false;
       this.elements.sendBtn.disabled = false;
@@ -707,10 +744,10 @@ class ChatComponent {
    */
   async sendStreamingMessage(message, conversationHistory) {
     this.isStreaming = true;
-    this.elements.typingIndicator.textContent = "AI is typing...";
+    this.elements.typingIndicator.textContent = "AI가 입력 중...";
     this.currentStreamingMessageElement = this.addAssistantMessage("", true);
     try {
-      const result = await window.electronAPI.invoke("langchain-stream-message", {
+      const result = await window.electronAPI.langchainStreamMessage({
         message,
         conversationHistory,
         systemPrompt: null
@@ -727,6 +764,13 @@ class ChatComponent {
         this.updateCostDisplay(result.metadata);
         this.finalizeStreamingMessage(result);
       } else {
+        if (result.metadata?.needsApiKey) {
+          if (this.currentStreamingMessageElement) {
+            this.currentStreamingMessageElement.remove();
+          }
+          this.showError(`${result.provider} API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.`);
+          return;
+        }
         throw new Error(result.error);
       }
     } catch (error) {
@@ -740,8 +784,8 @@ class ChatComponent {
    * Send regular message
    */
   async sendRegularMessage(message, conversationHistory) {
-    this.elements.typingIndicator.textContent = "AI is thinking...";
-    const result = await window.electronAPI.invoke("langchain-send-message", {
+    this.elements.typingIndicator.textContent = "AI가 생각 중...";
+    const result = await window.electronAPI.langchainSendMessage({
       message,
       conversationHistory,
       systemPrompt: null
@@ -758,6 +802,10 @@ class ChatComponent {
       });
       this.updateCostDisplay(result.metadata);
     } else {
+      if (result.metadata?.needsApiKey) {
+        this.showError(`${result.provider} API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.`);
+        return;
+      }
       throw new Error(result.error);
     }
   }
@@ -778,6 +826,10 @@ class ChatComponent {
    */
   finalizeStreamingMessage(result) {
     if (this.currentStreamingMessageElement) {
+      const messageContent = this.currentStreamingMessageElement.querySelector(".message-content");
+      if (messageContent && result.message) {
+        messageContent.textContent = result.message;
+      }
       const streamingIndicator = this.currentStreamingMessageElement.querySelector(".streaming-indicator");
       if (streamingIndicator) {
         streamingIndicator.remove();
@@ -903,6 +955,21 @@ class ChatComponent {
     }
   }
   /**
+   * Get API key environment variable name for provider
+   */
+  getApiKeyEnvVar(providerId) {
+    switch (providerId) {
+      case "claude":
+        return "ANTHROPIC_API_KEY";
+      case "openai":
+        return "OPENAI_API_KEY";
+      case "gemini":
+        return "GOOGLE_API_KEY";
+      default:
+        return "API_KEY";
+    }
+  }
+  /**
    * Handle input change
    */
   handleInputChange(e) {
@@ -948,13 +1015,20 @@ class ChatComponent {
    * Update provider status
    */
   updateProviderStatus(status) {
+    console.log("📊 ChatComponent: Updating provider status:", status);
     if (status.provider) {
       this.currentProvider = status.provider.id;
       this.currentModel = status.provider.currentModel;
+      console.log("✅ ChatComponent: Updated provider status:", {
+        currentProvider: this.currentProvider,
+        currentModel: this.currentModel,
+        status: status.status
+      });
     }
     if (status.costTracker) {
       this.costTracker = status.costTracker;
       this.updateCostDisplayFromTracker();
+      console.log("💰 ChatComponent: Updated cost tracker");
     }
   }
   /**
@@ -982,10 +1056,10 @@ class ChatComponent {
    */
   async resetSessionCosts() {
     try {
-      await window.electronAPI.invoke("langchain-reset-session-costs");
+      await window.electronAPI.langchainResetSessionCosts();
       this.costTracker.session = { input: 0, output: 0, total: 0 };
       this.updateCostDisplayFromTracker();
-      this.addSystemMessage("Session costs reset");
+      this.addSystemMessage("세션 비용이 초기화되었습니다");
     } catch (error) {
     }
   }
@@ -1003,8 +1077,8 @@ class ChatComponent {
     const welcomeDiv = document.createElement("div");
     welcomeDiv.className = "welcome-message";
     welcomeDiv.innerHTML = `
-      <h3>Welcome to AI Chat</h3>
-      <p>Start chatting with AI assistants. Your conversations are powered by advanced AI technology for the best experience.</p>
+      <h3>AI 채팅에 오신 것을 환영합니다</h3>
+      <p>AI 어시스턴트와 대화를 시작하세요. 고급 AI 기술로 최상의 경험을 제공합니다.</p>
     `;
     this.elements.messagesList.appendChild(welcomeDiv);
   }
@@ -1012,13 +1086,138 @@ class ChatComponent {
    * Show error message
    */
   showError(message) {
-    this.addSystemMessage(`Error: ${message}`);
+    this.addSystemMessage(`오류: ${message}`);
   }
   /**
    * Show settings
    */
   showSettings() {
-    this.addSystemMessage("Settings panel coming soon...");
+    this.addSystemMessage("설정 패널이 곧 제공됩니다...");
+  }
+  /**
+   * Initialize providers
+   */
+  async initializeProviders() {
+    try {
+      console.log("🔧 ChatComponent: Starting provider initialization...");
+      this.availableProviders = [
+        { id: "openai", name: "ChatGPT", model: "gpt-4o" },
+        { id: "claude", name: "Claude", model: "claude-3-5-sonnet-20241022" },
+        { id: "gemini", name: "Gemini", model: "gemini-2.5-flash" }
+      ];
+      console.log("📝 ChatComponent: Available providers:", this.availableProviders);
+      this.elements.providerSelect.innerHTML = "";
+      this.availableProviders.forEach((provider) => {
+        const option = document.createElement("option");
+        option.value = provider.id;
+        option.textContent = provider.name;
+        this.elements.providerSelect.appendChild(option);
+        console.log(`📝 ChatComponent: Added provider option: ${provider.name} (${provider.id})`);
+      });
+      this.currentProvider = "openai";
+      this.elements.providerSelect.value = this.currentProvider;
+      console.log(`🎯 ChatComponent: Set default provider to: ${this.currentProvider}`);
+      console.log("🔄 ChatComponent: Calling handleProviderChange...");
+      await this.handleProviderChange(this.currentProvider);
+      console.log("✅ ChatComponent: Provider initialization complete");
+    } catch (error) {
+      console.error("❌ ChatComponent: Provider initialization failed:", error);
+      this.showError(`프로바이더 초기화 실패: ${error.message}`);
+      this.updateStatus("오프라인", "disconnected");
+    }
+  }
+  /**
+   * Handle provider change
+   */
+  async handleProviderChange(providerId) {
+    console.log(`🔄 ChatComponent: Handling provider change to: ${providerId}`);
+    if (!providerId) {
+      console.log("⚠️ ChatComponent: No provider ID provided");
+      this.elements.modelSelect.disabled = true;
+      this.elements.modelSelect.innerHTML = '<option value="">모델 선택</option>';
+      return;
+    }
+    try {
+      const providerModels = {
+        "openai": { id: "gpt-4o", name: "GPT-4o" },
+        "claude": { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet" },
+        "gemini": { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" }
+      };
+      const model = providerModels[providerId];
+      if (!model) {
+        console.error(`❌ ChatComponent: Unknown provider: ${providerId}`);
+        throw new Error(`Unknown provider: ${providerId}`);
+      }
+      console.log(`📝 ChatComponent: Found model for ${providerId}:`, model);
+      if (!window.electronAPI || !window.electronAPI.langchainSwitchProvider) {
+        console.error("❌ ChatComponent: electronAPI.langchainSwitchProvider not available");
+        throw new Error("LangChain service not available");
+      }
+      console.log("🔄 ChatComponent: Calling LangChain switchProvider...");
+      const switchResult = await window.electronAPI.langchainSwitchProvider({
+        providerId,
+        modelId: model.id
+      });
+      console.log("📊 ChatComponent: Switch provider result:", switchResult);
+      if (!switchResult || !switchResult.success) {
+        console.error("❌ ChatComponent: Provider switch failed:", switchResult);
+        throw new Error(switchResult?.error || "프로바이더 전환 실패");
+      }
+      this.currentProvider = providerId;
+      this.currentModel = model.id;
+      console.log("✅ ChatComponent: Updated current provider and model:", {
+        currentProvider: this.currentProvider,
+        currentModel: this.currentModel
+      });
+      this.updateModelDropdown([model]);
+      this.elements.modelSelect.value = model.id;
+      console.log("📝 ChatComponent: Updated model dropdown");
+      if (switchResult.status === "no_api_key") {
+        console.log("⚠️ ChatComponent: Provider has no API key configured");
+        this.updateStatus("API 키 필요", "warning");
+        this.showError(`${providerId} 선택됨 - API 키를 환경변수에 설정하세요: ${this.getApiKeyEnvVar(providerId)}`);
+      } else {
+        console.log("✅ ChatComponent: Provider connected successfully");
+        this.updateStatus("연결됨", "connected");
+      }
+    } catch (error) {
+      console.error("❌ ChatComponent: Provider change error:", error);
+      this.showError(`프로바이더 변경 실패: ${error.message}`);
+    }
+  }
+  /**
+   * Handle model change
+   */
+  async handleModelChange(modelId) {
+    if (!modelId || !this.currentProvider) return;
+    try {
+      const result = await window.electronAPI.langchainUpdateProviderModel({
+        providerId: this.currentProvider,
+        modelId
+      });
+      this.currentModel = modelId;
+    } catch (error) {
+      this.showError("모델 변경 실패");
+    }
+  }
+  /**
+   * Update model dropdown
+   */
+  updateModelDropdown(models) {
+    this.elements.modelSelect.innerHTML = "";
+    this.elements.modelSelect.disabled = models.length === 0;
+    models.forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.name;
+      this.elements.modelSelect.appendChild(option);
+    });
+    if (models.length > 0) {
+      this.elements.modelSelect.value = models[0].id;
+      if (!this.currentModel) {
+        this.handleModelChange(models[0].id);
+      }
+    }
   }
   /**
    * Get component state for persistence
@@ -1075,7 +1274,7 @@ class ChatComponent {
       }
       if (state.providerStatus !== void 0) {
         this.providerStatus = state.providerStatus;
-        this.updateStatus("Restored from previous session", state.providerStatus);
+        this.updateStatus("이전 세션에서 복원됨", state.providerStatus);
       }
       if (state.messageId !== void 0) {
         this.messageId = state.messageId;
@@ -1135,7 +1334,7 @@ class ChatComponent {
           model: this.currentModel
         });
       }
-      this.addSystemMessage("New chat session started");
+      this.addSystemMessage("새 채팅 세션이 시작되었습니다");
     } catch (error) {
     }
   }
@@ -1151,9 +1350,9 @@ class ChatComponent {
         currentModel: conversation.model || this.currentModel,
         costTracker: conversation.costTracker || this.costTracker
       });
-      this.addSystemMessage(`Loaded conversation: ${conversation.title || "Untitled"}`);
+      this.addSystemMessage(`대화 불러오기: ${conversation.title || "제목 없음"}`);
     } catch (error) {
-      this.showError(`Failed to load session: ${error.message}`);
+      this.showError(`세션 불러오기 실패: ${error.message}`);
     }
   }
   /**
