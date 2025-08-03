@@ -1,17 +1,32 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
-import { exec } from 'child_process';
+// Load environment variables from .env file first
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Store from 'electron-store';
 
 // ES6 module equivalent of __dirname
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Load .env file from project root
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+import { app, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
+import Store from 'electron-store';
+
 // Import modular components
 import WebContentsManager from './modules/WebContentsManager.js';
+import LangChainService from './modules/LangChainService.js';
+import ChatHistoryStore from './modules/ChatHistoryStore.js';
+import SecureKeyManager from './modules/SecureKeyManager.js';
 
 // Initialize store for local data
 const store = new Store();
+
+// Disable GPU features that cause EGL warnings
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // Global error handlers
 process.on('uncaughtException', (error) => {
@@ -30,14 +45,39 @@ class EGDeskTaehwa {
   constructor() {
     this.mainWindow = null;
     this.webContentsManager = new WebContentsManager();
+    this.langChainService = null; // Initialize after secureKeyManager
+    this.chatHistoryStore = new ChatHistoryStore();
+    this.secureKeyManager = new SecureKeyManager();
     this.currentWorkspace = 'start';
     this.currentTabId = null;
     this.setupApp();
   }
 
   setupApp() {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
       console.log('🚀 Electron 앱 시작됨');
+      
+      // Initialize chat history store
+      try {
+        await this.chatHistoryStore.initialize();
+        console.log('[MAIN] Chat history store initialized');
+      } catch (error) {
+        console.warn('[MAIN] Chat history store initialization failed:', error);
+      }
+      
+      // Initialize secure key manager
+      try {
+        await this.secureKeyManager.initialize();
+        console.log('[MAIN] Secure key manager initialized');
+        
+        // Initialize LangChain service with SecureKeyManager
+        this.langChainService = new LangChainService(this.secureKeyManager);
+        await this.langChainService.initialize();
+        console.log('[MAIN] LangChain service initialized');
+      } catch (error) {
+        console.warn('[MAIN] Secure key manager initialization failed:', error);
+      }
+      
       this.createMainWindow();
       this.setupMenu();
       this.setupIPC();
@@ -73,8 +113,13 @@ class EGDeskTaehwa {
         contextIsolation: true,
         preload: path.join(__dirname, '../preload/index.js'),
         webSecurity: true,
-        sandbox: false  // Allow JavaScript execution in renderer
+        sandbox: false,  // Allow JavaScript execution in renderer
+        // Additional GPU optimization flags
+        disableHardwareAcceleration: false, // Keep hardware acceleration for performance
+        offscreen: false // Disable offscreen rendering which can cause GL issues
       },
+      // Window-level GPU optimization
+      backgroundColor: '#ffffff',
       show: false
     });
 
@@ -107,6 +152,7 @@ class EGDeskTaehwa {
     this.mainWindow.on('closed', () => {
       console.log('❌ Main Window 닫힘');
       this.webContentsManager.destroy();
+      this.chatHistoryStore.destroy();
       this.mainWindow = null;
     });
     
@@ -430,26 +476,6 @@ class EGDeskTaehwa {
       }
     });
 
-    // Command execution
-    ipcMain.handle('execute-command', async (event, command) => {
-      console.log(`[MAIN] IPC execute-command: ${command}`);
-      return new Promise((resolve) => {
-        if (command.startsWith('claude ')) {
-          exec(`./${command}`, { cwd: __dirname }, (error, stdout, stderr) => {
-            if (error) {
-              console.error(`[MAIN] Execution error: ${error}`);
-              resolve({ success: false, error: stderr || error.message });
-              return;
-            }
-            console.log(`[MAIN] Command output: ${stdout}`);
-            resolve({ success: true, data: stdout });
-          });
-        } else {
-          console.warn(`[MAIN] Disallowed command: ${command}`);
-          resolve({ success: false, error: 'This command is not allowed.' });
-        }
-      });
-    });
 
     // Window control handlers
     ipcMain.on('window-minimize', () => {
@@ -469,6 +495,274 @@ class EGDeskTaehwa {
     ipcMain.on('window-close', () => {
       console.log('[MAIN] Closing window');
       this.mainWindow.close();
+    });
+
+
+    // Storage handlers for secure data
+    ipcMain.handle('storage-get', async (event, key) => {
+      console.log(`[MAIN] IPC storage-get: ${key}`);
+      return store.get(key);
+    });
+
+    ipcMain.handle('storage-set', async (event, key, value) => {
+      console.log(`[MAIN] IPC storage-set: ${key}`);
+      store.set(key, value);
+      return true;
+    });
+
+    ipcMain.handle('storage-delete', async (event, key) => {
+      console.log(`[MAIN] IPC storage-delete: ${key}`);
+      store.delete(key);
+      return true;
+    });
+
+    ipcMain.handle('storage-has', async (event, key) => {
+      console.log(`[MAIN] IPC storage-has: ${key}`);
+      return store.has(key);
+    });
+
+    // AI Provider and Secure Key Management
+    ipcMain.handle('ai-provider-store-key', async (event, { providerId, keyData }) => {
+      console.log(`[MAIN] IPC ai-provider-store-key: ${providerId}`);
+      try {
+        return await this.secureKeyManager.storeProviderKey(providerId, keyData);
+      } catch (error) {
+        console.error('[MAIN] Failed to store provider key:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-get-key', async (event, { providerId }) => {
+      console.log(`[MAIN] IPC ai-provider-get-key: ${providerId}`);
+      try {
+        return await this.secureKeyManager.getProviderKey(providerId);
+      } catch (error) {
+        console.error('[MAIN] Failed to get provider key:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-remove-key', async (event, { providerId }) => {
+      console.log(`[MAIN] IPC ai-provider-remove-key: ${providerId}`);
+      try {
+        return await this.secureKeyManager.removeProviderKey(providerId);
+      } catch (error) {
+        console.error('[MAIN] Failed to remove provider key:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-has-key', (event, { providerId }) => {
+      console.log(`[MAIN] IPC ai-provider-has-key: ${providerId}`);
+      return this.secureKeyManager.hasProviderKey(providerId);
+    });
+
+    ipcMain.handle('ai-provider-get-info', (event, { providerId }) => {
+      console.log(`[MAIN] IPC ai-provider-get-info: ${providerId}`);
+      return this.secureKeyManager.getProviderInfo(providerId);
+    });
+
+    ipcMain.handle('ai-provider-get-all', (event) => {
+      console.log('[MAIN] IPC ai-provider-get-all');
+      return this.secureKeyManager.getAllProviders();
+    });
+
+    ipcMain.handle('ai-provider-test-key', async (event, { providerId }) => {
+      console.log(`[MAIN] IPC ai-provider-test-key: ${providerId}`);
+      try {
+        return await this.secureKeyManager.testProviderKey(providerId);
+      } catch (error) {
+        console.error('[MAIN] Provider key test failed:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-update-config', async (event, { providerId, config }) => {
+      console.log(`[MAIN] IPC ai-provider-update-config: ${providerId}`);
+      try {
+        return await this.secureKeyManager.updateProviderConfig(providerId, config);
+      } catch (error) {
+        console.error('[MAIN] Failed to update provider config:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-get-stats', (event) => {
+      console.log('[MAIN] IPC ai-provider-get-stats');
+      return this.secureKeyManager.getProviderStats();
+    });
+
+    ipcMain.handle('ai-provider-export-config', async (event) => {
+      console.log('[MAIN] IPC ai-provider-export-config');
+      try {
+        return await this.secureKeyManager.exportConfig();
+      } catch (error) {
+        console.error('[MAIN] Failed to export provider config:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('ai-provider-import-config', async (event, { importData }) => {
+      console.log('[MAIN] IPC ai-provider-import-config');
+      try {
+        return await this.secureKeyManager.importConfig(importData);
+      } catch (error) {
+        console.error('[MAIN] Failed to import provider config:', error);
+        throw error;
+      }
+    });
+
+    // LangChain Service Handlers
+    ipcMain.handle('langchain-send-message', async (event, { message, conversationHistory, systemPrompt }) => {
+      console.log('[MAIN] IPC langchain-send-message');
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          throw new Error('LangChain service not initialized');
+        }
+        return await this.langChainService.sendMessage(message, conversationHistory, systemPrompt);
+      } catch (error) {
+        console.error('[MAIN] LangChain send message failed:', error);
+        return {
+          success: false,
+          error: error.message,
+          provider: this.langChainService?.currentProvider || 'unknown',
+          metadata: { timestamp: Date.now() }
+        };
+      }
+    });
+
+    ipcMain.handle('langchain-stream-message', async (event, { message, conversationHistory, systemPrompt }) => {
+      console.log('[MAIN] IPC langchain-stream-message');
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          throw new Error('LangChain service not initialized');
+        }
+        
+        return await this.langChainService.streamMessage(
+          message, 
+          conversationHistory, 
+          systemPrompt,
+          (chunk) => {
+            // Send chunk to renderer
+            event.sender.send('langchain-stream-chunk', { chunk });
+          }
+        );
+      } catch (error) {
+        console.error('[MAIN] LangChain stream message failed:', error);
+        return {
+          success: false,
+          error: error.message,
+          provider: this.langChainService?.currentProvider || 'unknown',
+          metadata: { timestamp: Date.now(), streamed: true }
+        };
+      }
+    });
+
+    ipcMain.handle('langchain-switch-provider', async (event, { providerId, modelId }) => {
+      console.log(`[MAIN] IPC langchain-switch-provider: ${providerId}, model: ${modelId}`);
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          throw new Error('LangChain service not initialized');
+        }
+        return await this.langChainService.switchProvider(providerId, modelId);
+      } catch (error) {
+        console.error('[MAIN] LangChain switch provider failed:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('langchain-get-providers', (event) => {
+      console.log('[MAIN] IPC langchain-get-providers');
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          return [];
+        }
+        return this.langChainService.getAvailableProviders();
+      } catch (error) {
+        console.error('[MAIN] LangChain get providers failed:', error);
+        return [];
+      }
+    });
+
+    ipcMain.handle('langchain-get-current-status', (event) => {
+      console.log('[MAIN] IPC langchain-get-current-status');
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          return {
+            provider: null,
+            model: null,
+            status: 'disconnected',
+            costTracker: { session: { input: 0, output: 0, total: 0 }, total: { input: 0, output: 0, total: 0 } }
+          };
+        }
+        return this.langChainService.getCurrentProviderStatus();
+      } catch (error) {
+        console.error('[MAIN] LangChain get current status failed:', error);
+        return {
+          provider: null,
+          model: null,
+          status: 'error',
+          error: error.message,
+          costTracker: { session: { input: 0, output: 0, total: 0 }, total: { input: 0, output: 0, total: 0 } }
+        };
+      }
+    });
+
+    ipcMain.handle('langchain-test-provider', async (event, { providerId }) => {
+      console.log(`[MAIN] IPC langchain-test-provider: ${providerId}`);
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          throw new Error('LangChain service not initialized');
+        }
+        return await this.langChainService.testProvider(providerId);
+      } catch (error) {
+        console.error('[MAIN] LangChain test provider failed:', error);
+        return {
+          success: false,
+          provider: providerId,
+          error: error.message
+        };
+      }
+    });
+
+    ipcMain.handle('langchain-get-provider-models', (event, { providerId }) => {
+      console.log(`[MAIN] IPC langchain-get-provider-models: ${providerId}`);
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          return [];
+        }
+        return this.langChainService.getProviderModels(providerId);
+      } catch (error) {
+        console.error('[MAIN] LangChain get provider models failed:', error);
+        return [];
+      }
+    });
+
+    ipcMain.handle('langchain-update-provider-model', async (event, { providerId, modelId }) => {
+      console.log(`[MAIN] IPC langchain-update-provider-model: ${providerId}, model: ${modelId}`);
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          throw new Error('LangChain service not initialized');
+        }
+        return await this.langChainService.updateProviderModel(providerId, modelId);
+      } catch (error) {
+        console.error('[MAIN] LangChain update provider model failed:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('langchain-reset-session-costs', (event) => {
+      console.log('[MAIN] IPC langchain-reset-session-costs');
+      try {
+        if (!this.langChainService || !this.langChainService.isInitialized) {
+          return false;
+        }
+        this.langChainService.resetSessionCosts();
+        return true;
+      } catch (error) {
+        console.error('[MAIN] LangChain reset session costs failed:', error);
+        return false;
+      }
     });
 
     // Set up WebContentsManager events

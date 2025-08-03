@@ -30,9 +30,22 @@ class WPApiClient extends EventEmitter {
    */
   async initialize(siteUrl, credentials) {
     try {
-      console.log('[WPApiClient] Initializing...');
+      console.log('[WPApiClient] 🔍 Initializing...');
+      console.log('[WPApiClient] 📝 Received siteUrl:', siteUrl, 'type:', typeof siteUrl);
+      console.log('[WPApiClient] 📝 Received credentials:', credentials ? 'provided' : 'missing');
       
+      // Validate inputs
+      if (!siteUrl) {
+        throw new Error('Site URL is required');
+      }
+      
+      if (typeof siteUrl !== 'string') {
+        throw new Error(`Site URL must be a string, received: ${typeof siteUrl} - ${siteUrl}`);
+      }
+      
+      console.log('[WPApiClient] 🔧 Processing siteUrl.replace()...');
       this.siteUrl = siteUrl.replace(/\/$/, ''); // Remove trailing slash
+      console.log('[WPApiClient] ✅ Processed siteUrl:', this.siteUrl);
       this.credentials = credentials;
       
       // Test API connection
@@ -447,6 +460,11 @@ class WPApiClient extends EventEmitter {
    * Update site URL
    */
   updateSiteUrl(siteUrl) {
+    if (!siteUrl) {
+      console.warn('[WPApiClient] Cannot update with empty site URL');
+      return;
+    }
+    
     this.siteUrl = siteUrl.replace(/\/$/, '');
     console.log(`[WPApiClient] Site URL updated: ${this.siteUrl}`);
     this.emit('site-url-updated', { siteUrl: this.siteUrl });

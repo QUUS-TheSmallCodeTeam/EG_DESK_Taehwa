@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Provider Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }
+        .test-pass {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .test-fail {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .provider-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+        .status-connected { background: #d4edda; color: #155724; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
+        .status-connecting { background: #fff3cd; color: #856404; }
+        .cost-display {
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .cost-normal { color: #28a745; }
+        .cost-warning { color: #ffc107; }
+        .cost-critical { color: #dc3545; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 4px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤖 Multi-Provider Integration Test</h1>
+    <p>This page tests the enhanced multi-provider chat system integration.</p>
+
+    <div class="test-container">
+        <h2>📋 Module Import Tests</h2>
+        <div id="import-tests"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔧 State Management Tests</h2>
+        <div id="state-tests"></div>
+        <button onclick="testProviderStateManagement()">Test Provider State</button>
+        <button onclick="testEventBusIntegration()">Test EventBus</button>
+        <button onclick="testCostTracking()">Test Cost Tracking</button>
+    </div>
+
+    <div class="test-container">
+        <h2>🎯 Provider Simulation</h2>
+        <div>
+            <button onclick="simulateProviderSwitch('claude')">Switch to Claude</button>
+            <button onclick="simulateProviderSwitch('openai')">Switch to OpenAI</button>
+            <button onclick="simulateProviderSwitch('gemini')">Switch to Gemini</button>
+        </div>
+        <div>
+            <button onclick="simulateCostUpdate()">Simulate Cost Update</button>
+            <button onclick="simulateHealthCheck()">Simulate Health Check</button>
+            <button onclick="simulateError()">Simulate Error</button>
+        </div>
+        <div id="provider-status"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>💰 Cost Tracking Display</h2>
+        <div id="cost-tracking">
+            <div>Session Cost: <span id="session-cost" class="cost-display cost-normal">$0.0000</span></div>
+            <div>Total Cost: <span id="total-cost" class="cost-display cost-normal">$0.0000</span></div>
+            <div>Current Provider: <span id="current-provider">None</span></div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📊 Event Log</h2>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="event-log" class="log-output"></div>
+    </div>
+
+    <script type="module">
+        // Mock window.electronAPI for testing
+        if (!window.electronAPI) {
+            window.electronAPI = {
+                storage: {
+                    get: async (key) => {
+                        console.log(`[MockAPI] Getting storage: ${key}`);
+                        return JSON.parse(localStorage.getItem(key) || 'null');
+                    },
+                    set: async (key, value) => {
+                        console.log(`[MockAPI] Setting storage: ${key}`);
+                        localStorage.setItem(key, JSON.stringify(value));
+                    }
+                },
+                langchainGetProviders: async () => {
+                    return [
+                        { id: 'claude', name: 'Claude (Anthropic)', isCurrent: true },
+                        { id: 'openai', name: 'OpenAI', isCurrent: false },
+                        { id: 'gemini', name: 'Google Gemini', isCurrent: false }
+                    ];
+                },
+                langchainSwitchProvider: async ({ providerId }) => {
+                    return {
+                        provider: providerId,
+                        model: `${providerId}-model`,
+                        config: { name: providerId }
+                    };
+                }
+            };
+        }
+
+        let globalStateManager, eventBus, workspaceManager;
+        let testResults = [];
+
+        // Import test function
+        async function runImportTests() {
+            const importContainer = document.getElementById('import-tests');
+            
+            try {
+                // Test EventEmitter import
+                const { EventEmitter } = await import('./src/renderer/utils/EventEmitter.js');
+                addTestResult('EventEmitter import', true, 'Successfully imported EventEmitter');
+                
+                // Test GlobalStateManager import
+                const GlobalStateManager = await import('./src/renderer/modules/core/state-management/GlobalStateManager.js');
+                addTestResult('GlobalStateManager import', true, 'Successfully imported GlobalStateManager');
+                
+                // Test EventBus import
+                const EventBusModule = await import('./src/renderer/modules/core/state-management/EventBus.js');
+                eventBus = EventBusModule.default;
+                addTestResult('EventBus import', true, 'Successfully imported EventBus');
+                
+                // Test WorkspaceManager import
+                const WorkspaceManagerModule = await import('./src/renderer/modules/WorkspaceManager.js');
+                addTestResult('WorkspaceManager import', true, 'Successfully imported WorkspaceManager');
+                
+                // Initialize modules
+                globalStateManager = new GlobalStateManager.default();
+                await globalStateManager.initialize();
+                addTestResult('GlobalStateManager init', true, 'Successfully initialized GlobalStateManager');
+                
+                await eventBus.initialize();
+                addTestResult('EventBus init', true, 'Successfully initialized EventBus');
+                
+                // Mock webContentsManager for WorkspaceManager
+                const mockWebContentsManager = { 
+                    navigateToURL: async (url) => console.log(`Navigate to: ${url}`) 
+                };
+                workspaceManager = new WorkspaceManagerModule.default(mockWebContentsManager);
+                workspaceManager.initialize();
+                addTestResult('WorkspaceManager init', true, 'Successfully initialized WorkspaceManager');
+                
+            } catch (error) {
+                addTestResult('Module imports', false, `Import failed: ${error.message}`);
+                console.error('Import test failed:', error);
+            }
+        }
+
+        function addTestResult(testName, passed, message) {
+            const container = document.getElementById('import-tests') || document.getElementById('state-tests');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.textContent = `${passed ? '✅' : '❌'} ${testName}: ${message}`;
+            container.appendChild(resultDiv);
+            
+            logEvent(`TEST: ${testName} - ${passed ? 'PASS' : 'FAIL'} - ${message}`);
+        }
+
+        // Global test functions
+        window.testProviderStateManagement = function() {
+            try {
+                // Test provider state initialization
+                const providerState = globalStateManager.getState('aiProviders');
+                addTestResult('Provider state exists', !!providerState, 
+                    providerState ? 'Provider state initialized' : 'No provider state found');
+                
+                // Test active provider
+                const activeProvider = globalStateManager.activeProvider;
+                addTestResult('Active provider set', !!activeProvider, 
+                    activeProvider ? `Active provider: ${activeProvider}` : 'No active provider');
+                
+                // Test provider switching
+                globalStateManager.switchActiveProvider('openai', 'test');
+                const newActiveProvider = globalStateManager.activeProvider;
+                addTestResult('Provider switching', newActiveProvider === 'openai',
+                    `Provider switched to: ${newActiveProvider}`);
+                
+            } catch (error) {
+                addTestResult('Provider state test', false, `Error: ${error.message}`);
+            }
+        };
+
+        window.testEventBusIntegration = function() {
+            try {
+                // Test event publishing
+                let eventReceived = false;
+                const unsubscribe = eventBus.subscribe('test-event', () => {
+                    eventReceived = true;
+                });
+                
+                eventBus.publish('test-event', { test: true });
+                
+                setTimeout(() => {
+                    addTestResult('EventBus pub/sub', eventReceived, 
+                        eventReceived ? 'Event successfully received' : 'Event not received');
+                    unsubscribe();
+                }, 100);
+                
+                // Test provider events
+                const providerEventTypes = eventBus.providerEventTypes;
+                addTestResult('Provider events registered', providerEventTypes.size > 0,
+                    `${providerEventTypes.size} provider event types registered`);
+                
+            } catch (error) {
+                addTestResult('EventBus test', false, `Error: ${error.message}`);
+            }
+        };
+
+        window.testCostTracking = function() {
+            try {
+                // Test cost tracking functionality
+                globalStateManager.trackProviderUsage('claude', {
+                    tokens: 100,
+                    cost: 0.001,
+                    messageId: 'test-message'
+                });
+                
+                const providerState = globalStateManager.getState('aiProviders');
+                const claudeProvider = providerState.availableProviders.claude;
+                
+                addTestResult('Cost tracking', claudeProvider.costTracking.totalCost > 0,
+                    `Total cost: $${claudeProvider.costTracking.totalCost.toFixed(4)}`);
+                
+                // Update cost display
+                updateCostDisplay(claudeProvider.costTracking);
+                
+            } catch (error) {
+                addTestResult('Cost tracking test', false, `Error: ${error.message}`);
+            }
+        };
+
+        window.simulateProviderSwitch = function(providerId) {
+            try {
+                logEvent(`Simulating provider switch to: ${providerId}`);
+                
+                eventBus.publish('active-provider-changed', {
+                    providerId,
+                    previousProvider: globalStateManager.activeProvider,
+                    reason: 'simulation',
+                    timestamp: Date.now()
+                });
+                
+                updateProviderDisplay(providerId);
+                
+            } catch (error) {
+                logEvent(`Error simulating provider switch: ${error.message}`);
+            }
+        };
+
+        window.simulateCostUpdate = function() {
+            try {
+                const cost = Math.random() * 0.01;
+                const tokens = Math.floor(Math.random() * 500) + 50;
+                
+                logEvent(`Simulating cost update: $${cost.toFixed(4)}, ${tokens} tokens`);
+                
+                eventBus.publish('provider-usage-tracked', {
+                    providerId: globalStateManager.activeProvider || 'claude',
+                    cost,
+                    tokens,
+                    sessionCost: cost,
+                    timestamp: Date.now()
+                });
+                
+            } catch (error) {
+                logEvent(`Error simulating cost update: ${error.message}`);
+            }
+        };
+
+        window.simulateHealthCheck = function() {
+            try {
+                logEvent('Simulating provider health check');
+                
+                eventBus.publish('provider-health-check-completed', {
+                    results: [
+                        { providerId: 'claude', status: 'connected' },
+                        { providerId: 'openai', status: 'connected' },
+                        { providerId: 'gemini', status: 'disconnected' }
+                    ],
+                    healthyProviders: 2,
+                    totalProviders: 3,
+                    timestamp: Date.now()
+                });
+                
+            } catch (error) {
+                logEvent(`Error simulating health check: ${error.message}`);
+            }
+        };
+
+        window.simulateError = function() {
+            try {
+                logEvent('Simulating provider error');
+                
+                eventBus.publish('provider-error-tracked', {
+                    providerId: 'openai',
+                    error: 'Simulated connection timeout',
+                    retryCount: 4,
+                    timestamp: Date.now()
+                });
+                
+            } catch (error) {
+                logEvent(`Error simulating error: ${error.message}`);
+            }
+        };
+
+        function updateProviderDisplay(providerId) {
+            document.getElementById('current-provider').textContent = providerId;
+            
+            const statusContainer = document.getElementById('provider-status');
+            statusContainer.innerHTML = `
+                <div class="provider-status status-connected">Claude: Connected</div>
+                <div class="provider-status ${providerId === 'openai' ? 'status-connected' : 'status-disconnected'}">OpenAI: ${providerId === 'openai' ? 'Connected' : 'Disconnected'}</div>
+                <div class="provider-status ${providerId === 'gemini' ? 'status-connected' : 'status-disconnected'}">Gemini: ${providerId === 'gemini' ? 'Connected' : 'Disconnected'}</div>
+            `;
+        }
+
+        function updateCostDisplay(costTracking) {
+            const sessionCostEl = document.getElementById('session-cost');
+            const totalCostEl = document.getElementById('total-cost');
+            
+            if (sessionCostEl && totalCostEl) {
+                const sessionCost = costTracking.sessionCost || 0;
+                const totalCost = costTracking.totalCost || 0;
+                
+                sessionCostEl.textContent = `$${sessionCost.toFixed(4)}`;
+                totalCostEl.textContent = `$${totalCost.toFixed(4)}`;
+                
+                // Update warning levels
+                if (sessionCost > 0.5) {
+                    sessionCostEl.className = 'cost-display cost-critical';
+                } else if (sessionCost > 0.1) {
+                    sessionCostEl.className = 'cost-display cost-warning';
+                } else {
+                    sessionCostEl.className = 'cost-display cost-normal';
+                }
+            }
+        }
+
+        function logEvent(message) {
+            const logContainer = document.getElementById('event-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logContainer.textContent += `[${timestamp}] ${message}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(`[Test] ${message}`);
+        }
+
+        window.clearLog = function() {
+            document.getElementById('event-log').textContent = '';
+        };
+
+        // Subscribe to events for testing
+        function setupEventListeners() {
+            if (eventBus) {
+                eventBus.subscribe('active-provider-changed', (event) => {
+                    logEvent(`Provider changed: ${event.data.previousProvider} -> ${event.data.providerId}`);
+                    updateProviderDisplay(event.data.providerId);
+                });
+                
+                eventBus.subscribe('provider-usage-tracked', (event) => {
+                    logEvent(`Usage tracked: $${event.data.cost.toFixed(4)}, ${event.data.tokens} tokens`);
+                    updateCostDisplay({ 
+                        sessionCost: event.data.sessionCost,
+                        totalCost: event.data.cost 
+                    });
+                });
+                
+                eventBus.subscribe('cost-limit-warning', (event) => {
+                    logEvent(`Cost warning: ${event.data.type} at ${event.data.percentage.toFixed(1)}%`);
+                });
+                
+                eventBus.subscribe('provider-health-check-completed', (event) => {
+                    logEvent(`Health check: ${event.data.healthyProviders}/${event.data.totalProviders} healthy`);
+                });
+                
+                eventBus.subscribe('provider-error-tracked', (event) => {
+                    logEvent(`Provider error: ${event.data.providerId} - ${event.data.error}`);
+                });
+            }
+        }
+
+        // Initialize tests when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            logEvent('Starting integration tests...');
+            await runImportTests();
+            setupEventListeners();
+            updateProviderDisplay('claude');
+            logEvent('Integration tests initialized');
+        });
+    </script>
+</body>
+</html>

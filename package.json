@@ -33,9 +33,16 @@
     "vite": "^7.0.6"
   },
   "dependencies": {
+    "@langchain/anthropic": "^0.3.25",
+    "@langchain/core": "^0.3.66",
+    "@langchain/google-genai": "^0.2.16",
+    "@langchain/openai": "^0.6.3",
     "axios": "^1.6.0",
+    "dotenv": "^16.4.5",
     "electron-store": "^8.1.0",
-    "electron-tabs": "^1.0.4"
+    "electron-tabs": "^1.0.4",
+    "langchain": "^0.3.2",
+    "which": "^5.0.0"
   },
   "build": {
     "appId": "com.taehwa.eg-desk",

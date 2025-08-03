@@ -5,7 +5,7 @@
  * Implements the complete modular architecture as specified in the PRD.
  */
 
-import { EventEmitter } from '../utils/EventEmitter';
+import { EventEmitter } from '../utils/EventEmitter.js';
 
 // Core Modules
 import ClaudeIntegration from './core/ai-agent/ClaudeIntegration.js';
@@ -47,9 +47,9 @@ class EGDeskCore extends EventEmitter {
       'templateManager',
       'contentGenerator',
       'seoOptimizer',
-      'qualityChecker',
-      'wpApiClient',
-      'workspaceManager'
+      'qualityChecker'
+      // wpApiClient will be initialized when WordPress settings are provided
+      // workspaceManager will be initialized separately after proxy setup
     ];
   }
 
@@ -90,38 +90,56 @@ class EGDeskCore extends EventEmitter {
    * Create instances of all modules
    */
   async createModuleInstances() {
-    console.log('[EGDeskCore] Creating module instances...');
+    console.log('[EGDeskCore] 🏗️  Creating module instances...');
     
-    // State Management & Communication
+    try {
+    
+    // State Management & Communication (singleton eventBus)
+    console.log('[EGDeskCore] 📦 Creating eventBus...');
     this.modules.set('eventBus', EventBus);
+    console.log('[EGDeskCore] 📦 Creating globalStateManager...');
     this.modules.set('globalStateManager', new GlobalStateManager());
     
-    // Browser Control
-    this.modules.set('webContentsManager', new WebContentsManager());
-    this.modules.set('browserController', new BrowserController(this.modules.get('webContentsManager')));
-    
     // AI Agent System
+    console.log('[EGDeskCore] 📦 Creating claudeIntegration...');
     this.modules.set('claudeIntegration', new ClaudeIntegration());
+    console.log('[EGDeskCore] 📦 Creating conversationManager...');
     this.modules.set('conversationManager', new ConversationManager());
+    console.log('[EGDeskCore] 📦 Creating taskExecutor...');
     this.modules.set('taskExecutor', new TaskExecutor());
     
     // Content System
+    console.log('[EGDeskCore] 📦 Creating templateManager...');
     this.modules.set('templateManager', new TemplateManager());
+    console.log('[EGDeskCore] 📦 Creating contentGenerator...');
     const contentGenerator = new ContentGenerator(
       this.modules.get('claudeIntegration'),
       this.modules.get('templateManager')
     );
     this.modules.set('contentGenerator', contentGenerator);
+    console.log('[EGDeskCore] 📦 Creating seoOptimizer...');
     this.modules.set('seoOptimizer', new SEOOptimizer());
+    console.log('[EGDeskCore] 📦 Creating qualityChecker...');
     this.modules.set('qualityChecker', new QualityChecker());
     
-    // Blog Automation
-    this.modules.set('wpApiClient', new WPApiClient());
+    // Blog Automation - REMOVED to prevent initialization errors
+    console.log('[EGDeskCore] ⚠️  WPApiClient NOT created - will be created only when WordPress settings provided');
+    // this.modules.set('wpApiClient', new WPApiClient()); // COMMENTED OUT
     
-    // Workspace Management
-    this.modules.set('workspaceManager', new WorkspaceManager(this.modules.get('webContentsManager')));
+    // Workspace Management (will be integrated with WebContentsManager proxy)
+    this.modules.set('workspaceManager', null); // Will be set later with proper proxy
     
-    console.log(`[EGDeskCore] Created ${this.modules.size} module instances`);
+    console.log(`[EGDeskCore] ✅ Created ${this.modules.size} module instances successfully`);
+    
+    } catch (error) {
+      console.error('[EGDeskCore] ❌ Error during module instance creation:', error);
+      console.error('[EGDeskCore] 📊 Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   /**
@@ -177,9 +195,23 @@ class EGDeskCore extends EventEmitter {
 
     // WordPress publishing events
     eventBus.subscribe('wordpress:publish-request', async (eventData) => {
+      console.log('[EGDeskCore] 🔍 WordPress publish request received, checking wpApiClient...');
       const wpApiClient = this.modules.get('wpApiClient');
-      const result = await wpApiClient.createPost(eventData.data);
-      eventBus.publish('wordpress:published', result);
+      
+      if (!wpApiClient) {
+        console.error('[EGDeskCore] ❌ wpApiClient not available for publish request');
+        eventBus.publish('wordpress:publish-failed', { error: 'WordPress API client not initialized' });
+        return;
+      }
+      
+      try {
+        console.log('[EGDeskCore] 📤 Creating WordPress post via wpApiClient...');
+        const result = await wpApiClient.createPost(eventData.data);
+        eventBus.publish('wordpress:published', result);
+      } catch (error) {
+        console.error('[EGDeskCore] ❌ WordPress publish failed:', error);
+        eventBus.publish('wordpress:publish-failed', { error: error.message });
+      }
     }, 'EGDeskCore');
 
     // Quality check events
@@ -207,6 +239,29 @@ class EGDeskCore extends EventEmitter {
   }
 
   /**
+   * Set WorkspaceManager after proxy creation
+   */
+  setWorkspaceManager(workspaceManager) {
+    this.modules.set('workspaceManager', workspaceManager);
+    
+    // Integrate WorkspaceManager with state management
+    const globalStateManager = this.modules.get('globalStateManager');
+    const eventBus = this.modules.get('eventBus');
+    
+    if (workspaceManager && globalStateManager) {
+      // Pass state manager and event bus to workspace manager
+      workspaceManager.globalStateManager = globalStateManager;
+      workspaceManager.eventBus = eventBus;
+      
+      // Expose state manager globally for components
+      window.globalStateManager = globalStateManager;
+      window.eventBus = eventBus;
+      
+      console.log('[EGDeskCore] WorkspaceManager integrated with state management');
+    }
+  }
+
+  /**
    * Get all modules
    */
   getAllModules() {
@@ -220,6 +275,39 @@ class EGDeskCore extends EventEmitter {
     return this.isInitialized;
   }
 
+  /**
+   * Initialize WordPress API client with credentials
+   */
+  async initializeWordPressClient(siteUrl, credentials) {
+    try {
+      console.log('[EGDeskCore] 🔍 Initializing WordPress API client...');
+      console.log('[EGDeskCore] 📝 Received siteUrl:', siteUrl, 'type:', typeof siteUrl);
+      console.log('[EGDeskCore] 📝 Received credentials:', credentials ? 'provided' : 'missing');
+      
+      // Create wpApiClient if it doesn't exist
+      let wpApiClient = this.modules.get('wpApiClient');
+      if (!wpApiClient) {
+        console.log('[EGDeskCore] 🏗️  Creating new WPApiClient instance...');
+        wpApiClient = new WPApiClient();
+        this.modules.set('wpApiClient', wpApiClient);
+      }
+      
+      console.log('[EGDeskCore] 🚀 Calling wpApiClient.initialize...');
+      await wpApiClient.initialize(siteUrl, credentials);
+      console.log('[EGDeskCore] ✅ WordPress API client initialized successfully');
+      
+      return true;
+    } catch (error) {
+      console.error('[EGDeskCore] ❌ WordPress API initialization failed:', error);
+      console.error('[EGDeskCore] 📊 Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+  
   /**
    * Get system status
    */

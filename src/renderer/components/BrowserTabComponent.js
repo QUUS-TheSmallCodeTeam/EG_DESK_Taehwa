@@ -100,6 +100,15 @@ class BrowserTabComponent {
    * Render the browser tab component HTML
    */
   render() {
+    // CSS 클래스 적용 디버깅
+    console.log('[CSS-DEBUG] BrowserTabComponent render() - Starting render process');
+    console.log('[CSS-DEBUG] Container classes before render:', this.container.className);
+    console.log('[CSS-DEBUG] Container computed styles:', {
+      display: window.getComputedStyle(this.container).display,
+      background: window.getComputedStyle(this.container).backgroundColor,
+      border: window.getComputedStyle(this.container).border
+    });
+    
     this.container.innerHTML = `
       <div class="browser-tab-component">
         <!-- Browser Controls Bar -->
@@ -144,207 +153,108 @@ class BrowserTabComponent {
       placeholder: document.getElementById(`${this.containerId}-browser-placeholder`)
     };
 
-    // Add component-specific styles
-    this.addStyles();
+    // CSS 디버깅 - 렌더링 후 스타일 확인
+    setTimeout(() => {
+      const browserComponent = this.container.querySelector('.browser-tab-component');
+      const browserControls = this.container.querySelector('.browser-controls');
+      const componentContainer = document.querySelector('.component-container');
+      
+      // 메인 프로세스로 CSS 디버깅 정보 전송
+      if (window.electronAPI?.log?.info) {
+        window.electronAPI.log.info('[CSS-DEBUG] After render - Component structure:', {
+          browserComponentExists: !!browserComponent,
+          browserControlsExists: !!browserControls,
+          componentContainerExists: !!componentContainer
+        });
+      }
+      
+      if (browserComponent) {
+        const browserStyles = {
+          background: window.getComputedStyle(browserComponent).backgroundColor,
+          border: window.getComputedStyle(browserComponent).border,
+          borderRadius: window.getComputedStyle(browserComponent).borderRadius,
+          boxShadow: window.getComputedStyle(browserComponent).boxShadow
+        };
+        
+        if (window.electronAPI?.log?.info) {
+          window.electronAPI.log.info('[CSS-DEBUG] browser-tab-component styles:', browserStyles);
+        }
+        
+        // CSS가 적용되지 않은 것으로 보이면 경고
+        if (browserStyles.background === 'rgba(0, 0, 0, 0)' || browserStyles.background === 'transparent') {
+          if (window.electronAPI?.log?.warn) {
+            window.electronAPI.log.warn('[CSS-DEBUG] WARNING: No background color applied to browser-tab-component!');
+          }
+        }
+      }
+      
+      if (browserControls) {
+        const controlStyles = {
+          background: window.getComputedStyle(browserControls).backgroundColor,
+          padding: window.getComputedStyle(browserControls).padding,
+          borderBottom: window.getComputedStyle(browserControls).borderBottom
+        };
+        
+        if (window.electronAPI?.log?.info) {
+          window.electronAPI.log.info('[CSS-DEBUG] browser-controls styles:', controlStyles);
+        }
+      }
+      
+      // component-container 스타일 확인
+      if (componentContainer) {
+        const containerStyles = {
+          background: window.getComputedStyle(componentContainer).backgroundColor,
+          border: window.getComputedStyle(componentContainer).border,
+          borderRadius: window.getComputedStyle(componentContainer).borderRadius,
+          boxShadow: window.getComputedStyle(componentContainer).boxShadow
+        };
+        
+        if (window.electronAPI?.log?.info) {
+          window.electronAPI.log.info('[CSS-DEBUG] component-container styles:', containerStyles);
+        }
+        
+        // CSS가 적용되지 않은 것으로 보이면 경고
+        if (containerStyles.background === 'rgba(0, 0, 0, 0)' || containerStyles.background === 'transparent') {
+          if (window.electronAPI?.log?.warn) {
+            window.electronAPI.log.warn('[CSS-DEBUG] WARNING: No background color applied to component-container!');
+            window.electronAPI.log.warn('[CSS-DEBUG] Check if CSS is loaded correctly in index.html');
+          }
+        }
+      }
+      
+      // 모든 스타일시트 확인
+      if (window.electronAPI?.log?.info) {
+        window.electronAPI.log.info('[CSS-DEBUG] Document stylesheets count:', document.styleSheets.length);
+        
+        // 스타일시트 내용에서 component-container 찾기
+        let foundComponentContainerStyle = false;
+        Array.from(document.styleSheets).forEach((sheet, index) => {
+          try {
+            if (sheet.cssRules) {
+              for (let rule of sheet.cssRules) {
+                if (rule.selectorText && rule.selectorText.includes('.component-container')) {
+                  foundComponentContainerStyle = true;
+                  window.electronAPI.log.info('[CSS-DEBUG] Found .component-container rule in stylesheet:', {
+                    selector: rule.selectorText,
+                    styles: rule.style.cssText.substring(0, 100) + '...'
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            // CORS 에러 무시
+          }
+        });
+        
+        if (!foundComponentContainerStyle) {
+          window.electronAPI.log.error('[CSS-DEBUG] ERROR: .component-container styles not found in any stylesheet!');
+        }
+      }
+    }, 100);
+
+    // Styles are now handled by index.html CSS instead of injection
   }
 
-  /**
-   * Add CSS styles for the browser tab component
-   */
-  addStyles() {
-    const styleId = `browser-tab-component-styles`;
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .browser-tab-component {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        background: white;
-        border-radius: 0.5rem; /* 8px */
-        box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.1); /* 0 2px 8px */
-        border: 2px solid #007bff; /* Blue border for differentiation */
-        overflow: hidden;
-      }
-
-      .browser-controls {
-        display: flex;
-        align-items: center;
-        padding: 0.75rem 1rem; /* 12px 16px */
-        background: #f8f9fa;
-        border-bottom: 1px solid #e9ecef;
-        gap: 0.75rem; /* 12px */
-        flex-shrink: 0;
-        flex-wrap: wrap; /* Allow wrapping on smaller screens */
-      }
-
-      .control-group {
-        display: flex;
-        gap: 0.25rem; /* 4px */
-        background: #e9ecef;
-        border-radius: 0.375rem; /* 6px */
-        padding: 0.25rem; /* 4px */
-      }
-
-      .nav-btn {
-        width: 2rem; /* 32px */
-        height: 2rem; /* 32px */
-        border: none;
-        background: transparent;
-        border-radius: 0.25rem; /* 4px */
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.875rem; /* 14px */
-        font-weight: 600;
-        color: #495057;
-        transition: all 0.2s ease;
-      }
-
-      .nav-btn:hover:not(:disabled) {
-        background: #ced4da;
-        color: #212529;
-      }
-
-      .nav-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-
-      .address-group {
-        display: flex;
-        flex: 1;
-        gap: 0.5rem; /* 8px */
-        align-items: center;
-      }
-
-      .address-bar {
-        flex: 1;
-        height: 2.25rem; /* 36px */
-        border: 1px solid #ced4da;
-        border-radius: 0.375rem; /* 6px */
-        padding: 0 0.75rem; /* 0 12px */
-        font-size: 0.8125rem; /* 13px */
-        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        background: white;
-      }
-
-      .address-bar:focus {
-        outline: none;
-        border-color: #007bff;
-        box-shadow: 0 0 0 0.125rem rgba(0, 123, 255, 0.25); /* 0 0 0 2px */
-      }
-
-      .go-btn {
-        height: 2.25rem; /* 36px */
-        padding: 0 1rem; /* 0 16px */
-        border: none;
-        background: #007bff;
-        color: white;
-        border-radius: 0.375rem; /* 6px */
-        cursor: pointer;
-        font-size: 0.8125rem; /* 13px */
-        font-weight: 600;
-        transition: background-color 0.2s ease;
-      }
-
-      .go-btn:hover {
-        background: #0056b3;
-      }
-
-      .browser-viewport {
-        flex: 1;
-        position: relative;
-        background: #f8f9fa;
-        /* Remove padding so WebContentsView can fill the entire area */
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      .browser-placeholder {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        color: #6c757d;
-      }
-
-      .browser-placeholder.hidden {
-        display: none;
-      }
-
-      .placeholder-content h3 {
-        font-size: 1.2rem;
-        margin-bottom: 0.5rem; /* 8px */
-        color: #495057;
-      }
-
-      .placeholder-content p {
-        margin: 0.25rem 0; /* 4px 0 */
-        font-size: 0.875rem; /* 14px */
-        line-height: 1.5;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 768px) {
-        .browser-controls {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.5rem; /* Adjust gap for vertical layout */
-        }
-
-        .control-group {
-          justify-content: center; /* Center buttons when stacked */
-          width: 100%; /* Take full width */
-        }
-
-        .address-group {
-          width: 100%; /* Take full width */
-          min-width: unset; /* Remove min-width constraint */
-        }
-
-        .address-bar {
-          min-width: unset; /* Remove min-width constraint */
-        }
-
-        .go-btn {
-          width: 100%; /* Make go button full width */
-        }
-      }
-
-      @media (max-width: 480px) {
-        .browser-controls {
-          padding: 0.5rem 0.75rem; /* Smaller padding on very small screens */
-        }
-
-        .nav-btn {
-          width: 1.75rem; /* Slightly smaller buttons */
-          height: 1.75rem;
-          font-size: 0.75rem;
-        }
-
-        .address-bar, .go-btn {
-          height: 2rem; /* Slightly smaller height for input/button */
-          font-size: 0.75rem;
-        }
-
-        .address-bar {
-          padding: 0 0.5rem;
-        }
-
-        .go-btn {
-          padding: 0 0.75rem;
-        }
-      }
-    `;
-
-    document.head.appendChild(style);
-  }
 
   /**
    * Set up event listeners for browser controls
@@ -650,9 +560,10 @@ class BrowserTabComponent {
       this.elements.reloadBtn.title = isLoading ? '로딩 중지' : '새로고침';
     }
 
-    if (this.elements.addressBar) {
-      this.elements.addressBar.style.opacity = isLoading ? '0.7' : '1';
-    }
+    // Dynamic style modification removed - loading state should be handled by CSS classes
+    // if (this.elements.addressBar) {
+    //   this.elements.addressBar.style.opacity = isLoading ? '0.7' : '1';
+    // }
   }
 
   hidePlaceholder() {

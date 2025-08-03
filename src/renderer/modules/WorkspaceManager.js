@@ -7,6 +7,8 @@
 
 import BrowserTabComponent from '../components/BrowserTabComponent.js';
 import ChatComponent from '../components/ChatComponent.js';
+import ChatHistoryPanel from '../components/ChatHistoryPanel.js';
+import eventBus from './core/state-management/EventBus.js';
 
 class WorkspaceManager {
   constructor(webContentsManager) {
@@ -14,6 +16,42 @@ class WorkspaceManager {
     this.workspaces = new Map();
     this.currentWorkspace = null;
     this.components = new Map();
+    
+    // State management integration (will be set by EGDeskCore)
+    this.globalStateManager = null;
+    this.eventBus = null;
+    
+    // Enhanced provider state management
+    this.providerStates = new Map();
+    this.globalProviderState = {
+      activeProvider: 'claude',
+      providers: new Map(),
+      costTracking: {
+        sessionCost: 0,
+        totalCost: 0,
+        sessionTokens: 0,
+        totalTokens: 0
+      },
+      switching: false,
+      healthStatus: new Map(),
+      analytics: {
+        switchCount: 0,
+        lastSwitchTime: null,
+        averageResponseTime: new Map(),
+        providerReliability: new Map()
+      }
+    };
+    
+    // Event bus subscriptions
+    this.eventSubscriptions = [];
+    this.providerChannels = new Map();
+    
+    // Provider event handlers
+    this.boundProviderHandlers = {
+      providerChanged: (event) => this.handleProviderChanged(event.detail),
+      providerStatusChanged: (event) => this.handleProviderStatusChanged(event.detail),
+      costUpdated: (event) => this.handleCostUpdated(event.detail)
+    };
   }
 
   /**
@@ -21,6 +59,8 @@ class WorkspaceManager {
    */
   initialize() {
     this.registerWorkspaces();
+    this.setupProviderIntegration();
+    this.setupEventBusIntegration();
     console.log('[WorkspaceManager] Initialized with workspaces:', Array.from(this.workspaces.keys()));
   }
 
@@ -44,15 +84,23 @@ class WorkspaceManager {
           config: {
             title: 'AI Blog Assistant',
             icon: '🤖',
+            enableProviderSelection: true,
+            enableCostTracking: false,  // Disabled as requested
+            enableStreaming: true,
+            defaultProvider: 'claude',
+            enableRealTimeUpdates: true,
+            enableProviderRecommendations: true,
             welcomeMessages: [
-              { text: 'EG-Desk:태화 블로그 자동화 시스템', type: 'welcome' },
+              { text: 'EG-Desk:태화 블로그 다중 AI 시스템', type: 'welcome' },
               { text: 'WordPress 연동 준비 완료', type: 'success' },
-              { text: 'Claude AI 기반 콘텐츠 생성 활성화', type: 'success' },
+              { text: 'Claude, OpenAI, Gemini 지원 활성화', type: 'success' },
               { text: '', type: 'output' },
-              { text: '💡 블로그 자동화 명령어:', type: 'system' },
+              { text: '💡 다중 AI 블로그 자동화 명령어:', type: 'system' },
               { text: '  claude "현재 페이지 SEO 분석해줘"', type: 'output' },
-              { text: '  claude "로고스키 코일 기술 블로그 글 써줘"', type: 'output' },
-              { text: '  claude "이 콘텐츠를 WordPress에 게시해줘"', type: 'output' },
+              { text: '  openai "블로그 글 최적화해줘"', type: 'output' },
+              { text: '  gemini "콘텐츠 번역해줘"', type: 'output' },
+              { text: '  /provider claude - AI 제공자 변경', type: 'output' },
+              { text: '  /cost - 현재 사용 비용 확인', type: 'output' },
               { text: '', type: 'output' }
             ]
           }
@@ -143,12 +191,15 @@ class WorkspaceManager {
     if (!workspace) return;
 
     try {
+      // Save workspace state before deactivation
+      await this.saveWorkspaceState(workspaceId);
+
       // Call workspace-specific deactivation logic
       if (workspace.onDeactivate) {
         await workspace.onDeactivate();
       }
 
-      // Destroy workspace components
+      // Destroy workspace components (state is already saved)
       this.destroyWorkspaceComponents(workspaceId);
 
       console.log(`[WorkspaceManager] Deactivated workspace: ${workspaceId}`);
@@ -180,6 +231,128 @@ class WorkspaceManager {
     }
 
     this.components.set(workspaceKey, workspaceComponents);
+    
+    // Restore workspace state after components are created
+    await this.restoreWorkspaceState(workspaceId);
+  }
+
+  /**
+   * Save workspace state including chat history and UI state
+   */
+  async saveWorkspaceState(workspaceId) {
+    try {
+      console.log(`[WorkspaceManager] Saving state for workspace: ${workspaceId}`);
+      
+      const workspaceKey = `workspace_${workspaceId}`;
+      const workspaceComponents = this.components.get(workspaceKey);
+      const workspaceState = {
+        workspaceId,
+        timestamp: Date.now(),
+        componentStates: {}
+      };
+
+      if (workspaceComponents) {
+        // Save chat component state
+        const chatComponent = this.getChatComponent(workspaceId);
+        if (chatComponent && typeof chatComponent.getState === 'function') {
+          workspaceState.componentStates.chat = chatComponent.getState();
+        }
+
+        // Save chat history panel state
+        const historyPanel = this.getChatHistoryPanel(workspaceId);
+        if (historyPanel && typeof historyPanel.getState === 'function') {
+          workspaceState.componentStates.chatHistory = historyPanel.getState();
+        }
+
+        // Save browser component state if available
+        const browserComponent = this.getBrowserComponent(workspaceId);
+        if (browserComponent && typeof browserComponent.getState === 'function') {
+          workspaceState.componentStates.browser = browserComponent.getState();
+        }
+      }
+
+      // Save to GlobalStateManager
+      if (this.globalStateManager) {
+        await this.globalStateManager.setState(`workspace_${workspaceId}`, workspaceState);
+        console.log(`[WorkspaceManager] Saved state for workspace: ${workspaceId}`);
+      }
+
+      // Publish state saved event
+      if (this.eventBus) {
+        this.eventBus.publish('workspace-state-saved', {
+          workspaceId,
+          state: workspaceState
+        });
+      }
+
+    } catch (error) {
+      console.error(`[WorkspaceManager] Failed to save workspace state for ${workspaceId}:`, error);
+    }
+  }
+
+  /**
+   * Restore workspace state including chat history and UI state
+   */
+  async restoreWorkspaceState(workspaceId) {
+    try {
+      console.log(`[WorkspaceManager] Restoring state for workspace: ${workspaceId}`);
+
+      if (!this.globalStateManager) {
+        console.warn(`[WorkspaceManager] GlobalStateManager not available for state restoration`);
+        return;
+      }
+
+      const workspaceState = await this.globalStateManager.getState(`workspace_${workspaceId}`);
+      if (!workspaceState || !workspaceState.componentStates) {
+        console.log(`[WorkspaceManager] No saved state found for workspace: ${workspaceId}`);
+        return;
+      }
+
+      const workspaceKey = `workspace_${workspaceId}`;
+      const workspaceComponents = this.components.get(workspaceKey);
+
+      if (workspaceComponents) {
+        // Restore chat component state
+        if (workspaceState.componentStates.chat) {
+          const chatComponent = this.getChatComponent(workspaceId);
+          if (chatComponent && typeof chatComponent.setState === 'function') {
+            await chatComponent.setState(workspaceState.componentStates.chat);
+            console.log(`[WorkspaceManager] Restored chat component state for: ${workspaceId}`);
+          }
+        }
+
+        // Restore chat history panel state
+        if (workspaceState.componentStates.chatHistory) {
+          const historyPanel = this.getChatHistoryPanel(workspaceId);
+          if (historyPanel && typeof historyPanel.setState === 'function') {
+            await historyPanel.setState(workspaceState.componentStates.chatHistory);
+            console.log(`[WorkspaceManager] Restored chat history panel state for: ${workspaceId}`);
+          }
+        }
+
+        // Restore browser component state if available
+        if (workspaceState.componentStates.browser) {
+          const browserComponent = this.getBrowserComponent(workspaceId);
+          if (browserComponent && typeof browserComponent.setState === 'function') {
+            await browserComponent.setState(workspaceState.componentStates.browser);
+            console.log(`[WorkspaceManager] Restored browser component state for: ${workspaceId}`);
+          }
+        }
+      }
+
+      // Publish state restored event
+      if (this.eventBus) {
+        this.eventBus.publish('workspace-state-restored', {
+          workspaceId,
+          state: workspaceState
+        });
+      }
+
+      console.log(`[WorkspaceManager] Successfully restored state for workspace: ${workspaceId}`);
+
+    } catch (error) {
+      console.error(`[WorkspaceManager] Failed to restore workspace state for ${workspaceId}:`, error);
+    }
   }
 
   /**
@@ -188,25 +361,29 @@ class WorkspaceManager {
   async createComponent(config) {
     const { type, containerId, config: componentConfig } = config;
 
-    switch (type) {
-      case 'browser':
-        console.log(`[WorkspaceManager] 🌐 Attempting to create browser component...`);
-        console.log(`[WorkspaceManager] BrowserTabComponent available:`, typeof BrowserTabComponent);
-        console.log(`[WorkspaceManager] webContentsManager available:`, !!this.webContentsManager);
-        
-        if (typeof BrowserTabComponent === 'undefined') {
-          console.error('[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if import is loaded');
-          return null;
-        }
-        
-        console.log(`[WorkspaceManager] 🏗️ Creating BrowserTabComponent for container: ${containerId}`);
-        const browserComponent = new BrowserTabComponent(containerId, this.webContentsManager);
-        console.log(`[WorkspaceManager] ✅ BrowserTabComponent instance created`);
-        
-        try {
+    try {
+      switch (type) {
+        case 'browser':
+          console.log(`[WorkspaceManager] 🌐 Attempting to create browser component...`);
+          console.log(`[WorkspaceManager] BrowserTabComponent available:`, typeof BrowserTabComponent);
+          console.log(`[WorkspaceManager] webContentsManager available:`, !!this.webContentsManager);
+          
+          if (typeof BrowserTabComponent === 'undefined') {
+            console.error('[WorkspaceManager] ❌ FATAL: BrowserTabComponent not available - check if import is loaded');
+            if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'BrowserTabComponent not available');
+            return null;
+          }
+          
+          console.log(`[WorkspaceManager] 🏗️ Creating BrowserTabComponent for container: ${containerId}`);
+          const browserComponent = new BrowserTabComponent(containerId, this.webContentsManager);
+          console.log(`[WorkspaceManager] ✅ BrowserTabComponent instance created`);
+          
           console.log(`[WorkspaceManager] 🚀 Initializing BrowserTabComponent...`);
           await browserComponent.initialize();
           console.log(`[WorkspaceManager] ✅ BrowserTabComponent initialization completed`);
+          
+          // Mark component as initialized in UI
+          if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
           
           console.log(`[WorkspaceManager] 🌐 Scheduling initial URL load...`);
           // Load initial URL after initialization
@@ -219,24 +396,80 @@ class WorkspaceManager {
           
           console.log(`[WorkspaceManager] 🎉 Browser component setup complete`);
           return browserComponent;
-        } catch (initError) {
-          console.error('[WorkspaceManager] ❌ BrowserTabComponent initialization failed:', initError);
-          throw initError;
-        }
 
-      case 'chat':
-        if (typeof ChatComponent === 'undefined') {
-          console.error('[WorkspaceManager] ChatComponent not available');
+        case 'chat':
+          if (typeof ChatComponent === 'undefined') {
+            console.error('[WorkspaceManager] ChatComponent not available');
+            if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'ChatComponent not available');
+            return null;
+          }
+          
+          console.log(`[WorkspaceManager] 🤖 Creating ChatComponent for container: ${containerId}`);
+          const chatComponent = new ChatComponent(containerId, componentConfig);
+          
+          // Integrate with state management before initialization
+          if (this.globalStateManager) {
+            chatComponent.globalStateManager = this.globalStateManager;
+            console.log(`[WorkspaceManager] ChatComponent integrated with GlobalStateManager`);
+          }
+          if (this.eventBus) {
+            chatComponent.eventBus = this.eventBus;
+            console.log(`[WorkspaceManager] ChatComponent integrated with EventBus`);
+          }
+          
+          await chatComponent.initialize();
+          
+          // Mark component as initialized in UI
+          if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
+          
+          // Set up provider state integration
+          this.integrateChatComponentWithProviderState(chatComponent);
+          
+          console.log(`[WorkspaceManager] ✅ ChatComponent initialization completed`);
+          return chatComponent;
+
+        case 'chat-history':
+          if (typeof ChatHistoryPanel === 'undefined') {
+            console.error('[WorkspaceManager] ChatHistoryPanel not available');
+            if (window.uiManager) window.uiManager.markComponentFailed(containerId, 'ChatHistoryPanel not available');
+            return null;
+          }
+          
+          console.log(`[WorkspaceManager] 📝 Creating ChatHistoryPanel for container: ${containerId}`);
+          const historyPanel = new ChatHistoryPanel(containerId, {
+            ...componentConfig,
+            onSessionSelect: (conversation) => this.handleHistorySessionSelect(conversation),
+            onSessionDelete: (sessionId) => this.handleHistorySessionDelete(sessionId),
+            onToggleCollapse: (collapsed) => this.handleHistoryPanelToggle(collapsed)
+          });
+          
+          // Integrate with state management before initialization
+          if (this.globalStateManager) {
+            historyPanel.globalStateManager = this.globalStateManager;
+            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with GlobalStateManager`);
+          }
+          if (this.eventBus) {
+            historyPanel.eventBus = this.eventBus;
+            console.log(`[WorkspaceManager] ChatHistoryPanel integrated with EventBus`);
+          }
+          
+          await historyPanel.initialize();
+          
+          // Mark component as initialized in UI
+          if (window.uiManager) window.uiManager.markComponentInitialized(containerId);
+          
+          console.log(`[WorkspaceManager] ✅ ChatHistoryPanel initialization completed`);
+          return historyPanel;
+
+        default:
+          console.warn(`[WorkspaceManager] Unknown component type: ${type}`);
+          if (window.uiManager) window.uiManager.markComponentFailed(containerId, `Unknown component type: ${type}`);
           return null;
-        }
-        
-        const chatComponent = new ChatComponent(containerId, componentConfig);
-        await chatComponent.initialize();
-        return chatComponent;
-
-      default:
-        console.warn(`[WorkspaceManager] Unknown component type: ${type}`);
-        return null;
+      }
+    } catch (error) {
+      console.error(`[WorkspaceManager] ❌ Component creation failed for ${type}:`, error);
+      if (window.uiManager) window.uiManager.markComponentFailed(containerId, error);
+      throw error;
     }
   }
 
@@ -276,17 +509,39 @@ class WorkspaceManager {
   }
 
   /**
-   * Get browser component from current workspace
+   * Get browser component from specific or current workspace
    */
-  getBrowserComponent() {
-    return this.getComponent('browser-component-container');
+  getBrowserComponent(workspaceId = null) {
+    const targetWorkspace = workspaceId || this.currentWorkspace;
+    if (!targetWorkspace) return null;
+    
+    const workspaceKey = `workspace_${targetWorkspace}`;
+    const workspaceComponents = this.components.get(workspaceKey);
+    return workspaceComponents?.get('browser-component-container') || null;
   }
 
   /**
-   * Get chat component from current workspace
+   * Get chat component from specific or current workspace
    */
-  getChatComponent() {
-    return this.getComponent('chat-component-container');
+  getChatComponent(workspaceId = null) {
+    const targetWorkspace = workspaceId || this.currentWorkspace;
+    if (!targetWorkspace) return null;
+    
+    const workspaceKey = `workspace_${targetWorkspace}`;
+    const workspaceComponents = this.components.get(workspaceKey);
+    return workspaceComponents?.get('chat-component-container') || null;
+  }
+
+  /**
+   * Get chat history panel from specific or current workspace
+   */
+  getChatHistoryPanel(workspaceId = null) {
+    const targetWorkspace = workspaceId || this.currentWorkspace;
+    if (!targetWorkspace) return null;
+    
+    const workspaceKey = `workspace_${targetWorkspace}`;
+    const workspaceComponents = this.components.get(workspaceKey);
+    return workspaceComponents?.get('chat-history-container') || null;
   }
 
   /**
@@ -294,6 +549,27 @@ class WorkspaceManager {
    */
   async activateBlogWorkspace() {
     console.log('[WorkspaceManager] Blog workspace specific setup...');
+    
+    // Initialize chat history integration
+    const historyPanel = this.getChatHistoryPanel();
+    const chatComponent = this.getChatComponent();
+    
+    if (historyPanel && chatComponent) {
+      // Set up bidirectional communication between history panel and chat component
+      console.log('[WorkspaceManager] Setting up chat history integration');
+      
+      // Load any existing session
+      const currentSession = historyPanel.getCurrentConversation();
+      if (currentSession && chatComponent.loadSession) {
+        chatComponent.loadSession(currentSession);
+      }
+      
+      // Set up provider state synchronization
+      this.syncProviderStateWithComponents(chatComponent, historyPanel);
+    }
+    
+    // Initialize provider monitoring for this workspace
+    this.initializeWorkspaceProviderMonitoring('blog');
     
     // Could add blog-specific initialization here
     // e.g., checking WordPress connection, loading saved drafts, etc.
@@ -431,6 +707,16 @@ class WorkspaceManager {
     // Clear all animations before destroying
     this.clearComponentAnimations();
     
+    // Clean up provider integration and EventBus subscriptions
+    this.cleanupProviderIntegration();
+    
+    // Publish workspace shutdown event
+    eventBus.publish('workspace-manager-shutdown', {
+      workspaceId: this.currentWorkspace,
+      timestamp: Date.now(),
+      providerState: this.getGlobalProviderState()
+    });
+    
     // Deactivate current workspace
     if (this.currentWorkspace) {
       this.deactivateWorkspace(this.currentWorkspace);
@@ -447,9 +733,919 @@ class WorkspaceManager {
 
     this.components.clear();
     this.workspaces.clear();
+    this.providerStates.clear();
     this.currentWorkspace = null;
 
     console.log('[WorkspaceManager] Destroyed');
+  }
+  
+  /**
+   * Clean up provider integration and EventBus subscriptions
+   */
+  cleanupProviderIntegration() {
+    // Remove provider event listeners
+    Object.entries(this.boundProviderHandlers).forEach(([eventType, handler]) => {
+      window.removeEventListener(`chat-${eventType}`, handler);
+    });
+    
+    // Clean up EventBus subscriptions
+    this.eventSubscriptions.forEach(unsubscribe => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    });
+    this.eventSubscriptions = [];
+    
+    // Clean up provider channels
+    this.providerChannels.clear();
+    
+    // Clear provider monitoring intervals
+    this.providerStates.forEach((state, workspaceId) => {
+      if (state.statusCheckInterval) {
+        clearInterval(state.statusCheckInterval);
+      }
+    });
+    
+    console.log('[WorkspaceManager] Enhanced provider integration cleanup complete');
+  }
+
+  /**
+   * Handle chat history session selection
+   */
+  handleHistorySessionSelect(conversation) {
+    console.log(`[WorkspaceManager] History session selected: ${conversation.id}`);
+    
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.loadSession) {
+      chatComponent.loadSession(conversation);
+    }
+    
+    // Emit event for other components to listen
+    this.dispatchEvent?.('history-session-selected', { conversation });
+  }
+
+  /**
+   * Handle chat history session deletion
+   */
+  handleHistorySessionDelete(sessionId) {
+    console.log(`[WorkspaceManager] History session deleted: ${sessionId}`);
+    
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.clearSession) {
+      chatComponent.clearSession(sessionId);
+    }
+    
+    // Emit event for other components to listen
+    this.dispatchEvent?.('history-session-deleted', { sessionId });
+  }
+
+  /**
+   * Handle chat history panel toggle
+   */
+  handleHistoryPanelToggle(collapsed) {
+    console.log(`[WorkspaceManager] History panel toggled: ${collapsed ? 'collapsed' : 'expanded'}`);
+    
+    // Notify UI manager about layout change
+    if (window.uiManager && window.uiManager.handleHistoryPanelToggle) {
+      window.uiManager.handleHistoryPanelToggle(collapsed);
+    }
+    
+    // Emit event for other components to listen
+    this.dispatchEvent?.('history-panel-toggled', { collapsed });
+  }
+
+  /**
+   * Update chat history with new conversation data
+   */
+  updateChatHistory(conversation) {
+    const historyPanel = this.getChatHistoryPanel();
+    if (historyPanel && historyPanel.updateConversation) {
+      historyPanel.updateConversation(conversation);
+    }
+  }
+
+  /**
+   * Get current chat session from history
+   */
+  getCurrentChatSession() {
+    const historyPanel = this.getChatHistoryPanel();
+    return historyPanel?.getCurrentConversation() || null;
+  }
+
+  /**
+   * Create new chat session
+   */
+  createNewChatSession() {
+    const historyPanel = this.getChatHistoryPanel();
+    if (historyPanel && historyPanel.createNewChat) {
+      historyPanel.createNewChat();
+    }
+  }
+
+  /**
+   * Set up EventBus integration for real-time updates
+   */
+  setupEventBusIntegration() {
+    // Subscribe to provider events
+    this.eventSubscriptions.push(
+      eventBus.subscribe('active-provider-changed', (event) => {
+        this.handleProviderSwitchEvent(event.data);
+      }, 'WorkspaceManager-ProviderSwitch')
+    );
+    
+    this.eventSubscriptions.push(
+      eventBus.subscribe('provider-status-changed', (event) => {
+        this.handleProviderStatusEvent(event.data);
+      }, 'WorkspaceManager-ProviderStatus')
+    );
+    
+    this.eventSubscriptions.push(
+      eventBus.subscribe('provider-usage-tracked', (event) => {
+        this.handleProviderUsageEvent(event.data);
+      }, 'WorkspaceManager-ProviderUsage')
+    );
+    
+    this.eventSubscriptions.push(
+      eventBus.subscribe('cost-limit-warning', (event) => {
+        this.handleCostLimitWarning(event.data);
+      }, 'WorkspaceManager-CostWarning')
+    );
+    
+    this.eventSubscriptions.push(
+      eventBus.subscribe('provider-health-check-completed', (event) => {
+        this.handleProviderHealthUpdate(event.data);
+      }, 'WorkspaceManager-ProviderHealth')
+    );
+    
+    // Subscribe to UI coordination events
+    this.eventSubscriptions.push(
+      eventBus.subscribe('ui-provider-switch-update', (event) => {
+        this.coordinateProviderSwitchUI(event.data);
+      }, 'WorkspaceManager-UISwitchCoordination')
+    );
+    
+    this.eventSubscriptions.push(
+      eventBus.subscribe('ui-realtime-cost-update', (event) => {
+        this.coordinateCostUpdateUI(event.data);
+      }, 'WorkspaceManager-UICostCoordination')
+    );
+    
+    console.log('[WorkspaceManager] EventBus integration setup complete');
+  }
+  
+  /**
+   * Handle provider switch events from EventBus
+   */
+  handleProviderSwitchEvent(eventData) {
+    const { providerId, previousProvider, reason, conversationId } = eventData;
+    
+    console.log(`[WorkspaceManager] Handling provider switch: ${previousProvider} -> ${providerId}`);
+    
+    // Update global state
+    this.globalProviderState.activeProvider = providerId;
+    this.globalProviderState.switching = true;
+    this.globalProviderState.analytics.switchCount++;
+    this.globalProviderState.analytics.lastSwitchTime = Date.now();
+    
+    // Update workspace-specific state
+    const workspaceState = this.providerStates.get(this.currentWorkspace);
+    if (workspaceState) {
+      workspaceState.activeProvider = providerId;
+    }
+    
+    // Update UI components
+    this.updateAllComponentsForProviderSwitch(providerId, previousProvider);
+    
+    // Update workspace header
+    this.updateWorkspaceHeader(this.currentWorkspace, { 
+      activeProvider: providerId,
+      switching: true
+    });
+    
+    // Reset switching flag after transition
+    setTimeout(() => {
+      this.globalProviderState.switching = false;
+      this.updateWorkspaceHeader(this.currentWorkspace, { switching: false });
+    }, 500);
+  }
+  
+  /**
+   * Handle provider status events
+   */
+  handleProviderStatusEvent(eventData) {
+    const { providerId, status, error, healthMetrics } = eventData;
+    
+    console.log(`[WorkspaceManager] Provider ${providerId} status: ${status}`);
+    
+    // Update provider status in global state
+    this.globalProviderState.providers.set(providerId, { status, error });
+    
+    if (healthMetrics) {
+      this.globalProviderState.healthStatus.set(providerId, healthMetrics);
+    }
+    
+    // Update workspace UI
+    this.updateProviderStatusDisplay(providerId, status, error);
+  }
+  
+  /**
+   * Handle provider usage tracking events
+   */
+  handleProviderUsageEvent(eventData) {
+    const { providerId, cost, tokens, sessionCost, efficiency } = eventData;
+    
+    // Update cost tracking
+    this.globalProviderState.costTracking.sessionCost = sessionCost;
+    this.globalProviderState.costTracking.totalCost += cost;
+    this.globalProviderState.costTracking.sessionTokens += tokens;
+    this.globalProviderState.costTracking.totalTokens += tokens;
+    
+    // Update workspace cost displays
+    this.updateWorkspaceCostDisplay(this.currentWorkspace, providerId, {
+      sessionCost,
+      cost,
+      tokens,
+      efficiency
+    });
+  }
+  
+  /**
+   * Handle cost limit warnings
+   */
+  handleCostLimitWarning(eventData) {
+    const { type, percentage, severity, recommendation } = eventData;
+    
+    console.warn(`[WorkspaceManager] Cost limit warning: ${type} at ${percentage}%`);
+    
+    // Show workspace-level cost warning
+    this.showWorkspaceCostWarning({
+      type,
+      percentage,
+      severity,
+      recommendation
+    });
+  }
+  
+  /**
+   * Handle provider health updates
+   */
+  handleProviderHealthUpdate(eventData) {
+    const { results, healthyCount, totalCount } = eventData;
+    
+    console.log(`[WorkspaceManager] Provider health update: ${healthyCount}/${totalCount} healthy`);
+    
+    // Update workspace health indicators
+    this.updateWorkspaceHealthDisplay({
+      healthyCount,
+      totalCount,
+      healthyPercentage: (healthyCount / totalCount) * 100
+    });
+  }
+  
+  /**
+   * Coordinate provider switch across UI components
+   */
+  coordinateProviderSwitchUI(eventData) {
+    const { switchId, providerId, status } = eventData;
+    
+    // Update chat component if available
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.handleProviderSwitchCoordination) {
+      chatComponent.handleProviderSwitchCoordination(eventData);
+    }
+    
+    // Update chat history panel
+    const historyPanel = this.getChatHistoryPanel();
+    if (historyPanel && historyPanel.handleProviderSwitchCoordination) {
+      historyPanel.handleProviderSwitchCoordination(eventData);
+    }
+  }
+  
+  /**
+   * Coordinate cost updates across UI components
+   */
+  coordinateCostUpdateUI(eventData) {
+    // Update all cost-aware components
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.handleCostUpdateCoordination) {
+      chatComponent.handleCostUpdateCoordination(eventData);
+    }
+    
+    // Update workspace cost indicators
+    this.updateWorkspaceCostIndicators(eventData);
+  }
+  
+  /**
+   * Integrate chat component with provider state
+   */
+  integrateChatComponentWithProviderState(chatComponent) {
+    // Set up provider channel for the chat component
+    const chatProviderId = this.globalProviderState.activeProvider;
+    const providerChannel = eventBus.createProviderChannel(chatProviderId);
+    this.providerChannels.set(`chat-${chatComponent.containerId}`, providerChannel);
+    
+    // Listen for chat component provider events
+    if (chatComponent.onProviderChange) {
+      chatComponent.onProviderChange((newProvider) => {
+        eventBus.publish('active-provider-changed', {
+          providerId: newProvider,
+          previousProvider: this.globalProviderState.activeProvider,
+          reason: 'user-selection',
+          source: 'chat-component'
+        });
+      });
+    }
+    
+    if (chatComponent.onCostUpdate) {
+      chatComponent.onCostUpdate((costData) => {
+        eventBus.publish('provider-usage-tracked', {
+          ...costData,
+          source: 'chat-component'
+        });
+      });
+    }
+  }
+  
+  /**
+   * Update all components for provider switch
+   */
+  updateAllComponentsForProviderSwitch(newProvider, previousProvider) {
+    // Update chat component
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.updateProviderState) {
+      chatComponent.updateProviderState(newProvider);
+    }
+    
+    // Update chat history panel
+    const historyPanel = this.getChatHistoryPanel();
+    if (historyPanel && historyPanel.updateProviderContext) {
+      historyPanel.updateProviderContext(newProvider, previousProvider);
+    }
+    
+    // Update browser component if it's provider-aware
+    const browserComponent = this.getBrowserComponent();
+    if (browserComponent && browserComponent.updateProviderContext) {
+      browserComponent.updateProviderContext(newProvider);
+    }
+  }
+  
+  /**
+   * Update provider status display
+   */
+  updateProviderStatusDisplay(providerId, status, error) {
+    const statusIndicator = document.querySelector(`[data-provider="${providerId}"] .status-indicator`);
+    if (statusIndicator) {
+      statusIndicator.className = `status-indicator ${status}`;
+      statusIndicator.setAttribute('title', error || `${providerId} - ${status}`);
+    }
+    
+    // Update workspace header if this is the active provider
+    if (providerId === this.globalProviderState.activeProvider) {
+      this.updateWorkspaceHeader(this.currentWorkspace, {
+        provider: providerId,
+        status,
+        error
+      });
+    }
+  }
+  
+  /**
+   * Update workspace cost indicators
+   */
+  updateWorkspaceCostIndicators(costData) {
+    const { sessionCost, efficiency, limits } = costData;
+    
+    // Update cost display in workspace header
+    this.updateWorkspaceHeader(this.currentWorkspace, {
+      costInfo: {
+        sessionCost,
+        efficiency: efficiency?.costPerToken,
+        warningLevel: limits?.sessionPercentage > 80 ? 'warning' : 'normal'
+      }
+    });
+  }
+  
+  /**
+   * Show workspace-level cost warning
+   */
+  showWorkspaceCostWarning(warningData) {
+    const { type, percentage, severity, recommendation } = warningData;
+    
+    // Create or update workspace warning indicator
+    const workspaceElement = document.querySelector(`[data-workspace="${this.currentWorkspace}"]`);
+    if (workspaceElement) {
+      let warningIndicator = workspaceElement.querySelector('.cost-warning-indicator');
+      
+      if (!warningIndicator) {
+        warningIndicator = document.createElement('div');
+        warningIndicator.className = 'cost-warning-indicator';
+        workspaceElement.appendChild(warningIndicator);
+      }
+      
+      warningIndicator.className = `cost-warning-indicator ${severity}`;
+      warningIndicator.textContent = `${type.toUpperCase()}: ${percentage.toFixed(1)}%`;
+      warningIndicator.setAttribute('title', recommendation);
+      
+      // Auto-hide after delay unless critical
+      if (severity !== 'critical') {
+        setTimeout(() => {
+          warningIndicator.style.display = 'none';
+        }, 10000);
+      }
+    }
+  }
+  
+  /**
+   * Update workspace health display
+   */
+  updateWorkspaceHealthDisplay(healthData) {
+    const { healthyCount, totalCount, healthyPercentage } = healthData;
+    
+    const healthIndicator = document.querySelector(`[data-workspace="${this.currentWorkspace}"] .health-indicator`);
+    if (healthIndicator) {
+      healthIndicator.textContent = `${healthyCount}/${totalCount}`;
+      healthIndicator.className = `health-indicator ${
+        healthyPercentage >= 80 ? 'healthy' : 
+        healthyPercentage >= 50 ? 'warning' : 'critical'
+      }`;
+      healthIndicator.setAttribute('title', `${healthyPercentage.toFixed(1)}% providers healthy`);
+    }
+  }
+  
+  /**
+   * Set up provider integration
+   */
+  setupProviderIntegration() {
+    // Listen for provider events from chat components
+    Object.entries(this.boundProviderHandlers).forEach(([eventType, handler]) => {
+      window.addEventListener(`chat-${eventType}`, handler);
+    });
+    
+    // Initialize provider states for each workspace
+    this.workspaces.forEach((workspace, workspaceId) => {
+      this.providerStates.set(workspaceId, {
+        activeProvider: 'claude',
+        providerStatus: new Map([
+          ['claude', { status: 'disconnected', model: null, cost: 0 }],
+          ['openai', { status: 'disconnected', model: null, cost: 0 }],
+          ['gemini', { status: 'disconnected', model: null, cost: 0 }]
+        ]),
+        costTracking: {
+          sessionCost: 0,
+          sessionTokens: 0
+        }
+      });
+    });
+    
+    console.log('[WorkspaceManager] Provider integration setup complete');
+  }
+  
+  /**
+   * Handle provider changed event
+   */
+  handleProviderChanged(detail) {
+    const { provider, workspaceId = this.currentWorkspace, componentId } = detail;
+    
+    if (!workspaceId || !this.providerStates.has(workspaceId)) return;
+    
+    const workspaceProviderState = this.providerStates.get(workspaceId);
+    const previousProvider = workspaceProviderState.activeProvider;
+    
+    workspaceProviderState.activeProvider = provider;
+    this.globalProviderState.activeProvider = provider;
+    this.globalProviderState.switching = true;
+    
+    console.log(`[WorkspaceManager] Provider changed: ${previousProvider} → ${provider} in workspace ${workspaceId}`);
+    
+    // Update UI to reflect provider change
+    this.updateWorkspaceProviderUI(workspaceId, provider);
+    
+    // Notify other components of provider change
+    this.notifyProviderChange(workspaceId, provider, previousProvider);
+    
+    // Reset switching flag after transition
+    setTimeout(() => {
+      this.globalProviderState.switching = false;
+    }, 300);
+  }
+  
+  /**
+   * Handle provider status changed event
+   */
+  handleProviderStatusChanged(detail) {
+    const { provider, status, model, workspaceId = this.currentWorkspace } = detail;
+    
+    if (!workspaceId || !this.providerStates.has(workspaceId)) return;
+    
+    const workspaceProviderState = this.providerStates.get(workspaceId);
+    const providerInfo = workspaceProviderState.providerStatus.get(provider);
+    
+    if (providerInfo) {
+      providerInfo.status = status;
+      if (model) providerInfo.model = model;
+      
+      // Update global provider registry
+      this.globalProviderState.providers.set(provider, { status, model });
+      
+      console.log(`[WorkspaceManager] Provider ${provider} status: ${status}${model ? ` (${model})` : ''}`);
+      
+      // Update workspace UI
+      this.updateWorkspaceProviderStatus(workspaceId, provider, status, model);
+    }
+  }
+  
+  /**
+   * Handle cost updated event
+   */
+  handleCostUpdated(detail) {
+    const { provider, sessionCost, sessionTokens, totalCost, totalTokens, workspaceId = this.currentWorkspace } = detail;
+    
+    if (!workspaceId || !this.providerStates.has(workspaceId)) return;
+    
+    const workspaceProviderState = this.providerStates.get(workspaceId);
+    const providerInfo = workspaceProviderState.providerStatus.get(provider);
+    
+    if (providerInfo) {
+      providerInfo.cost = sessionCost || 0;
+      
+      // Update workspace cost tracking
+      workspaceProviderState.costTracking.sessionCost = sessionCost || 0;
+      workspaceProviderState.costTracking.sessionTokens = sessionTokens || 0;
+      
+      // Update global cost tracking
+      this.globalProviderState.costTracking.sessionCost = sessionCost || 0;
+      this.globalProviderState.costTracking.totalCost = totalCost || 0;
+      this.globalProviderState.costTracking.sessionTokens = sessionTokens || 0;
+      this.globalProviderState.costTracking.totalTokens = totalTokens || 0;
+      
+      console.log(`[WorkspaceManager] Cost updated for ${provider}: $${sessionCost?.toFixed(4) || '0.0000'}`);
+      
+      // Update workspace cost display
+      this.updateWorkspaceCostDisplay(workspaceId, provider);
+    }
+  }
+  
+  /**
+   * Update workspace provider UI
+   */
+  updateWorkspaceProviderUI(workspaceId, provider) {
+    // Update UI manager with provider change
+    if (window.uiManager && window.uiManager.updateProviderState) {
+      window.uiManager.updateProviderState(workspaceId, {
+        activeProvider: provider,
+        switching: this.globalProviderState.switching
+      });
+    }
+    
+    // Update workspace header if exists
+    this.updateWorkspaceHeader(workspaceId, { activeProvider: provider });
+  }
+  
+  /**
+   * Update workspace provider status
+   */
+  updateWorkspaceProviderStatus(workspaceId, provider, status, model) {
+    // Update workspace header with status
+    this.updateWorkspaceHeader(workspaceId, {
+      provider,
+      status,
+      model
+    });
+    
+    // Notify UI manager
+    if (window.uiManager && window.uiManager.updateProviderStatus) {
+      window.uiManager.updateProviderStatus(workspaceId, provider, status, model);
+    }
+  }
+  
+  /**
+   * Update workspace cost display
+   */
+  updateWorkspaceCostDisplay(workspaceId, provider) {
+    const workspaceProviderState = this.providerStates.get(workspaceId);
+    if (!workspaceProviderState) return;
+    
+    const costInfo = {
+      sessionCost: workspaceProviderState.costTracking.sessionCost,
+      sessionTokens: workspaceProviderState.costTracking.sessionTokens,
+      provider
+    };
+    
+    // Update workspace header with cost info
+    this.updateWorkspaceHeader(workspaceId, { costInfo });
+    
+    // Notify UI manager
+    if (window.uiManager && window.uiManager.updateCostDisplay) {
+      window.uiManager.updateCostDisplay(workspaceId, costInfo);
+    }
+  }
+  
+  /**
+   * Update workspace header with enhanced provider information
+   */
+  updateWorkspaceHeader(workspaceId, updateInfo) {
+    const headerElement = document.querySelector(`[data-workspace="${workspaceId}"] .workspace-header`);
+    if (!headerElement) {
+      console.warn(`[WorkspaceManager] Workspace header not found for: ${workspaceId}`);
+      return;
+    }
+    
+    // Update provider indicator if needed
+    if (updateInfo.activeProvider) {
+      const providerIndicator = headerElement.querySelector('.provider-indicator');
+      if (providerIndicator) {
+        providerIndicator.textContent = this.getProviderIcon(updateInfo.activeProvider);
+        providerIndicator.setAttribute('data-provider', updateInfo.activeProvider);
+        
+        // Add switching animation if specified
+        if (updateInfo.switching) {
+          providerIndicator.classList.add('switching');
+          setTimeout(() => {
+            providerIndicator.classList.remove('switching');
+          }, 500);
+        }
+      } else {
+        // Create provider indicator if it doesn't exist
+        const newProviderIndicator = document.createElement('div');
+        newProviderIndicator.className = 'provider-indicator';
+        newProviderIndicator.textContent = this.getProviderIcon(updateInfo.activeProvider);
+        newProviderIndicator.setAttribute('data-provider', updateInfo.activeProvider);
+        headerElement.appendChild(newProviderIndicator);
+      }
+    }
+    
+    // Update status indicator if needed
+    if (updateInfo.status) {
+      const statusIndicator = headerElement.querySelector('.status-indicator');
+      if (statusIndicator) {
+        statusIndicator.className = `status-indicator ${updateInfo.status}`;
+        if (updateInfo.model) {
+          statusIndicator.setAttribute('title', `${updateInfo.provider} - ${updateInfo.model}`);
+        }
+        if (updateInfo.error) {
+          statusIndicator.setAttribute('title', `${updateInfo.provider} - Error: ${updateInfo.error}`);
+        }
+      } else {
+        // Create status indicator if it doesn't exist
+        const newStatusIndicator = document.createElement('div');
+        newStatusIndicator.className = `status-indicator ${updateInfo.status}`;
+        newStatusIndicator.setAttribute('title', updateInfo.error || `${updateInfo.provider} - ${updateInfo.status}`);
+        headerElement.appendChild(newStatusIndicator);
+      }
+    }
+    
+    // Update cost display if needed
+    if (updateInfo.costInfo) {
+      const costDisplay = headerElement.querySelector('.cost-display');
+      if (costDisplay) {
+        const { sessionCost, efficiency, warningLevel, sessionTokens } = updateInfo.costInfo;
+        
+        costDisplay.textContent = `$${sessionCost?.toFixed(4) || '0.0000'}`;
+        costDisplay.className = `cost-display ${warningLevel || 'normal'}`;
+        
+        let tooltipText = `${sessionTokens || 0} tokens`;
+        if (efficiency) {
+          tooltipText += ` • $${efficiency.toFixed(6)}/token`;
+        }
+        costDisplay.setAttribute('title', tooltipText);
+      } else {
+        // Create cost display if it doesn't exist
+        const newCostDisplay = document.createElement('div');
+        newCostDisplay.className = `cost-display ${updateInfo.costInfo.warningLevel || 'normal'}`;
+        newCostDisplay.textContent = `$${updateInfo.costInfo.sessionCost?.toFixed(4) || '0.0000'}`;
+        headerElement.appendChild(newCostDisplay);
+      }
+    }
+    
+    // Update health indicator if needed
+    if (updateInfo.healthStatus) {
+      let healthIndicator = headerElement.querySelector('.health-indicator');
+      if (!healthIndicator) {
+        healthIndicator = document.createElement('div');
+        healthIndicator.className = 'health-indicator';
+        headerElement.appendChild(healthIndicator);
+      }
+      
+      const { healthyCount, totalCount, healthyPercentage } = updateInfo.healthStatus;
+      healthIndicator.textContent = `${healthyCount}/${totalCount}`;
+      healthIndicator.className = `health-indicator ${
+        healthyPercentage >= 80 ? 'healthy' : 
+        healthyPercentage >= 50 ? 'warning' : 'critical'
+      }`;
+      healthIndicator.setAttribute('title', `${healthyPercentage.toFixed(1)}% providers healthy`);
+    }
+    
+    // Update switching state indicator
+    if (updateInfo.switching !== undefined) {
+      const switchingIndicator = headerElement.querySelector('.switching-indicator');
+      if (updateInfo.switching) {
+        if (!switchingIndicator) {
+          const newSwitchingIndicator = document.createElement('div');
+          newSwitchingIndicator.className = 'switching-indicator active';
+          newSwitchingIndicator.textContent = '⚡';
+          newSwitchingIndicator.setAttribute('title', 'Switching provider...');
+          headerElement.appendChild(newSwitchingIndicator);
+        }
+      } else if (switchingIndicator) {
+        switchingIndicator.remove();
+      }
+    }
+  }
+  
+  /**
+   * Get provider icon
+   */
+  getProviderIcon(provider) {
+    const icons = {
+      claude: '🤖',
+      openai: '🧠',
+      gemini: '💎'
+    };
+    return icons[provider] || '❓';
+  }
+  
+  /**
+   * Notify other components of provider change
+   */
+  notifyProviderChange(workspaceId, newProvider, previousProvider) {
+    // Notify chat history panel if it exists
+    const historyPanel = this.getChatHistoryPanel();
+    if (historyPanel && historyPanel.handleProviderChange) {
+      historyPanel.handleProviderChange({
+        workspaceId,
+        newProvider,
+        previousProvider
+      });
+    }
+    
+    // Emit global event
+    this.dispatchEvent('provider-changed', {
+      workspaceId,
+      newProvider,
+      previousProvider
+    });
+  }
+  
+  /**
+   * Sync provider state with components
+   */
+  syncProviderStateWithComponents(chatComponent, historyPanel) {
+    if (chatComponent) {
+      // Set initial provider state
+      const workspaceState = this.providerStates.get(this.currentWorkspace);
+      if (workspaceState && chatComponent.setProviderState) {
+        chatComponent.setProviderState(workspaceState.activeProvider);
+      }
+      
+      // Listen for provider changes from chat component
+      if (chatComponent.onProviderChange) {
+        chatComponent.onProviderChange((provider) => {
+          this.handleProviderChanged({ provider, componentId: chatComponent.containerId });
+        });
+      }
+    }
+    
+    if (historyPanel) {
+      // Set up provider metadata integration
+      if (historyPanel.enableProviderMetadata) {
+        historyPanel.enableProviderMetadata(true);
+      }
+    }
+  }
+  
+  /**
+   * Initialize workspace provider monitoring
+   */
+  initializeWorkspaceProviderMonitoring(workspaceId) {
+    const workspaceState = this.providerStates.get(workspaceId);
+    if (!workspaceState) return;
+    
+    // Set up periodic provider status checking
+    const checkInterval = setInterval(() => {
+      this.checkProviderStatuses(workspaceId);
+    }, 30000); // Check every 30 seconds
+    
+    // Store interval for cleanup
+    workspaceState.statusCheckInterval = checkInterval;
+    
+    console.log(`[WorkspaceManager] Provider monitoring initialized for workspace: ${workspaceId}`);
+  }
+  
+  /**
+   * Check provider statuses for workspace
+   */
+  async checkProviderStatuses(workspaceId) {
+    const workspaceState = this.providerStates.get(workspaceId);
+    if (!workspaceState) return;
+    
+    // Check each provider status
+    for (const [provider, info] of workspaceState.providerStatus) {
+      if (info.status === 'connected' || info.status === 'connecting') {
+        // Ping provider to ensure it's still responsive
+        try {
+          if (window.electronAPI?.ai?.pingProvider) {
+            const pingResult = await window.electronAPI.ai.pingProvider(provider);
+            if (!pingResult.success) {
+              this.handleProviderStatusChanged({
+                provider,
+                status: 'disconnected',
+                workspaceId
+              });
+            }
+          }
+        } catch (error) {
+          console.warn(`[WorkspaceManager] Provider ${provider} ping failed:`, error);
+          this.handleProviderStatusChanged({
+            provider,
+            status: 'error',
+            workspaceId
+          });
+        }
+      }
+    }
+  }
+  
+  /**
+   * Get provider state for workspace
+   */
+  getProviderState(workspaceId = this.currentWorkspace) {
+    return this.providerStates.get(workspaceId) || null;
+  }
+  
+  /**
+   * Get global provider state with enhanced analytics
+   */
+  getGlobalProviderState() {
+    return { 
+      ...this.globalProviderState,
+      analytics: {
+        ...this.globalProviderState.analytics,
+        providerHealth: Object.fromEntries(this.globalProviderState.healthStatus),
+        activeChannels: this.providerChannels.size,
+        lastUpdated: Date.now()
+      }
+    };
+  }
+  
+  /**
+   * Get workspace provider analytics
+   */
+  getWorkspaceProviderAnalytics(workspaceId = this.currentWorkspace) {
+    const workspaceState = this.providerStates.get(workspaceId);
+    if (!workspaceState) return null;
+    
+    return {
+      workspaceId,
+      activeProvider: workspaceState.activeProvider,
+      providerStatus: Object.fromEntries(workspaceState.providerStatus),
+      costTracking: workspaceState.costTracking,
+      healthMetrics: this.globalProviderState.healthStatus.get(workspaceState.activeProvider),
+      analytics: {
+        switchCount: this.globalProviderState.analytics.switchCount,
+        lastSwitchTime: this.globalProviderState.analytics.lastSwitchTime
+      }
+    };
+  }
+  
+  /**
+   * Export workspace provider configuration
+   */
+  exportWorkspaceProviderConfig(workspaceId = this.currentWorkspace) {
+    const analytics = this.getWorkspaceProviderAnalytics(workspaceId);
+    const workspace = this.workspaces.get(workspaceId);
+    
+    return {
+      version: '1.0',
+      exportedAt: Date.now(),
+      workspaceId,
+      workspaceName: workspace?.name,
+      providerConfiguration: analytics,
+      eventBusIntegration: {
+        activeSubscriptions: this.eventSubscriptions.length,
+        providerChannels: this.providerChannels.size
+      }
+    };
+  }
+  
+  /**
+   * Switch provider for current workspace
+   */
+  async switchProvider(provider, workspaceId = this.currentWorkspace) {
+    const chatComponent = this.getChatComponent();
+    if (chatComponent && chatComponent.switchProvider) {
+      return await chatComponent.switchProvider(provider);
+    }
+    return false;
+  }
+  
+  /**
+   * Dispatch custom events (if event system is available)
+   */
+  dispatchEvent(eventType, detail) {
+    if (typeof CustomEvent !== 'undefined' && window.dispatchEvent) {
+      const event = new CustomEvent(`workspace-${eventType}`, { detail });
+      window.dispatchEvent(event);
+    }
   }
 }
 

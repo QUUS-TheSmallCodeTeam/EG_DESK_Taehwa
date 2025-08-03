@@ -1,8 +1,8 @@
 /**
- * ChatComponent - Reusable AI Chat Interface Component
+ * ChatComponent - Modern Messenger-Style AI Chat Interface
  * 
- * A self-contained chat component for AI interaction that can be used
- * in any workspace. Handles terminal-style chat with Claude AI integration.
+ * A modern, messenger-style chat component that integrates with LangChain
+ * for multi-provider AI conversations with real-time cost tracking.
  */
 
 class ChatComponent {
@@ -11,45 +11,61 @@ class ChatComponent {
     this.container = null;
     this.elements = {};
     this.isInitialized = false;
-    this.commandHistory = [];
-    this.historyIndex = -1;
+    this.messageId = 0;
     
     // Component options
     this.options = {
-      title: options.title || 'AI Agent Terminal',
-      icon: options.icon || '🤖',
-      placeholder: options.placeholder || 'AI 에이전트와 대화하기...',
-      prompt: options.prompt || 'AI-Agent $',
-      welcomeMessages: options.welcomeMessages || this.getDefaultWelcomeMessages(),
-      maxHistorySize: options.maxHistorySize || 100,
+      title: options.title || 'AI Chat',
+      placeholder: options.placeholder || 'Type your message...',
+      enableProviderSelection: options.enableProviderSelection !== false,
+      enableCostTracking: false,
+      enableStreaming: options.enableStreaming !== false,
+      maxMessages: options.maxMessages || 100,
       ...options
     };
+    
+    // Chat state
+    this.currentProvider = null;
+    this.currentModel = null;
+    this.providerStatus = 'disconnected';
+    this.availableProviders = [];
+    this.conversationHistory = [];
+    this.costTracker = {
+      session: { input: 0, output: 0, total: 0 },
+      total: { input: 0, output: 0, total: 0 }
+    };
+    
+    // Streaming state
+    this.isStreaming = false;
+    this.currentStreamingMessageElement = null;
+    
+    // State management integration (will be set by WorkspaceManager)
+    this.globalStateManager = null;
+    this.eventBus = null;
+    this.currentSessionId = null;
   }
 
   /**
    * Initialize the chat component
    */
   async initialize() {
-    console.log(`[ChatComponent] Starting initialization for: ${this.containerId}`);
+    console.log(`[ChatComponent] Initializing messenger-style chat: ${this.containerId}`);
     
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
-      console.error(`[ChatComponent] Container with ID "${this.containerId}" not found`);
       throw new Error(`Container with ID "${this.containerId}" not found`);
     }
 
     try {
       this.render();
-      console.log(`[ChatComponent] Render completed`);
-      
       this.setupEventListeners();
-      console.log(`[ChatComponent] Event listeners setup`);
-      
-      this.displayWelcomeMessages();
-      console.log(`[ChatComponent] Welcome messages displayed`);
+      await this.initializeProviders();
+      this.displayWelcomeMessage();
       
       this.isInitialized = true;
-      console.log(`[ChatComponent] Initialized successfully in container: ${this.containerId}`);
+      console.log(`[ChatComponent] Messenger-style chat initialized: ${this.containerId}`);
+      
+      return true;
     } catch (error) {
       console.error(`[ChatComponent] Initialization failed:`, error);
       throw error;
@@ -57,633 +73,1060 @@ class ChatComponent {
   }
 
   /**
-   * Render the chat component HTML
+   * Render the messenger-style chat interface
    */
   render() {
     this.container.innerHTML = `
-      <div class="chat-component">
-        <!-- Chat Header -->
+      <div class="messenger-chat">
+        <!-- Header -->
         <div class="chat-header">
-          <div class="chat-icon">${this.options.icon}</div>
-          <span class="chat-title">${this.options.title}</span>
-          <div class="chat-status">
-            <div class="status-dot online"></div>
+          <div class="header-left">
+            <div class="chat-avatar">
+              <div class="avatar-icon">🤖</div>
+            </div>
+            <div class="chat-info">
+              <h3 class="chat-title">${this.options.title}</h3>
+              <div class="chat-status">
+                <span id="${this.containerId}-status-text" class="status-text">Ready</span>
+                <div id="${this.containerId}-status-dot" class="status-dot"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="header-right">
+            ${this.options.enableProviderSelection ? `
+            <div class="provider-controls">
+              <select id="${this.containerId}-provider-select" class="provider-selector">
+                <option value="">Select Provider...</option>
+              </select>
+              <select id="${this.containerId}-model-select" class="model-selector" disabled>
+                <option value="">Select Model...</option>
+              </select>
+            </div>` : ''}
+            
+            ${this.options.enableCostTracking ? `
+            <div class="cost-tracker">
+              <div class="cost-session">
+                <span class="cost-label">Session:</span>
+                <span id="${this.containerId}-session-cost" class="cost-value">$0.00</span>
+              </div>
+              <div class="cost-total">
+                <span class="cost-label">Total:</span>
+                <span id="${this.containerId}-total-cost" class="cost-value">$0.00</span>
+              </div>
+              <button id="${this.containerId}-reset-costs" class="reset-costs-btn" title="Reset Session Costs">🔄</button>
+            </div>` : ''}
+            
+            <div class="header-actions">
+              <button id="${this.containerId}-settings-btn" class="action-btn" title="Settings">⚙️</button>
+            </div>
           </div>
         </div>
-        
-        <!-- Chat Output -->
-        <div id="${this.containerId}-output" class="chat-output">
-          <!-- Messages will be dynamically added here -->
+
+        <!-- Messages Container -->
+        <div id="${this.containerId}-messages" class="messages-container">
+          <div class="messages-scroll">
+            <div id="${this.containerId}-messages-list" class="messages-list">
+              <!-- Messages will be added here -->
+            </div>
+          </div>
         </div>
-        
-        <!-- Chat Input -->
-        <div class="chat-input-container">
-          <span class="chat-prompt">${this.options.prompt}</span>
-          <input 
-            type="text" 
-            id="${this.containerId}-input" 
-            class="chat-input" 
-            placeholder="${this.options.placeholder}"
-            autocomplete="off"
-          />
+
+        <!-- Input Area -->
+        <div class="chat-input-area">
+          <div class="input-container">
+            <div class="input-wrapper">
+              <textarea 
+                id="${this.containerId}-input" 
+                class="message-input" 
+                placeholder="${this.options.placeholder}"
+                rows="1"
+                maxlength="10000"
+              ></textarea>
+              <div class="input-actions">
+                <button id="${this.containerId}-send-btn" class="send-btn" disabled>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="input-footer">
+              <div class="typing-indicator">
+                <span id="${this.containerId}-typing" class="typing-text"></span>
+              </div>
+              <div class="char-counter">
+                <span id="${this.containerId}-char-count" class="char-count">0/10000</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     `;
 
-    // Cache DOM elements
+    // Cache element references
     this.elements = {
-      output: document.getElementById(`${this.containerId}-output`),
-      input: document.getElementById(`${this.containerId}-input`),
-      header: this.container.querySelector('.chat-header'),
-      statusDot: this.container.querySelector('.status-dot')
+      statusText: document.getElementById(`${this.containerId}-status-text`),
+      statusDot: document.getElementById(`${this.containerId}-status-dot`),
+      providerSelect: document.getElementById(`${this.containerId}-provider-select`),
+      modelSelect: document.getElementById(`${this.containerId}-model-select`),
+      sessionCost: document.getElementById(`${this.containerId}-session-cost`),
+      totalCost: document.getElementById(`${this.containerId}-total-cost`),
+      resetCostsBtn: document.getElementById(`${this.containerId}-reset-costs`),
+      messagesContainer: document.getElementById(`${this.containerId}-messages`),
+      messagesList: document.getElementById(`${this.containerId}-messages-list`),
+      messageInput: document.getElementById(`${this.containerId}-input`),
+      sendBtn: document.getElementById(`${this.containerId}-send-btn`),
+      typingIndicator: document.getElementById(`${this.containerId}-typing`),
+      charCount: document.getElementById(`${this.containerId}-char-count`),
+      settingsBtn: document.getElementById(`${this.containerId}-settings-btn`)
     };
 
-    // Add component-specific styles
+    // CSS validation - check if index.html has all required styles
     this.addStyles();
   }
 
   /**
-   * Add CSS styles for the chat component
+   * Add modern messenger-style CSS
+   * NOTE: CSS injection disabled - styles are defined in index.html
    */
   addStyles() {
-    const styleId = `chat-component-styles`;
-    if (document.getElementById(styleId)) return;
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .chat-component {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border: 2px solid #7c3aed; /* Purple border for differentiation */
-        overflow: hidden;
-      }
-
-      .chat-header {
-        display: flex;
-        align-items: center;
-        padding: 12px 16px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        font-weight: 600;
-        font-size: 14px;
-        gap: 10px;
-        flex-shrink: 0;
-      }
-
-      .chat-icon {
-        font-size: 16px;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .chat-title {
-        flex: 1;
-      }
-
-      .chat-status {
-        display: flex;
-        align-items: center;
-      }
-
-      .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        margin-left: 8px;
-      }
-
-      .status-dot.online {
-        background: #10b981;
-        box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-      }
-
-      .status-dot.busy {
-        background: #f59e0b;
-        box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
-      }
-
-      .status-dot.offline {
-        background: #ef4444;
-        box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
-      }
-
-      .chat-output {
-        flex: 1;
-        padding: 16px;
-        overflow-y: auto;
-        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        font-size: 13px;
-        line-height: 1.6;
-        background: #fafafa;
-        color: #374151;
-      }
-
-      .chat-output::-webkit-scrollbar {
-        width: 6px;
-      }
-
-      .chat-output::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
-      .chat-output::-webkit-scrollbar-thumb {
-        background: #d1d5db;
-        border-radius: 3px;
-      }
-
-      .chat-output::-webkit-scrollbar-thumb:hover {
-        background: #9ca3af;
-      }
-
-      .chat-input-container {
-        display: flex;
-        align-items: center;
-        padding: 12px 16px;
-        background: #f9fafb;
-        border-top: 1px solid #e5e7eb;
-        gap: 8px;
-      }
-
-      .chat-prompt {
-        color: #10b981;
-        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        font-size: 13px;
-        font-weight: 600;
-        flex-shrink: 0;
-      }
-
-      .chat-input {
-        flex: 1;
-        border: none;
-        background: transparent;
-        color: #374151;
-        font-size: 13px;
-        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-        outline: none;
-        padding: 8px 0;
-      }
-
-      .chat-input::placeholder {
-        color: #9ca3af;
-      }
-
-      /* Message Types */
-      .message {
-        margin-bottom: 8px;
-        word-wrap: break-word;
-      }
-
-      .message.command {
-        color: #10b981;
-        font-weight: 600;
-      }
-
-      .message.output {
-        color: #374151;
-        margin-left: 16px;
-      }
-
-      .message.error {
-        color: #ef4444;
-        margin-left: 16px;
-        font-weight: 500;
-      }
-
-      .message.success {
-        color: #10b981;
-        margin-left: 16px;
-        font-weight: 500;
-      }
-
-      .message.warning {
-        color: #f59e0b;
-        margin-left: 16px;
-        font-weight: 500;
-      }
-
-      .message.system {
-        color: #6b7280;
-        font-style: italic;
-        margin-left: 16px;
-      }
-
-      .message.welcome {
-        color: #3b82f6;
-        margin-bottom: 4px;
-      }
-
-      .message.ai-response {
-        color: #7c3aed;
-        margin-left: 16px;
-        white-space: pre-wrap;
-      }
-
-      /* Status indicators */
-      .status-indicator {
-        display: inline-block;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        margin-right: 8px;
-        vertical-align: middle;
-      }
-
-      .status-indicator.success { background: #10b981; }
-      .status-indicator.error { background: #ef4444; }
-      .status-indicator.warning { background: #f59e0b; }
-      .status-indicator.info { background: #3b82f6; }
-
-      /* Animations */
-      @keyframes fadeInUp {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
+    // CSS styles are now defined in index.html to prevent design changes after component load
+    // This method is kept for backwards compatibility but does nothing
+    
+    // Check if required CSS classes exist in the document
+    const requiredClasses = [
+      'messenger-chat', 'chat-header', 'messages-container', 'messages-scroll', 
+      'messages-list', 'message', 'message-avatar', 'message-bubble', 
+      'message-content', 'send-btn', 'provider-selector', 'status-dot'
+    ];
+    
+    const missingClasses = requiredClasses.filter(className => {
+      const elements = document.getElementsByClassName(className);
+      const hasInCSS = Array.from(document.styleSheets).some(sheet => {
+        try {
+          return Array.from(sheet.cssRules || []).some(rule => 
+            rule.selectorText && rule.selectorText.includes(`.${className}`)
+          );
+        } catch (e) {
+          return false;
         }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .message {
-        animation: fadeInUp 0.2s ease-out;
-      }
-
-      /* Typing indicator */
-      .typing-indicator {
-        display: none;
-        margin-left: 16px;
-        color: #9ca3af;
-        font-style: italic;
-      }
-
-      .typing-indicator.active {
-        display: block;
-      }
-
-      .typing-dots {
-        display: inline-block;
-        animation: typing 1.4s infinite;
-      }
-
-      @keyframes typing {
-        0%, 60%, 100% { opacity: 0; }
-        30% { opacity: 1; }
-      }
-    `;
-
-    document.head.appendChild(style);
+      });
+      return elements.length === 0 && !hasInCSS;
+    });
+    
+    if (missingClasses.length > 0) {
+      console.warn(`[ChatComponent] Missing CSS classes in index.html:`, missingClasses);
+      console.warn(`[ChatComponent] Component may not display correctly without these styles`);
+    } else {
+      console.log(`[ChatComponent] All required CSS classes found in index.html`);
+    }
   }
 
   /**
-   * Set up event listeners
+   * Setup event listeners
    */
   setupEventListeners() {
-    // Enter key to send message
-    this.elements.input?.addEventListener('keydown', (e) => {
+    // Provider selection
+    if (this.elements.providerSelect) {
+      this.elements.providerSelect.addEventListener('change', (e) => {
+        this.handleProviderChange(e.target.value);
+      });
+    }
+
+    // Model selection
+    if (this.elements.modelSelect) {
+      this.elements.modelSelect.addEventListener('change', (e) => {
+        this.handleModelChange(e.target.value);
+      });
+    }
+
+    // Reset costs
+    if (this.elements.resetCostsBtn) {
+      this.elements.resetCostsBtn.addEventListener('click', () => {
+        this.resetSessionCosts();
+      });
+    }
+
+    // Message input
+    this.elements.messageInput.addEventListener('input', (e) => {
+      this.handleInputChange(e);
+    });
+
+    this.elements.messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         this.sendMessage();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        this.navigateHistory(-1);
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        this.navigateHistory(1);
       }
     });
 
-    // Focus input when clicking on chat area
-    this.elements.output?.addEventListener('click', () => {
-      this.elements.input?.focus();
+    // Send button
+    this.elements.sendBtn.addEventListener('click', () => {
+      this.sendMessage();
     });
 
-    // Auto-focus input
-    setTimeout(() => {
-      this.elements.input?.focus();
-    }, 100);
+    // Auto-resize textarea
+    this.elements.messageInput.addEventListener('input', () => {
+      this.autoResizeTextarea();
+    });
+
+    // Settings button
+    if (this.elements.settingsBtn) {
+      this.elements.settingsBtn.addEventListener('click', () => {
+        this.showSettings();
+      });
+    }
+
+    // Listen for streaming chunks
+    if (window.electronAPI) {
+      window.electronAPI.onLangChainStreamChunk((data) => {
+        this.handleStreamChunk(data.chunk);
+      });
+    }
+  }
+
+  /**
+   * Wait for backend services to be ready
+   */
+  async waitForServicesReady(maxAttempts = 10, delay = 500) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        // Test if Claude service is ready
+        if (window.electronAPI?.claude?.checkConfiguration) {
+          await window.electronAPI.claude.checkConfiguration();
+        }
+        
+        // Test if LangChain service is ready  
+        if (window.electronAPI?.invoke) {
+          await window.electronAPI.invoke('langchain-get-current-status');
+        }
+        
+        // Test if Chat History service is ready
+        if (window.electronAPI?.chatHistory?.getMetadata) {
+          await window.electronAPI.chatHistory.getMetadata();
+        }
+        
+        console.log(`[ChatComponent] Backend services ready after ${attempt} attempts`);
+        return true;
+      } catch (error) {
+        console.warn(`[ChatComponent] Services not ready, attempt ${attempt}/${maxAttempts}:`, error.message);
+        
+        if (attempt === maxAttempts) {
+          console.error(`[ChatComponent] Services failed to initialize after ${maxAttempts} attempts`);
+          throw new Error('Backend services not available');
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  /**
+   * Initialize available providers
+   */
+  async initializeProviders() {
+    try {
+      // Don't show connecting status initially
+      
+      if (!window.electronAPI) {
+        throw new Error('Electron API not available');
+      }
+
+      // Wait for backend services to be ready
+      await this.waitForServicesReady();
+
+      // Get available providers
+      this.availableProviders = await window.electronAPI.invoke('langchain-get-providers');
+      
+      if (this.availableProviders.length === 0) {
+        throw new Error('No AI providers configured');
+      }
+
+      // Populate provider dropdown
+      if (this.elements.providerSelect) {
+        this.elements.providerSelect.innerHTML = '<option value="">Select Provider...</option>';
+        
+        this.availableProviders.forEach(provider => {
+          const option = document.createElement('option');
+          option.value = provider.id;
+          option.textContent = `${this.getProviderIcon(provider.id)} ${provider.name}`;
+          if (provider.isCurrent) {
+            option.selected = true;
+            this.currentProvider = provider.id;
+          }
+          this.elements.providerSelect.appendChild(option);
+        });
+      }
+
+      // Get current status
+      const status = await window.electronAPI.invoke('langchain-get-current-status');
+      this.updateProviderStatus(status);
+
+      this.updateStatus('Ready', 'ready');
+      
+    } catch (error) {
+      console.error('[ChatComponent] Provider initialization failed:', error);
+      this.updateStatus(`Error: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * Handle provider change
+   */
+  async handleProviderChange(providerId) {
+    if (!providerId) return;
+
+    try {
+      this.updateStatus('Switching provider...', 'connecting');
+      
+      const result = await window.electronAPI.invoke('langchain-switch-provider', { providerId });
+      this.currentProvider = result.provider;
+      this.currentModel = result.model;
+
+      // Update model dropdown
+      this.updateModelDropdown(providerId);
+      
+      // Update status
+      const status = await window.electronAPI.invoke('langchain-get-current-status');
+      this.updateProviderStatus(status);
+      
+      this.updateStatus('Connected', 'connected');
+      
+      // Add system message
+      this.addSystemMessage(`Switched to ${result.config.name} (${result.model})`);
+      
+    } catch (error) {
+      console.error('[ChatComponent] Provider switch failed:', error);
+      this.updateStatus(`Error: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * Handle model change
+   */
+  async handleModelChange(modelId) {
+    if (!modelId || !this.currentProvider) return;
+
+    try {
+      this.updateStatus('Updating model...', 'connecting');
+      
+      await window.electronAPI.invoke('langchain-update-provider-model', { 
+        providerId: this.currentProvider, 
+        modelId 
+      });
+      
+      this.currentModel = modelId;
+      
+      // Update status
+      const status = await window.electronAPI.invoke('langchain-get-current-status');
+      this.updateProviderStatus(status);
+      
+      this.updateStatus('Connected', 'connected');
+      
+      // Add system message
+      this.addSystemMessage(`Model updated to ${modelId}`);
+      
+    } catch (error) {
+      console.error('[ChatComponent] Model update failed:', error);
+      this.updateStatus(`Error: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * Update model dropdown based on selected provider
+   */
+  async updateModelDropdown(providerId) {
+    if (!this.elements.modelSelect) return;
+
+    try {
+      const models = await window.electronAPI.invoke('langchain-get-provider-models', { providerId });
+      
+      this.elements.modelSelect.innerHTML = '<option value="">Select Model...</option>';
+      this.elements.modelSelect.disabled = false;
+      
+      models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = `${model.name} (${model.context.toLocaleString()} tokens)`;
+        if (model.id === this.currentModel) {
+          option.selected = true;
+        }
+        this.elements.modelSelect.appendChild(option);
+      });
+      
+    } catch (error) {
+      console.error('[ChatComponent] Failed to load models:', error);
+      this.elements.modelSelect.disabled = true;
+    }
   }
 
   /**
    * Send a message
    */
   async sendMessage() {
-    const input = this.elements.input;
-    if (!input || !input.value.trim()) return;
+    const message = this.elements.messageInput.value.trim();
+    if (!message || this.isStreaming) return;
 
-    const message = input.value.trim();
-    
-    // Add to history
-    this.addToHistory(message);
-    
-    // Display user command
-    this.addMessage(`${this.options.prompt} ${message}`, 'command');
-    
-    // Clear input
-    input.value = '';
-    this.historyIndex = -1;
-
-    // Show typing indicator
-    this.showTypingIndicator();
+    if (!this.currentProvider) {
+      this.showError('Please select a provider first');
+      return;
+    }
 
     try {
-      // Process the command
-      await this.processCommand(message);
-    } catch (error) {
-      this.addMessage(`실행 오류: ${error.message}`, 'error');
-    } finally {
-      // Hide typing indicator
-      this.hideTypingIndicator();
-    }
-  }
+      // Add user message to UI
+      this.addUserMessage(message);
+      
+      // Clear input
+      this.elements.messageInput.value = '';
+      this.updateCharCount();
+      this.autoResizeTextarea();
+      this.elements.sendBtn.disabled = true;
 
-  /**
-   * Process a command (can be overridden or extended)
-   */
-  async processCommand(command) {
-    // Check if it's a built-in command
-    if (this.handleBuiltInCommands(command)) {
-      return;
-    }
+      // Add to conversation history
+      this.conversationHistory.push({
+        role: 'user',
+        content: message,
+        timestamp: Date.now()
+      });
 
-    // Execute via electronAPI if available
-    if (window.electronAPI?.command?.execute) {
-      try {
-        const result = await window.electronAPI.command.execute(command);
-        
-        if (result.success) {
-          if (result.data) {
-            const lines = result.data.split('\n');
-            lines.forEach(line => {
-              if (line.trim()) {
-                this.addMessage(line, 'output');
-              }
-            });
-          } else {
-            this.addMessage('명령이 성공적으로 실행되었습니다.', 'success');
-          }
-        } else {
-          this.addMessage(`오류: ${result.error}`, 'error');
-        }
-      } catch (error) {
-        this.addMessage(`실행 실패: ${error.message}`, 'error');
+      // Prepare conversation history for API
+      const apiHistory = this.conversationHistory.slice(-20); // Last 20 messages
+
+      if (this.options.enableStreaming) {
+        await this.sendStreamingMessage(message, apiHistory);
+      } else {
+        await this.sendRegularMessage(message, apiHistory);
       }
-    } else {
-      // Fallback for when electronAPI is not available
-      this.addMessage('AI 에이전트가 현재 사용할 수 없습니다.', 'error');
+
+    } catch (error) {
+      console.error('[ChatComponent] Send message failed:', error);
+      this.showError(`Failed to send message: ${error.message}`);
+    } finally {
+      this.isStreaming = false;
+      this.elements.sendBtn.disabled = false;
+      this.elements.typingIndicator.textContent = '';
     }
   }
 
   /**
-   * Handle built-in commands
+   * Send streaming message
    */
-  handleBuiltInCommands(command) {
-    const cmd = command.toLowerCase().trim();
+  async sendStreamingMessage(message, conversationHistory) {
+    this.isStreaming = true;
+    this.elements.typingIndicator.textContent = 'AI is typing...';
     
-    switch (cmd) {
-      case 'clear':
-      case 'cls':
-        this.clearOutput();
-        return true;
+    // Add placeholder assistant message
+    this.currentStreamingMessageElement = this.addAssistantMessage('', true);
+
+    try {
+      const result = await window.electronAPI.invoke('langchain-stream-message', {
+        message,
+        conversationHistory,
+        systemPrompt: null
+      });
+
+      if (result.success) {
+        // Update conversation history
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: result.message,
+          timestamp: result.metadata.timestamp,
+          provider: result.provider,
+          model: result.model,
+          cost: result.metadata.cost
+        });
+
+        // Update cost tracking
+        this.updateCostDisplay(result.metadata);
         
-      case 'help':
-        this.showHelp();
-        return true;
-        
-      case 'history':
-        this.showHistory();
-        return true;
-        
-      default:
-        return false;
+        // Finalize streaming message
+        this.finalizeStreamingMessage(result);
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      // Remove placeholder message on error
+      if (this.currentStreamingMessageElement) {
+        this.currentStreamingMessageElement.remove();
+      }
+      throw error;
     }
   }
 
   /**
-   * Add a message to the chat output
+   * Send regular message
    */
-  addMessage(text, type = 'output') {
-    if (!this.elements.output) return;
+  async sendRegularMessage(message, conversationHistory) {
+    this.elements.typingIndicator.textContent = 'AI is thinking...';
 
+    const result = await window.electronAPI.invoke('langchain-send-message', {
+      message,
+      conversationHistory,
+      systemPrompt: null
+    });
+
+    if (result.success) {
+      // Add assistant message to UI
+      this.addAssistantMessage(result.message, false, result);
+      
+      // Update conversation history
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: result.message,
+        timestamp: result.metadata.timestamp,
+        provider: result.provider,
+        model: result.model,
+        cost: result.metadata.cost
+      });
+
+      // Update cost tracking
+      this.updateCostDisplay(result.metadata);
+      
+    } else {
+      throw new Error(result.error);
+    }
+  }
+
+  /**
+   * Handle streaming chunk
+   */
+  handleStreamChunk(chunk) {
+    if (this.currentStreamingMessageElement && chunk) {
+      const messageContent = this.currentStreamingMessageElement.querySelector('.message-content');
+      if (messageContent) {
+        messageContent.textContent += chunk;
+        this.scrollToBottom();
+      }
+    }
+  }
+
+  /**
+   * Finalize streaming message
+   */
+  finalizeStreamingMessage(result) {
+    if (this.currentStreamingMessageElement) {
+      // Remove streaming indicator
+      const streamingIndicator = this.currentStreamingMessageElement.querySelector('.streaming-indicator');
+      if (streamingIndicator) {
+        streamingIndicator.remove();
+      }
+
+      // Add metadata
+      this.addMessageMetadata(this.currentStreamingMessageElement, result);
+      
+      this.currentStreamingMessageElement = null;
+    }
+  }
+
+  /**
+   * Add user message to UI
+   */
+  addUserMessage(content) {
+    const messageElement = this.createMessageElement('user', content, {
+      timestamp: Date.now()
+    });
+    
+    this.elements.messagesList.appendChild(messageElement);
+    this.scrollToBottom();
+    
+    return messageElement;
+  }
+
+  /**
+   * Add assistant message to UI
+   */
+  addAssistantMessage(content, isStreaming = false, result = null) {
+    const messageElement = this.createMessageElement('assistant', content, result, isStreaming);
+    
+    this.elements.messagesList.appendChild(messageElement);
+    this.scrollToBottom();
+    
+    return messageElement;
+  }
+
+  /**
+   * Add system message to UI
+   */
+  addSystemMessage(content) {
+    const messageElement = this.createMessageElement('system', content, {
+      timestamp: Date.now()
+    });
+    
+    this.elements.messagesList.appendChild(messageElement);
+    this.scrollToBottom();
+    
+    return messageElement;
+  }
+
+  /**
+   * Create message element
+   */
+  createMessageElement(type, content, result = null, isStreaming = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}`;
-    
-    // Add status indicator for certain types
-    if (['success', 'error', 'warning', 'info'].includes(type)) {
-      const indicator = document.createElement('span');
-      indicator.className = `status-indicator ${type}`;
-      messageDiv.appendChild(indicator);
+    messageDiv.id = `message-${++this.messageId}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = this.getMessageAvatar(type);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.textContent = content;
+
+    bubble.appendChild(messageContent);
+
+    if (isStreaming) {
+      const streamingIndicator = document.createElement('div');
+      streamingIndicator.className = 'streaming-indicator';
+      streamingIndicator.innerHTML = `
+        <div class="streaming-dot"></div>
+        <div class="streaming-dot"></div>
+        <div class="streaming-dot"></div>
+      `;
+      bubble.appendChild(streamingIndicator);
     }
-    
-    messageDiv.appendChild(document.createTextNode(text));
-    this.elements.output.appendChild(messageDiv);
-    
-    // Auto-scroll to bottom
-    this.scrollToBottom();
+
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(bubble);
+
+    // Add metadata if provided
+    if (result && !isStreaming) {
+      this.addMessageMetadata(messageDiv, result);
+    }
+
+    return messageDiv;
   }
 
   /**
-   * Add multiple messages at once
+   * Add message metadata
    */
-  addMessages(messages) {
-    messages.forEach(({ text, type }) => {
-      this.addMessage(text, type);
+  addMessageMetadata(messageElement, result) {
+    const bubble = messageElement.querySelector('.message-bubble');
+    const metadata = document.createElement('div');
+    metadata.className = 'message-metadata';
+
+    const time = new Date(result.metadata?.timestamp || Date.now()).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     });
+
+    let metadataHTML = `<span class="message-time">${time}</span>`;
+
+    if (result.provider) {
+      const providerIcon = this.getProviderIcon(result.provider);
+      metadataHTML += `<span class="message-provider">${providerIcon} ${result.provider}</span>`;
+    }
+
+    if (result.metadata?.cost && this.options.enableCostTracking) {
+      metadataHTML += `<span class="message-cost">$${result.metadata.cost.toFixed(4)}</span>`;
+    }
+
+    metadata.innerHTML = metadataHTML;
+    bubble.appendChild(metadata);
   }
 
   /**
-   * Show typing indicator
+   * Get message avatar
    */
-  showTypingIndicator() {
-    if (!this.elements.output) return;
-    
-    const indicator = document.createElement('div');
-    indicator.className = 'typing-indicator active';
-    indicator.innerHTML = 'AI 에이전트가 생각 중<span class="typing-dots">...</span>';
-    indicator.id = `${this.containerId}-typing`;
-    
-    this.elements.output.appendChild(indicator);
-    this.scrollToBottom();
-  }
-
-  /**
-   * Hide typing indicator
-   */
-  hideTypingIndicator() {
-    const indicator = document.getElementById(`${this.containerId}-typing`);
-    if (indicator) {
-      indicator.remove();
+  getMessageAvatar(type) {
+    switch (type) {
+      case 'user': return '👤';
+      case 'assistant': return '🤖';
+      case 'system': return 'ℹ️';
+      default: return '💬';
     }
   }
 
   /**
-   * Clear chat output
+   * Get provider icon
    */
-  clearOutput() {
-    if (this.elements.output) {
-      this.elements.output.innerHTML = '';
+  getProviderIcon(providerId) {
+    switch (providerId) {
+      case 'claude': return '🤖';
+      case 'openai': return '🧠';
+      case 'gemini': return '💎';
+      default: return '🔮';
     }
   }
 
   /**
-   * Show help message
+   * Handle input change
    */
-  showHelp() {
-    const helpMessages = [
-      { text: '사용 가능한 명령어:', type: 'system' },
-      { text: '  • claude "질문이나 요청"  - Claude AI와 대화', type: 'output' },
-      { text: '  • clear, cls           - 화면 지우기', type: 'output' },
-      { text: '  • help                 - 도움말 표시', type: 'output' },
-      { text: '  • history              - 명령어 기록 보기', type: 'output' },
-      { text: '', type: 'output' },
-      { text: '팁: 위/아래 화살표로 명령어 기록을 탐색할 수 있습니다.', type: 'system' }
-    ];
-    
-    this.addMessages(helpMessages);
+  handleInputChange(e) {
+    const value = e.target.value;
+    this.updateCharCount();
+    this.elements.sendBtn.disabled = !value.trim() || this.isStreaming;
   }
 
   /**
-   * Show command history
+   * Update character count
    */
-  showHistory() {
-    if (this.commandHistory.length === 0) {
-      this.addMessage('명령어 기록이 없습니다.', 'system');
-      return;
+  updateCharCount() {
+    const length = this.elements.messageInput.value.length;
+    const maxLength = 10000;
+    
+    this.elements.charCount.textContent = `${length}/${maxLength}`;
+    
+    this.elements.charCount.className = 'char-count';
+    if (length > maxLength * 0.9) {
+      this.elements.charCount.classList.add('danger');
+    } else if (length > maxLength * 0.8) {
+      this.elements.charCount.classList.add('warning');
     }
-    
-    this.addMessage('최근 명령어 기록:', 'system');
-    this.commandHistory.slice(-10).forEach((cmd, index) => {
-      this.addMessage(`  ${index + 1}. ${cmd}`, 'output');
-    });
   }
 
   /**
-   * Navigate command history
+   * Auto-resize textarea
    */
-  navigateHistory(direction) {
-    if (this.commandHistory.length === 0) return;
-    
-    if (direction === -1) { // Up arrow
-      if (this.historyIndex === -1) {
-        this.historyIndex = this.commandHistory.length - 1;
-      } else if (this.historyIndex > 0) {
-        this.historyIndex--;
-      }
-    } else if (direction === 1) { // Down arrow
-      if (this.historyIndex < this.commandHistory.length - 1) {
-        this.historyIndex++;
-      } else {
-        this.historyIndex = -1;
-        this.elements.input.value = '';
-        return;
-      }
+  autoResizeTextarea() {
+    const textarea = this.elements.messageInput;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
+  /**
+   * Update status
+   */
+  updateStatus(text, status) {
+    if (this.elements.statusText) {
+      this.elements.statusText.textContent = text;
     }
     
-    if (this.historyIndex >= 0 && this.historyIndex < this.commandHistory.length) {
-      this.elements.input.value = this.commandHistory[this.historyIndex];
-    }
-  }
-
-  /**
-   * Add command to history
-   */
-  addToHistory(command) {
-    // Avoid duplicates
-    if (this.commandHistory[this.commandHistory.length - 1] !== command) {
-      this.commandHistory.push(command);
-      
-      // Limit history size
-      if (this.commandHistory.length > this.options.maxHistorySize) {
-        this.commandHistory.shift();
-      }
-    }
-  }
-
-  /**
-   * Display welcome messages
-   */
-  displayWelcomeMessages() {
-    this.options.welcomeMessages.forEach(({ text, type }) => {
-      this.addMessage(text, type);
-    });
-  }
-
-  /**
-   * Get default welcome messages
-   */
-  getDefaultWelcomeMessages() {
-    return [
-      { text: 'EG-Desk:태화 AI Agent 시스템 온라인', type: 'welcome' },
-      { text: 'Claude AI 연동 활성화됨', type: 'success' },
-      { text: 'WordPress API 연결 대기중', type: 'system' },
-      { text: '', type: 'output' },
-      { text: '💡 예시 명령어:', type: 'system' },
-      { text: '  claude "현재 페이지 SEO 분석해줘"', type: 'output' },
-      { text: '  claude "블로그 글 작성: 로고스키 코일 기술"', type: 'output' },
-      { text: '  help (도움말)', type: 'output' },
-      { text: '', type: 'output' }
-    ];
-  }
-
-  /**
-   * Scroll to bottom of chat
-   */
-  scrollToBottom() {
-    if (this.elements.output) {
-      this.elements.output.scrollTop = this.elements.output.scrollHeight;
-    }
-  }
-
-  /**
-   * Set status (online, busy, offline)
-   */
-  setStatus(status) {
     if (this.elements.statusDot) {
       this.elements.statusDot.className = `status-dot ${status}`;
     }
+    
+    this.providerStatus = status;
   }
 
   /**
-   * Focus input
+   * Update provider status
    */
-  focus() {
-    this.elements.input?.focus();
+  updateProviderStatus(status) {
+    if (status.provider) {
+      this.currentProvider = status.provider.id;
+      this.currentModel = status.provider.currentModel;
+      
+      if (this.elements.providerSelect) {
+        this.elements.providerSelect.value = this.currentProvider;
+      }
+      
+      this.updateModelDropdown(this.currentProvider);
+    }
+
+    if (status.costTracker) {
+      this.costTracker = status.costTracker;
+      this.updateCostDisplayFromTracker();
+    }
   }
 
   /**
-   * Get component statistics
+   * Update cost display
    */
-  getStats() {
+  updateCostDisplay(metadata) {
+    if (!this.options.enableCostTracking || !metadata.cost) return;
+
+    this.costTracker.session.total += metadata.cost;
+    this.costTracker.total.total += metadata.cost;
+
+    this.updateCostDisplayFromTracker();
+  }
+
+  /**
+   * Update cost display from tracker
+   */
+  updateCostDisplayFromTracker() {
+    if (this.elements.sessionCost) {
+      this.elements.sessionCost.textContent = `$${this.costTracker.session.total.toFixed(4)}`;
+    }
+    
+    if (this.elements.totalCost) {
+      this.elements.totalCost.textContent = `$${this.costTracker.total.total.toFixed(4)}`;
+    }
+  }
+
+  /**
+   * Reset session costs
+   */
+  async resetSessionCosts() {
+    try {
+      await window.electronAPI.invoke('langchain-reset-session-costs');
+      this.costTracker.session = { input: 0, output: 0, total: 0 };
+      this.updateCostDisplayFromTracker();
+      this.addSystemMessage('Session costs reset');
+    } catch (error) {
+      console.error('[ChatComponent] Failed to reset session costs:', error);
+    }
+  }
+
+  /**
+   * Scroll to bottom
+   */
+  scrollToBottom() {
+    const scrollContainer = this.elements.messagesContainer.querySelector('.messages-scroll');
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+  }
+
+  /**
+   * Display welcome message
+   */
+  displayWelcomeMessage() {
+    const welcomeDiv = document.createElement('div');
+    welcomeDiv.className = 'welcome-message';
+    welcomeDiv.innerHTML = `
+      <h3>Welcome to AI Chat</h3>
+      <p>Select a provider and start chatting with AI assistants. Your conversations are powered by multiple AI providers for the best experience.</p>
+    `;
+    
+    this.elements.messagesList.appendChild(welcomeDiv);
+  }
+
+  /**
+   * Show error message
+   */
+  showError(message) {
+    this.addSystemMessage(`Error: ${message}`);
+  }
+
+  /**
+   * Show settings
+   */
+  showSettings() {
+    // TODO: Implement settings panel
+    this.addSystemMessage('Settings panel coming soon...');
+  }
+
+  /**
+   * Get component state for persistence
+   */
+  getState() {
     return {
-      messageCount: this.elements.output?.children.length || 0,
-      historySize: this.commandHistory.length,
-      isInitialized: this.isInitialized
+      currentProvider: this.currentProvider,
+      currentModel: this.currentModel,
+      currentSessionId: this.currentSessionId,
+      conversationHistory: this.conversationHistory,
+      costTracker: this.costTracker,
+      providerStatus: this.providerStatus,
+      isInitialized: this.isInitialized,
+      messageId: this.messageId
     };
   }
 
   /**
-   * Destroy the component
+   * Set component state for restoration
+   */
+  async setState(state) {
+    try {
+      console.log(`[ChatComponent] Restoring state for: ${this.containerId}`);
+      
+      if (state.currentProvider !== undefined) {
+        this.currentProvider = state.currentProvider;
+        if (this.elements.providerSelect) {
+          this.elements.providerSelect.value = state.currentProvider;
+        }
+      }
+      
+      if (state.currentModel !== undefined) {
+        this.currentModel = state.currentModel;
+        if (this.elements.modelSelect) {
+          this.elements.modelSelect.value = state.currentModel;
+        }
+      }
+      
+      if (state.currentSessionId !== undefined) {
+        this.currentSessionId = state.currentSessionId;
+      }
+      
+      if (state.conversationHistory && Array.isArray(state.conversationHistory)) {
+        this.conversationHistory = state.conversationHistory;
+        
+        // Re-render conversation history
+        this.clearMessages();
+        for (const message of this.conversationHistory) {
+          if (message.role === 'user') {
+            this.addUserMessage(message.content);
+          } else if (message.role === 'assistant') {
+            this.addAssistantMessage(message.content, false, {
+              provider: message.provider,
+              model: message.model,
+              metadata: {
+                timestamp: message.timestamp,
+                cost: message.cost
+              }
+            });
+          } else if (message.role === 'system') {
+            this.addSystemMessage(message.content);
+          }
+        }
+      }
+      
+      if (state.costTracker) {
+        this.costTracker = state.costTracker;
+        this.updateCostDisplayFromTracker();
+      }
+      
+      if (state.providerStatus !== undefined) {
+        this.providerStatus = state.providerStatus;
+        this.updateStatus('Restored from previous session', state.providerStatus);
+      }
+      
+      if (state.messageId !== undefined) {
+        this.messageId = state.messageId;
+      }
+      
+      // Sync with GlobalStateManager if available
+      if (this.globalStateManager && this.currentSessionId) {
+        await this.globalStateManager.saveCurrentChatSession('blog', {
+          sessionId: this.currentSessionId,
+          conversationHistory: this.conversationHistory,
+          provider: this.currentProvider,
+          model: this.currentModel,
+          costTracker: this.costTracker
+        });
+      }
+      
+      console.log(`[ChatComponent] State restored successfully`);
+      
+      // Emit state restored event
+      if (this.eventBus) {
+        this.eventBus.publish('chat-component-state-restored', {
+          containerId: this.containerId,
+          sessionId: this.currentSessionId,
+          provider: this.currentProvider,
+          messagesCount: this.conversationHistory.length
+        });
+      }
+      
+    } catch (error) {
+      console.error(`[ChatComponent] Failed to restore state:`, error);
+    }
+  }
+
+  /**
+   * Clear all messages from the UI
+   */
+  clearMessages() {
+    if (this.elements.messagesList) {
+      this.elements.messagesList.innerHTML = '';
+      this.messageId = 0;
+    }
+  }
+
+  /**
+   * Start new session
+   */
+  async startNewSession() {
+    try {
+      this.currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+      this.conversationHistory = [];
+      this.costTracker.session = { input: 0, output: 0, total: 0 };
+      
+      this.clearMessages();
+      this.updateCostDisplayFromTracker();
+      
+      // Save to GlobalStateManager
+      if (this.globalStateManager) {
+        await this.globalStateManager.saveCurrentChatSession('blog', {
+          sessionId: this.currentSessionId,
+          conversationHistory: this.conversationHistory,
+          provider: this.currentProvider,
+          model: this.currentModel,
+          costTracker: this.costTracker
+        });
+      }
+      
+      // Emit new session event
+      if (this.eventBus) {
+        this.eventBus.publish('chat-session-started', {
+          sessionId: this.currentSessionId,
+          provider: this.currentProvider,
+          model: this.currentModel
+        });
+      }
+      
+      this.addSystemMessage('New chat session started');
+      console.log(`[ChatComponent] Started new session: ${this.currentSessionId}`);
+      
+    } catch (error) {
+      console.error(`[ChatComponent] Failed to start new session:`, error);
+    }
+  }
+
+  /**
+   * Load session from conversation data
+   */
+  async loadSession(conversation) {
+    try {
+      console.log(`[ChatComponent] Loading session: ${conversation.id}`);
+      
+      await this.setState({
+        currentSessionId: conversation.id,
+        conversationHistory: conversation.messages || [],
+        currentProvider: conversation.provider || this.currentProvider,
+        currentModel: conversation.model || this.currentModel,
+        costTracker: conversation.costTracker || this.costTracker
+      });
+      
+      this.addSystemMessage(`Loaded conversation: ${conversation.title || 'Untitled'}`);
+      
+    } catch (error) {
+      console.error(`[ChatComponent] Failed to load session:`, error);
+      this.showError(`Failed to load session: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save current session
+   */
+  async saveCurrentSession() {
+    if (!this.currentSessionId || !this.globalStateManager) return;
+    
+    try {
+      const sessionData = {
+        sessionId: this.currentSessionId,
+        conversationHistory: this.conversationHistory,
+        provider: this.currentProvider,
+        model: this.currentModel,
+        costTracker: this.costTracker,
+        lastModified: Date.now()
+      };
+      
+      await this.globalStateManager.saveCurrentChatSession('blog', sessionData);
+      
+      // Emit session saved event
+      if (this.eventBus) {
+        this.eventBus.publish('chat-session-saved', {
+          sessionId: this.currentSessionId,
+          messagesCount: this.conversationHistory.length
+        });
+      }
+      
+    } catch (error) {
+      console.error(`[ChatComponent] Failed to save session:`, error);
+    }
+  }
+
+  /**
+   * Cleanup and destroy
    */
   destroy() {
     if (this.container) {
       this.container.innerHTML = '';
     }
     
-    this.commandHistory = [];
-    this.historyIndex = -1;
-    this.isInitialized = false;
+    // No dynamic styles to remove since CSS is defined in index.html
     
+    this.isInitialized = false;
     console.log(`[ChatComponent] Destroyed: ${this.containerId}`);
   }
 }
 
-// ES6 export
+// Export for use in other modules
 export default ChatComponent;

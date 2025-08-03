@@ -1,9 +1,8 @@
 /**
- * ClaudeIntegration - Claude AI Integration Module
+ * AI Integration Module - LangChain Based
  * 
- * Handles communication with Claude AI for content generation,
- * blog automation, and intelligent task execution.
- * As specified in PRD: AI-Agent-System/ClaudeCodeIntegration.js
+ * Handles AI communication through LangChain multi-provider system
+ * for content generation, blog automation, and intelligent task execution.
  */
 
 // Simple EventEmitter implementation for browser compatibility
@@ -59,7 +58,7 @@ class ClaudeIntegration extends SimpleEventEmitter {
     this.options = {
       timeout: options.timeout || 30000,
       maxRetries: options.maxRetries || 3,
-      model: options.model || 'claude-3-sonnet-20240229',
+      defaultProvider: options.defaultProvider || 'openai',
       ...options
     };
     
@@ -67,37 +66,105 @@ class ClaudeIntegration extends SimpleEventEmitter {
     this.currentSession = null;
     this.requestQueue = [];
     this.isProcessing = false;
+    this.providerStatus = null;
   }
 
   /**
-   * Initialize Claude integration
+   * Initialize AI integration with LangChain
    */
   async initialize() {
     try {
-      console.log('[ClaudeIntegration] Initializing Claude AI integration...');
+      console.log('[AIIntegration] Initializing LangChain AI integration...');
       
       // Check if electronAPI is available
-      if (!window.electronAPI?.claude) {
-        throw new Error('Claude integration not available in main process');
+      if (!window.electronAPI?.langchainGetProviders) {
+        throw new Error('LangChain integration not available in main process');
       }
       
-      // Test connection
-      await this.testConnection();
+      // Get available providers and current status
+      await this.checkSystemRequirements();
+      
+      // Test connection if possible
+      try {
+        await this.testConnection();
+        console.log('[AIIntegration] Connection test passed');
+      } catch (testError) {
+        console.warn('[AIIntegration] Connection test failed, but continuing:', testError.message);
+        // Don't fail initialization if connection test fails
+      }
       
       this.isInitialized = true;
-      console.log('[ClaudeIntegration] Successfully initialized');
+      console.log('[AIIntegration] Successfully initialized');
       this.emit('initialized');
       
       return true;
     } catch (error) {
-      console.error('[ClaudeIntegration] Initialization failed:', error);
+      console.error('[AIIntegration] Initialization failed:', error);
       this.emit('error', error);
       throw error;
     }
   }
 
   /**
-   * Test Claude connection
+   * Check system requirements and available providers
+   */
+  async checkSystemRequirements() {
+    try {
+      console.log('[AIIntegration] Checking available AI providers...');
+      
+      // Get available providers
+      const providers = await window.electronAPI.langchainGetProviders();
+      
+      // Get current provider status
+      const status = await window.electronAPI.langchainGetCurrentStatus();
+      
+      // Store system information
+      this.systemInfo = {
+        availableProviders: providers,
+        currentProvider: status.provider,
+        currentModel: status.model,
+        status: status.status,
+        isConfigured: status.status === 'connected',
+        lastChecked: Date.now()
+      };
+      
+      console.log('[AIIntegration] System requirements check:', this.systemInfo);
+      
+      // Emit system status
+      this.emit('system-status', this.systemInfo);
+      
+      // Warn about missing requirements but don't fail
+      if (!this.systemInfo.isConfigured) {
+        console.warn('[AIIntegration] No AI provider is currently configured');
+        this.emit('configuration-warning', {
+          message: 'No AI provider configured. Please set up API keys in settings.',
+          suggestions: [
+            'Configure OpenAI API key',
+            'Configure Anthropic API key', 
+            'Configure other supported providers'
+          ]
+        });
+      }
+      
+      return this.systemInfo;
+    } catch (error) {
+      console.error('[AIIntegration] System requirements check failed:', error);
+      // Don't throw error, just warn and continue
+      this.systemInfo = {
+        availableProviders: [],
+        currentProvider: null,
+        isConfigured: false,
+        error: error.message,
+        lastChecked: Date.now()
+      };
+      
+      this.emit('system-status', this.systemInfo);
+      return this.systemInfo;
+    }
+  }
+
+  /**
+   * Test AI connection
    */
   async testConnection() {
     const testPrompt = "안녕하세요! 연결 테스트입니다. '연결됨'이라고 간단히 답해주세요.";
@@ -108,30 +175,29 @@ class ClaudeIntegration extends SimpleEventEmitter {
         skipQueue: true
       });
       
-      console.log('[ClaudeIntegration] Connection test successful:', response);
+      console.log('[AIIntegration] Connection test successful:', response);
       return true;
     } catch (error) {
-      console.error('[ClaudeIntegration] Connection test failed:', error);
-      throw new Error(`Claude connection failed: ${error.message}`);
+      console.error('[AIIntegration] Connection test failed:', error);
+      throw new Error(`AI connection failed: ${error.message}`);
     }
   }
 
   /**
-   * Send message to Claude AI
+   * Send message to AI through LangChain
    */
   async sendMessage(prompt, options = {}) {
     if (!this.isInitialized && !options.skipQueue) {
-      throw new Error('Claude integration not initialized');
+      throw new Error('AI integration not initialized');
     }
 
     const request = {
       id: Date.now() + Math.random(),
       prompt,
       options: {
-        temperature: options.temperature || 0.7,
-        maxTokens: options.maxTokens || 4000,
-        timeout: options.timeout || this.options.timeout,
+        systemPrompt: options.systemPrompt || null,
         context: options.context || null,
+        timeout: options.timeout || this.options.timeout,
         ...options
       },
       timestamp: Date.now()
@@ -143,6 +209,52 @@ class ClaudeIntegration extends SimpleEventEmitter {
     }
 
     return this.executeRequest(request);
+  }
+
+  /**
+   * Stream message to AI through LangChain
+   */
+  async streamMessage(prompt, options = {}, onChunk = null) {
+    if (!this.isInitialized) {
+      throw new Error('AI integration not initialized');
+    }
+
+    try {
+      const request = {
+        message: prompt,
+        conversationHistory: options.conversationHistory || [],
+        systemPrompt: options.systemPrompt || null
+      };
+
+      // Set up streaming event listener if callback provided
+      if (onChunk) {
+        const streamHandler = (event, data) => {
+          if (data.chunk) {
+            onChunk(data.chunk);
+          }
+        };
+        window.electronAPI.onLangChainStreamChunk(streamHandler);
+      }
+
+      const response = await window.electronAPI.langchainStreamMessage(request);
+
+      if (!response.success) {
+        throw new Error(response.error || 'AI stream request failed');
+      }
+
+      return {
+        id: Date.now(),
+        content: response.content || '',
+        provider: response.provider,
+        model: response.model,
+        timestamp: Date.now(),
+        streamed: true
+      };
+
+    } catch (error) {
+      console.error('[AIIntegration] Stream request failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -172,11 +284,11 @@ class ClaudeIntegration extends SimpleEventEmitter {
       const request = this.requestQueue.shift();
       
       try {
-        console.log(`[ClaudeIntegration] Processing request: ${request.id}`);
+        console.log(`[AIIntegration] Processing request: ${request.id}`);
         const result = await this.executeRequest(request);
         request.resolve(result);
       } catch (error) {
-        console.error(`[ClaudeIntegration] Request failed: ${request.id}`, error);
+        console.error(`[AIIntegration] Request failed: ${request.id}`, error);
         request.reject(error);
       }
 
@@ -188,7 +300,7 @@ class ClaudeIntegration extends SimpleEventEmitter {
   }
 
   /**
-   * Execute individual request
+   * Execute individual request through LangChain
    */
   async executeRequest(request) {
     const { prompt, options } = request;
@@ -196,33 +308,103 @@ class ClaudeIntegration extends SimpleEventEmitter {
     try {
       this.emit('request-started', { id: request.id, prompt: prompt.substring(0, 100) + '...' });
       
-      // Call main process Claude integration
-      const response = await window.electronAPI.claude.sendMessage({
-        prompt,
-        options
+      // Check if system is configured before making request
+      if (!this.systemInfo?.isConfigured) {
+        // Try to refresh system status
+        await this.checkSystemRequirements();
+        
+        if (!this.systemInfo?.isConfigured) {
+          throw new Error('No AI provider is configured. Please configure API keys in settings.');
+        }
+      }
+      
+      // Call LangChain service
+      const response = await window.electronAPI.langchainSendMessage({
+        message: prompt,
+        conversationHistory: options.conversationHistory || [],
+        systemPrompt: options.systemPrompt
       });
 
       if (!response.success) {
-        throw new Error(response.error || 'Claude request failed');
+        throw new Error(response.error || 'AI request failed');
       }
 
       const result = {
         id: request.id,
-        content: response.data.content,
-        tokens: response.data.tokens || null,
-        model: response.data.model || this.options.model,
-        timestamp: Date.now()
+        content: response.content || response.message || '',
+        provider: response.provider,
+        model: response.model,
+        tokens: response.metadata?.tokens || null,
+        timestamp: Date.now(),
+        cost: response.metadata?.cost || null
       };
 
-      console.log(`[ClaudeIntegration] Request completed: ${request.id}`);
+      console.log(`[AIIntegration] Request completed: ${request.id}`);
       this.emit('response-received', result);
       
       return result;
 
     } catch (error) {
-      console.error(`[ClaudeIntegration] Request execution failed:`, error);
+      console.error(`[AIIntegration] Request execution failed:`, error);
       this.emit('request-failed', { id: request.id, error: error.message });
       throw error;
+    }
+  }
+
+  /**
+   * Switch AI provider
+   */
+  async switchProvider(providerId, modelId = null) {
+    try {
+      console.log(`[AIIntegration] Switching to provider: ${providerId}, model: ${modelId}`);
+      
+      const response = await window.electronAPI.langchainSwitchProvider({
+        providerId,
+        modelId
+      });
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to switch provider');
+      }
+
+      // Refresh system info after switching
+      await this.checkSystemRequirements();
+      
+      console.log('[AIIntegration] Provider switched successfully');
+      this.emit('provider-switched', { providerId, modelId });
+      
+      return response;
+    } catch (error) {
+      console.error('[AIIntegration] Failed to switch provider:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available providers
+   */
+  async getAvailableProviders() {
+    try {
+      return await window.electronAPI.langchainGetProviders();
+    } catch (error) {
+      console.error('[AIIntegration] Failed to get providers:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get current status
+   */
+  async getCurrentStatus() {
+    try {
+      return await window.electronAPI.langchainGetCurrentStatus();
+    } catch (error) {
+      console.error('[AIIntegration] Failed to get current status:', error);
+      return {
+        provider: null,
+        model: null,
+        status: 'disconnected'
+      };
     }
   }
 
@@ -259,8 +441,7 @@ HTML 형식으로 작성하되, <article> 태그로 감싸주세요.
 
     try {
       const response = await this.sendMessage(prompt, {
-        temperature: 0.7,
-        maxTokens: 6000,
+        systemPrompt: '당신은 전문적인 기술 블로그 작성자입니다. 정확하고 유용한 정보를 제공하며, SEO에 최적화된 콘텐츠를 작성합니다.',
         context: 'blog-generation'
       });
 
@@ -274,12 +455,13 @@ HTML 형식으로 작성하되, <article> 태그로 감싸주세요.
           topic,
           industryContext,
           tone,
+          provider: response.provider,
           model: response.model
         }
       };
 
     } catch (error) {
-      console.error('[ClaudeIntegration] Blog content generation failed:', error);
+      console.error('[AIIntegration] Blog content generation failed:', error);
       throw error;
     }
   }
@@ -309,8 +491,7 @@ SEO 최적화 요구사항:
 
     try {
       const response = await this.sendMessage(prompt, {
-        temperature: 0.5,
-        maxTokens: 8000,
+        systemPrompt: '당신은 SEO 전문가입니다. 한국어 검색 최적화에 특화된 조언을 제공합니다.',
         context: 'seo-optimization'
       });
 
@@ -325,7 +506,7 @@ SEO 최적화 요구사항:
       };
 
     } catch (error) {
-      console.error('[ClaudeIntegration] SEO optimization failed:', error);
+      console.error('[AIIntegration] SEO optimization failed:', error);
       throw error;
     }
   }
@@ -352,8 +533,7 @@ JSON 형식으로 상세한 분석 결과를 제공해 주세요.
 
     try {
       const response = await this.sendMessage(prompt, {
-        temperature: 0.3,
-        maxTokens: 6000,
+        systemPrompt: '당신은 웹 콘텐츠 분석 전문가입니다. SEO, 사용성, 콘텐츠 품질을 종합적으로 평가합니다.',
         context: 'content-analysis'
       });
 
@@ -365,7 +545,7 @@ JSON 형식으로 상세한 분석 결과를 제공해 주세요.
       };
 
     } catch (error) {
-      console.error('[ClaudeIntegration] Website analysis failed:', error);
+      console.error('[AIIntegration] Website analysis failed:', error);
       throw error;
     }
   }
@@ -392,8 +572,7 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
 
     try {
       const response = await this.sendMessage(prompt, {
-        temperature: 0.4,
-        maxTokens: 4000,
+        systemPrompt: '당신은 WordPress 콘텐츠 관리 전문가입니다. SEO와 사용자 경험을 고려한 게시물을 생성합니다.',
         context: 'wordpress-generation'
       });
 
@@ -403,7 +582,7 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       };
 
     } catch (error) {
-      console.error('[ClaudeIntegration] WordPress post generation failed:', error);
+      console.error('[AIIntegration] WordPress post generation failed:', error);
       throw error;
     }
   }
@@ -436,7 +615,8 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       isInitialized: this.isInitialized,
       queueLength: this.requestQueue.length,
       isProcessing: this.isProcessing,
-      model: this.options.model
+      currentProvider: this.systemInfo?.currentProvider || null,
+      currentModel: this.systemInfo?.currentModel || null
     };
   }
 
@@ -448,18 +628,18 @@ JSON 형식으로 WordPress REST API에 적합한 형태로 제공해 주세요.
       request.reject(new Error('Queue cleared'));
     });
     this.requestQueue = [];
-    console.log('[ClaudeIntegration] Request queue cleared');
+    console.log('[AIIntegration] Request queue cleared');
   }
 
   /**
-   * Destroy Claude integration
+   * Destroy AI integration
    */
   destroy() {
     this.clearQueue();
     this.isInitialized = false;
     this.currentSession = null;
     this.removeAllListeners();
-    console.log('[ClaudeIntegration] Destroyed');
+    console.log('[AIIntegration] Destroyed');
   }
 }
 

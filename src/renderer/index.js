@@ -1,8 +1,11 @@
+// Import CSS first - this ensures styles are loaded in development mode
+import './styles/app.css';
+
 // Import modules
 import BrowserTabComponent from './components/BrowserTabComponent.js';
 import ChatComponent from './components/ChatComponent.js';
 import WorkspaceManager from './modules/WorkspaceManager.js';
-import WebContentsManager from './modules/browser-control/WebContentsManager.js';
+// Note: WebContentsManager is now handled in main process via electronAPI
 import UIManager from './ui/UIManager.js';
 import EGDeskCore from './modules/EGDeskCore.js';
 
@@ -15,8 +18,13 @@ window.addEventListener('unhandledrejection', (event) => {
     console.error('💥 [RENDERER CRASH] Unhandled promise rejection:', event.reason);
 });
 
+// Emergency style injection no longer needed - CSS is imported via ES modules
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[RENDERER] DOMContentLoaded: Initializing EG-Desk');
+    
+    // CSS is now imported at the top of the file, so it should be loaded
+    console.log('[RENDERER] CSS imported via ES modules');
 
     try {
         if (!window.electronAPI) {
@@ -27,6 +35,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Wait a bit for all scripts to load
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Initialize EGDeskCore first
+    console.log('[RENDERER] Initializing EGDeskCore...');
+    window.egDeskCore = new EGDeskCore({
+        enableLogging: true,
+        autoInitialize: true
+    });
+    await window.egDeskCore.initialize();
+    console.log('[RENDERER] EGDeskCore initialized successfully');
     
     // Initialize UI Manager first
     console.log('[RENDERER] Initializing UI Manager...');
@@ -58,14 +75,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('  WorkspaceManager:', typeof WorkspaceManager);
     console.log('  UIManager:', typeof UIManager);
 
-    // Initialize WorkspaceManager (now imported)
+    // Initialize WorkspaceManager with EGDeskCore integration
     if (WorkspaceManager) {
-        console.log('[RENDERER] Creating WebContentsManager instance...');
-        const webContentsManager = new WebContentsManager();
-        await webContentsManager.initialize();
+        console.log('[RENDERER] Creating WebContentsManager proxy instance...');
+        const webContentsManager = createWebContentsManagerProxy();
         
         console.log('[RENDERER] Creating WorkspaceManager instance...');
         window.workspaceManager = new WorkspaceManager(webContentsManager);
+        
+        // Integrate with EGDeskCore state management
+        window.egDeskCore.setWorkspaceManager(window.workspaceManager);
         
         console.log('[RENDERER] Initializing WorkspaceManager...');
         await window.workspaceManager.initialize();
@@ -119,8 +138,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (window.uiManager) {
             console.log(`[WORKSPACE-SWITCH:${switchId}] Using UIManager for animated transition`);
-            await window.uiManager.switchWorkspace(workspace);
-            console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager transition completed`);
+            console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager status:`, {
+                isInitialized: window.uiManager.isInitialized,
+                currentWorkspace: window.uiManager.currentWorkspace,
+                methodExists: typeof window.uiManager.switchWorkspace === 'function'
+            });
+            
+            try {
+                await window.uiManager.switchWorkspace(workspace);
+                console.log(`[WORKSPACE-SWITCH:${switchId}] UIManager transition completed successfully`);
+                
+                // Verify main content is visible for blog workspace
+                if (workspace === 'blog') {
+                    const mainContent = document.getElementById('main-content');
+                    console.log(`[WORKSPACE-SWITCH:${switchId}] Blog workspace verification:`, {
+                        mainContentExists: !!mainContent,
+                        hasActiveClass: mainContent?.classList.contains('active'),
+                        opacity: mainContent ? window.getComputedStyle(mainContent).opacity : 'N/A',
+                        visibility: mainContent ? window.getComputedStyle(mainContent).visibility : 'N/A'
+                    });
+                }
+            } catch (error) {
+                console.error(`[WORKSPACE-SWITCH:${switchId}] UIManager transition failed:`, error);
+                console.log(`[WORKSPACE-SWITCH:${switchId}] Falling back to direct UI update`);
+                updateUIForWorkspace(workspace);
+            }
         } else {
             console.log(`[WORKSPACE-SWITCH:${switchId}] Using fallback UI update (no UIManager)`);
             updateUIForWorkspace(workspace);
@@ -242,28 +284,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mainContent = document.getElementById('main-content');
         const workspaceTabs = document.querySelector('.workspace-tabs');
 
-        if (!startScreen || !mainContent || !workspaceTabs) {
-            console.error('[RENDERER] Could not find essential DOM elements for UI update.');
+        if (!startScreen || !mainContent) {
+            console.error('[RENDERER] Could not find essential DOM elements');
             return;
         }
 
-        // Manage visibility of tabs and content
+        // Simple visibility management
         if (workspace === 'start') {
             startScreen.style.display = 'flex';
             mainContent.classList.remove('active');
-            workspaceTabs.classList.remove('show');
-            console.log('[RENDERER] Start screen displayed, main content and tabs hidden.');
+            if (workspaceTabs) workspaceTabs.classList.remove('show');
         } else {
             startScreen.style.display = 'none';
             mainContent.classList.add('active');
-            workspaceTabs.classList.add('show');
-            console.log(`[RENDERER] Main content and tabs shown for workspace: ${workspace}`);
-
+            if (workspaceTabs) workspaceTabs.classList.add('show');
+            
             if (workspace === 'blog') {
-                // Delay initialization to ensure DOM is ready
                 setTimeout(() => {
                     initializeBlogWorkspace();
-                }, 100); // Reduced delay
+                }, 100);
             }
         }
     }
@@ -314,6 +353,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initial setup
     console.log('[RENDERER] Initializing with start workspace.');
     updateUIForWorkspace('start');
+    
+    // Add visual feedback for successful initialization
+    setTimeout(() => {
+      if (window.uiManager) {
+        window.uiManager.showNotification('EG-Desk:태화 시스템 준비 완료', 'success', 2000);
+      }
+    }, 500);
 
         console.log('[RENDERER] EG-Desk initialization complete.');
     } catch (error) {
@@ -418,6 +464,106 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Blog workspace specific initializations
     async function initializeBlogWorkspace() {
         console.log('[RENDERER] Initializing Blog Workspace with components...');
+        
+        // CSS 디버깅 - 현재 HTML 문서의 스타일 상태 확인
+        if (window.electronAPI?.log?.info) {
+            window.electronAPI.log.info('[CSS-DEBUG] Blog workspace initializing...');
+            window.electronAPI.log.info('[CSS-DEBUG] Document ready state:', document.readyState);
+            window.electronAPI.log.info('[CSS-DEBUG] HTML element has styles:', {
+                styleElement: !!document.querySelector('style'),
+                linkElements: document.querySelectorAll('link[rel="stylesheet"]').length,
+                inlineStyles: document.documentElement.innerHTML.includes('<style>')
+            });
+        }
+        
+        // index.html에 있는 스타일 태그 확인
+        const styleElements = document.querySelectorAll('style');
+        if (window.electronAPI?.log?.info) {
+            window.electronAPI.log.info('[CSS-DEBUG] Found style elements:', styleElements.length);
+            
+            let foundComponentContainer = false;
+            let foundBrowserTabComponent = false;
+            
+            styleElements.forEach((style, index) => {
+                const contentLength = style.textContent.length;
+                window.electronAPI.log.info(`[CSS-DEBUG] Style element ${index} content length:`, contentLength);
+                
+                // component-container 스타일이 있는지 확인
+                if (style.textContent.includes('.component-container')) {
+                    foundComponentContainer = true;
+                    window.electronAPI.log.info('[CSS-DEBUG] Found .component-container styles in style element', index);
+                }
+                if (style.textContent.includes('.browser-tab-component')) {
+                    foundBrowserTabComponent = true;
+                    window.electronAPI.log.info('[CSS-DEBUG] Found .browser-tab-component styles in style element', index);
+                }
+            });
+            
+            if (!foundComponentContainer) {
+                window.electronAPI.log.error('[CSS-DEBUG] ERROR: .component-container styles NOT FOUND in any style element!');
+            }
+            if (!foundBrowserTabComponent) {
+                window.electronAPI.log.error('[CSS-DEBUG] ERROR: .browser-tab-component styles NOT FOUND in any style element!');
+            }
+        }
+        
+        // 컴포넌트 컨테이너들의 클래스 확인
+        setTimeout(() => {
+            const containers = {
+                chatHistory: document.getElementById('chat-history-container'),
+                browser: document.getElementById('browser-component-container'),
+                chat: document.getElementById('chat-component-container')
+            };
+            
+            if (window.electronAPI?.log?.info) {
+                window.electronAPI.log.info('[CSS-DEBUG] Component container classes:');
+                
+                let allContainersHaveClass = true;
+                
+                Object.entries(containers).forEach(([name, elem]) => {
+                    if (elem) {
+                        const hasComponentContainerClass = elem.classList.contains('component-container');
+                        const computedStyles = {
+                            background: window.getComputedStyle(elem).backgroundColor,
+                            border: window.getComputedStyle(elem).border,
+                            borderRadius: window.getComputedStyle(elem).borderRadius
+                        };
+                        
+                        window.electronAPI.log.info(`[CSS-DEBUG] ${name}:`, {
+                            className: elem.className,
+                            hasComponentContainer: hasComponentContainerClass,
+                            computedStyles: computedStyles
+                        });
+                        
+                        if (!hasComponentContainerClass) {
+                            allContainersHaveClass = false;
+                            window.electronAPI.log.error(`[CSS-DEBUG] ERROR: ${name} does NOT have component-container class!`);
+                        }
+                        
+                        // 배경색이 투명하면 CSS가 적용되지 않은 것
+                        if (computedStyles.background === 'rgba(0, 0, 0, 0)' || computedStyles.background === 'transparent') {
+                            window.electronAPI.log.warn(`[CSS-DEBUG] WARNING: ${name} has transparent background - CSS may not be applied!`);
+                        }
+                    } else {
+                        window.electronAPI.log.error(`[CSS-DEBUG] ERROR: ${name} container element not found!`);
+                    }
+                });
+                
+                if (allContainersHaveClass) {
+                    window.electronAPI.log.info('[CSS-DEBUG] SUCCESS: All containers have component-container class');
+                } else {
+                    window.electronAPI.log.error('[CSS-DEBUG] FAILURE: Some containers missing component-container class');
+                }
+                
+                // 브라우저 컴포넌트 내부 확인
+                const browserTabComponent = document.querySelector('.browser-tab-component');
+                if (browserTabComponent) {
+                    window.electronAPI.log.info('[CSS-DEBUG] Found .browser-tab-component element');
+                } else {
+                    window.electronAPI.log.error('[CSS-DEBUG] ERROR: .browser-tab-component element NOT FOUND!');
+                }
+            }
+        }, 200);
         
         // The WorkspaceManager already handles BrowserTabComponent and ChatComponent initialization
         // We just need to set up terminal functionality

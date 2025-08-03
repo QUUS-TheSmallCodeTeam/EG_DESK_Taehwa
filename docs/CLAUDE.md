@@ -2,68 +2,175 @@
 
 ## Project Overview
 
-**EG-Desk:Taehwa** is an AI-powered blog automation workflow system for Taehwa Trans (electrical sensor manufacturer). Built on Electron framework as a desktop application, it runs completely locally without external server dependencies.
+**EG-Desk:Taehwa** is an AI-powered blog automation workflow system for Taehwa Trans (electrical sensor manufacturer). Built on modern Electron + electron-vite framework as a desktop application, it runs completely locally without external server dependencies.
 
-### Current Implementation Goal: Modular Workspace Switching UI
+### Project Vision & Requirements
+📋 **Complete Project Requirements**: See `docs/EG-Desk-Taehwa-PRD.md` for comprehensive project vision and specifications  
+🎯 **Current Phase**: See `docs/EG-Desk-Taehwa-Stage1-Blog-Automation-PRD-v2.md` for Stage 1 implementation details
 
-**Objective**: Building a robust workspace switching interface with integrated browser tabs and AI chat terminal using Electron's BrowserView API for optimal performance and stability.
+### Current Implementation Status: Modern Electron-Vite + ES Modules Architecture
+**Objective**: Building a robust modular workspace switching interface with integrated browser tabs and AI chat terminal using electron-vite build system and strict ES6 module architecture.
 
 ## 핵심 기술스택 & 아키텍처
 
-### Electron 기반 로컬 애플리케이션
-- **메인 프로세스**: `main.js` - 애플리케이션 컨트롤러, webContents 관리
-- **렌더러 프로세스**: `start.html`, `workspace.html` - UI 및 사용자 상호작용
-- **프리로드 스크립트**: `preload.js`, `webview-preload.js` - 보안 IPC 통신
+### Modern Electron + electron-vite 기반 로컬 애플리케이션
+- **빌드 시스템**: electron-vite 4.0.0 (현대적, 빠른 HMR, ESM 기반)
+- **메인 프로세스**: `src/main/index.js` - Electron 애플리케이션 컨트롤러, WebContents 관리
+- **렌더러 프로세스**: `src/renderer/index.html` + `src/renderer/index.js` - UI 및 사용자 상호작용
+- **프리로드 스크립트**: `src/main/preload.js` - 보안 IPC 통신 (contextIsolation: true)
+- **모듈 시스템**: 엄격한 ES6 imports/exports (.js 확장자 필수, CommonJS 없음)
 
-### 의존성 패키지
+### 의존성 패키지 (현재 버전)
 ```json
 {
-  "electron": "^28.0.0",
+  "electron": "^37.2.4",          // 최신 Electron
+  "electron-vite": "^4.0.0",      // 현대적 빌드 시스템
+  "vite": "^7.0.6",               // 고성능 번들러
   "axios": "^1.6.0",              // WordPress REST API 호출
   "electron-store": "^8.1.0",     // 로컬 데이터 저장
   "electron-tabs": "^1.0.4"       // 탭 관리 (향후 사용)
 }
 ```
 
+### 개발 환경
+- **개발 서버**: `yarn dev` (포트 5173, HMR 지원)
+- **빌드**: `yarn build` (프로덕션)
+- **미리보기**: `yarn preview` (빌드된 앱 테스트)
+
 ### 브라우저 자동화 핵심 기능
-- **webContents API**: 브라우저 탭 제어 및 웹 콘텐츠 조작
+- **webContents API**: 브라우저 탭 제어 및 웹 콘텐츠 조작  
 - **executeJavaScript()**: DOM 조작 및 콘텐츠 주입
-- **webView 컴포넌트**: 내장 브라우저 세션
+- **BrowserView/BrowserWindow**: 내장 브라우저 세션 관리
+- **IPC 통신**: 메인-렌더러 프로세스 간 안전한 데이터 교환
 - **DevTools Protocol**: 네트워크 모니터링 및 디버깅
 
-## 프로젝트 구조
+## 🎯 사용자 의도 및 비즈니스 목표
+
+### 태화트랜스(Taehwa Trans) 회사 배경
+- **업종**: 전기센서 제조업체 (전류센서, 변류기 전문)
+- **주요 제품**: Rogowski Coils, Split-core CT, Zero-Phase CT, ACB CTs
+- **웹사이트**: taehwa8161/ 디렉토리에 기존 PHP 기반 WordPress 사이트 보유
+- **목표**: AI 기반 한국어 기술 블로그 자동화로 SEO 향상 및 리드 생성
+
+### 개발자(사용자) 의도
+1. **워크플로우 자동화**: 수동 블로그 작성을 AI 기반 자동화로 대체
+2. **기술적 우수성**: 최신 electron-vite + ES modules 아키텍처로 견고한 데스크톱 앱 구현
+3. **모듈화**: 엄격한 모듈 분리로 확장 가능하고 유지보수 가능한 구조
+4. **전문성**: 전기센서 업계 특화 콘텐츠 생성으로 차별화
+5. **AI 통합**: Claude Code CLI 기반 다중 AI 에이전트 시스템 구축으로 사용자 경험 극대화
+
+### Stage 1 목표 (현재 단계)
+📋 **상세 요구사항**: `docs/EG-Desk-Taehwa-Stage1-Blog-Automation-PRD-v2.md` 참조
+- 기본 Electron 앱 UI 완성 (✅ 완료)
+- 워크스페이스 시스템 구현 (🔄 진행중)
+- AI 채팅 인터페이스 통합 (🔄 진행중)
+- WordPress API 연동 준비 (⏳ 대기)
+
+### 장기 비전
+📋 **전체 로드맵**: `docs/EG-Desk-Taehwa-PRD.md` 참조
+- 다중 워크스페이스 지원 (블로그, 소셜미디어, 고급 자동화)
+- 한국어 SEO 최적화 엔진
+- 전기센서 업계 특화 템플릿 시스템
+- 성과 추적 및 분석 대시보드
+
+## 현재 프로젝트 구조 (electron-vite + ES modules)
 
 ```
-/Users/fdesk/Minsoo Projects/taehwa_project/
-├── main.js                    # Electron 메인 프로세스
-├── package.json               # 프로젝트 설정 및 의존성
-├── start.html                 # 시작 화면 UI
-├── workspace.html             # 워크스페이스 메인 UI
-├── preload.js                 # 메인 프리로드 스크립트
-├── webview-preload.js         # webView 전용 프리로드
-├── renderer.js                # 렌더러 프로세스 로직
-├── workspace.js               # 워크스페이스 기능
-├── taehwa8161/                # 태화트랜스 기존 WordPress 사이트
-│   └── www/                   # PHP 웹사이트 파일들
-├── EG-Desk-Taehwa-PRD.md                           # 메인 PRD
-└── EG-Desk-Taehwa-Stage1-Blog-Automation-PRD-v2.md # Stage 1 PRD
+taehwa_project/
+├── src/                                    # 소스 코드 루트
+│   ├── main/                               # 메인 프로세스 (Node.js 컨텍스트)
+│   │   ├── index.js                        # Electron 앱 진입점 (BrowserWindow 설정)
+│   │   ├── preload.js                      # IPC 브릿지 (보안 컨텍스트)
+│   │   └── modules/
+│   │       ├── ClaudeService.js            # Claude API 서비스
+│   │       └── WebContentsManager.js       # 브라우저 제어 (메인 프로세스)
+│   └── renderer/                           # 렌더러 프로세스 (브라우저 컨텍스트)
+│       ├── index.html                      # 메인 UI 템플릿
+│       ├── index.js                        # 애플리케이션 진입점
+│       ├── components/                     # 재사용 가능한 UI 컴포넌트
+│       │   ├── BrowserTabComponent.js      # 브라우저 탭 인터페이스
+│       │   └── ChatComponent.js            # AI 채팅 인터페이스
+│       ├── modules/                        # 핵심 애플리케이션 모듈
+│       │   ├── EGDeskCore.js               # 모듈 오케스트레이터 (355 라인)
+│       │   ├── WorkspaceManager.js         # 워크스페이스 조정 (457 라인)
+│       │   ├── core/                       # 핵심 시스템
+│       │   │   ├── ai-agent/               # Claude 통합
+│       │   │   │   ├── ClaudeIntegration.js
+│       │   │   │   ├── ConversationManager.js
+│       │   │   │   └── TaskExecutor.js
+│       │   │   ├── content-system/         # 콘텐츠 생성
+│       │   │   │   ├── ContentGenerator.js
+│       │   │   │   ├── TemplateManager.js
+│       │   │   │   ├── SEOOptimizer.js
+│       │   │   │   └── QualityChecker.js
+│       │   │   └── state-management/       # 글로벌 상태
+│       │   │       ├── GlobalStateManager.js # (222 라인)
+│       │   │       └── EventBus.js
+│       │   └── blog-automation/
+│       │       └── wordpress/
+│       │           └── WPApiClient.js      # WordPress REST API
+│       ├── ui/
+│       │   ├── UIManager.js                # 테마, 레이아웃, 애니메이션
+│       │   └── workspace/                  # 워크스페이스별 UI
+│       └── utils/
+│           └── EventEmitter.js             # 이벤트 시스템 기반
+├── docs/                                   # 프로젝트 문서
+│   ├── CLAUDE.md                           # 이 파일 (프로젝트 가이드)
+│   ├── EG-Desk-Taehwa-PRD.md              # 메인 PRD
+│   ├── EG-Desk-Taehwa-Stage1-Blog-Automation-PRD-v2.md # Stage 1 PRD
+│   └── [기타 문서들]
+├── electron.vite.config.js                # 빌드 설정
+├── package.json                            # electron-vite + 의존성
+├── memory.md                               # 프로젝트 메모리/진행상황
+├── taehwa8161/                             # 태화트랜스 기존 WordPress 사이트
+│   └── www/                                # PHP 웹사이트 파일들
+└── out/                                    # 빌드 출력 (자동 생성)
 ```
 
-## 구현해야 할 모듈 아키텍처
+
+
+## ⚡ 개발 원칙 및 아키텍처 가이드라인
+
+### 🔒 필수 준수 사항
+1. **ES6 모듈 엄격 사용**: 모든 import/export에 .js 확장자 필수, CommonJS 금지
+2. **보안 우선**: contextIsolation: true, nodeIntegration: false 유지
+3. **모듈 경계 존중**: 각 모듈은 명확한 책임 범위와 인터페이스 유지
+4. **IPC 통신 패턴**: 메인-렌더러 간 데이터 교환은 preload.js를 통해서만
+5. **상태 관리 집중화**: GlobalStateManager.js를 통한 중앙 집중식 상태 관리
+
+### 🏗️ 아키텍처 패턴
+- **Event-Driven**: EventEmitter 패턴으로 모듈 간 느슨한 결합
+- **Component Lifecycle**: 컴포넌트 초기화, 정리, 메모리 관리 철저
+- **Modular Design**: 재사용 가능한 컴포넌트와 서비스 분리
+- **Separation of Concerns**: UI(renderer) vs 비즈니스 로직(main) 명확 분리
+
+### 📋 코딩 스타일
+- **파일 경로**: 항상 상대 경로로 명시적 .js 확장자 포함
+- **네이밍**: camelCase (변수/함수), PascalCase (클래스/컴포넌트)
+- **에러 처리**: try-catch 블록과 명확한 에러 메시지
+- **로깅**: console.log에 모듈명 prefix 추가 (예: `[WorkspaceManager]`)
+
+### 🔧 개발 도구 및 명령어
+- **개발**: `yarn dev` (포트 5173, HMR 활성화)
+- **빌드**: `yarn build` (프로덕션)
+- **미리보기**: `yarn preview` (빌드 결과 테스트)
+- **설정**: `electron.vite.config.js`에서 빌드 설정 관리
+
+## 현재 구현된 모듈 아키텍처
 
 ### 1. 범용 EG-Desk 핵심 모듈
 
 ```javascript
 // EG-Desk-Core-Modules/
-// AI-Agent-System/
-class ClaudeCodeIntegration {
+// AI-Integration-System/
+class ClaudeIntegration {
   // Claude Code CLI 통합 로직
-  async executeCommand(command) { /* Claude CLI 실행 */ }
+  async executeCommand(command) { /* Claude Code CLI 실행 */ }
   async getResponse(query) { /* AI 응답 처리 */ }
 }
 
 class ConversationManager {
-  // 대화 컨텍스트 관리
+  // 사용자 대화 컨텍스트 관리
   constructor() {
     this.history = [];
     this.context = {};
@@ -186,9 +293,9 @@ class ContentInjector {
   - [ ] 채팅 인터페이스 (30% 너비) 
   - [ ] 다중 탭 관리 시스템
 
-### 주차 3-4: AI 에이전트 및 콘텐츠 시스템 (다음 단계)
-- [ ] Claude Code CLI 통합 모듈
-- [ ] 한국어 자연어 명령 처리
+### 주차 3-4: AI 시스템 및 콘텐츠 자동화 (다음 단계)
+- [ ] Claude Code CLI 통합 모듈 구현
+- [ ] 한국어 자연어 명령 처리 시스템
 - [ ] 전기센서 업계 특화 콘텐츠 생성 엔진
 - [ ] 한국어 SEO 최적화 시스템
 
@@ -212,7 +319,7 @@ class ContentInjector {
 ### ❌ 구현 필요한 핵심 기능
 1. **Browser-Control 모듈**: webContents API 래퍼 클래스
 2. **WordPress-Integration 모듈**: REST API 클라이언트  
-3. **AI-Agent-System**: Claude Code CLI 통합
+3. **AI-Integration-System**: Claude Code CLI 통합
 4. **Chat-Interface**: 자연어 명령 처리 UI
 
 ## 태화트랜스 기존 웹사이트 구조
@@ -251,14 +358,14 @@ npm run build         # Electron 앱 빌드
 npm run dist          # 배포용 패키지 생성
 ```
 
-## AI 에이전트 통합 계획
+## AI 시스템 통합 계획
 
 ### Claude Code CLI 활용 예시
 ```javascript
-// ClaudeCodeIntegration.js 구현 예시
-class ClaudeCodeIntegration {
-  async generateBlogContent(prompt) {
-    const command = `claude-code "${prompt}"`;
+// ClaudeIntegration.js 구현 예시
+class ClaudeIntegration {
+  async generateBlogContent(prompt, context = {}) {
+    const command = `claude "${prompt}"`;
     const response = await this.executeCommand(command);
     return this.parseResponse(response);
   }
@@ -270,7 +377,7 @@ class ClaudeCodeIntegration {
 }
 ```
 
-### 자연어 명령 처리 예시
+### 사용자 자연어 명령 처리 예시 (Claude Code CLI)
 - "태화트랜스 로고스키 코일에 대한 블로그 글 써줘"
 - "SEO 키워드 '전류센서' 포함해서 기술 설명글 작성"  
 - "지금 작성된 글 WordPress에 게시해줘"
@@ -306,7 +413,7 @@ store.set('seo.keywords', koreanKeywords);
 
 ### UI/UX 성과 목표
 - ✅ 한국어 UI 완성도: 시작 화면 완료
-- ⏳ AI 에이전트 응답 시간: 3초 이내 (미구현)
+- ⏳ AI 시스템 응답 시간: 3초 이내 (미구현)
 - ⏳ 연속 8시간 안정성 운영 (테스트 필요)
 
 ### 자동화 성과 목표  
@@ -334,7 +441,7 @@ src/
 │       │   ├── WebContentsManager.js
 │       │   └── BrowserController.js
 │       ├── core/                     # 핵심 시스템
-│       │   ├── ai-agent/            # AI 에이전트
+│       │   ├── ai-agent/            # Claude Code CLI 통합
 │       │   │   ├── ClaudeIntegration.js
 │       │   │   ├── ConversationManager.js
 │       │   │   └── TaskExecutor.js
@@ -405,18 +512,18 @@ class WebContentsManager {
 }
 ```
 
-#### 4. AI 에이전트 시스템
+#### 4. AI 통합 시스템
 
 ```javascript
-// ClaudeIntegration - Claude AI 통합
+// ClaudeIntegration - Claude Code CLI 통합
 class ClaudeIntegration {
   constructor() {
     this.conversationManager = new ConversationManager();
     this.taskExecutor = new TaskExecutor();
   }
   
-  // ✅ 구현된 Claude API 통합
-  async sendMessage(message, context = {}) { /* Claude API 호출 */ }
+  // ✅ 구현된 Claude Code CLI 통합
+  async executeCommand(command) { /* Claude Code CLI 실행 */ }
   async executeTask(taskDescription) { /* 작업 실행 */ }
   async generateContent(prompt, type = 'blog') { /* 콘텐츠 생성 */ }
 }
@@ -498,7 +605,7 @@ class WorkspaceManager {
 1. **모듈러 아키텍처**: electron-vite 기반 완전 분리된 모듈 구조
 2. **UI 관리 시스템**: 테마, 레이아웃, 애니메이션, 알림 통합 관리
 3. **브라우저 제어**: 다중 탭 관리, 스크립트 실행, 이벤트 처리
-4. **AI 에이전트**: Claude 통합, 대화 관리, 작업 실행
+4. **AI 통합 시스템**: Claude Code CLI 통합, 대화 관리, 작업 실행
 5. **WordPress 통합**: REST API 클라이언트, 인증, CRUD 작업
 6. **상태 관리**: 글로벌 상태, 이벤트 버스, 반응형 상태 업데이트
 7. **콘텐츠 시스템**: 생성, 템플릿, SEO 최적화, 품질 검사
@@ -530,60 +637,35 @@ class WorkspaceManager {
 
 ---
 
-## 🤖 Multi-Agent Collaboration System
+## 🤖 EG-Desk 내장 AI 에이전트 시스템 (계획)
 
-### 다중 에이전트 워크플로우 활성화
-EG-Desk:Taehwa 프로젝트는 이제 **Claude Code 다중 에이전트 협업 시스템**을 지원합니다. 웹 검색 조사 결과를 바탕으로 구축된 이 시스템은 복잡한 개발 작업을 여러 전문 에이전트가 협업하여 처리할 수 있도록 합니다.
+### 사용자용 AI 에이전트 워크플로우
+EG-Desk:Taehwa 앱은 **사용자가 활용할 수 있는 다중 AI 에이전트 시스템**을 내장할 예정입니다. 이는 블로그 자동화를 위한 전문 AI 에이전트들로 구성됩니다.
 
-### 에이전트 시스템 구성 문서
-- **[fix.md](fix.md)**: 🎯 오케스트레이터 에이전트 및 전체 시스템 개요
-- **[agent-prompts.md](agent-prompts.md)**: 🤖 6개 전문 에이전트별 상세 프롬프트
-- **[agent-artifacts.md](agent-artifacts.md)**: 📦 에이전트 간 통신용 아티팩트 시스템
-- **[workflow-scripts.md](workflow-scripts.md)**: 🚀 자동화된 워크플로우 실행 스크립트
+### 계획된 사용자 에이전트들
+1. **📝 Blog Content Agent**: 전기센서 업계 특화 콘텐츠 자동 생성
+2. **🔍 SEO Optimization Agent**: 한국어 SEO 최적화 및 키워드 분석
+3. **📊 Analytics Agent**: 블로그 성과 분석 및 개선 제안
+4. **🎨 Visual Content Agent**: 이미지 및 차트 자동 생성
+5. **📅 Content Planning Agent**: 콘텐츠 캘린더 및 발행 스케줄 관리
+6. **🔗 WordPress Integration Agent**: WordPress 사이트 연동 및 자동 게시
 
-### 전문 에이전트 목록
-1. **🔧 browser-module-maintainer**: 브라우저 자동화 및 WebContents 관리
-2. **💬 chat-manager**: AI 채팅 인터페이스 및 대화 처리  
-3. **📝 content-system-manager**: 콘텐츠 생성, SEO 최적화, 블로그 자동화
-4. **🖥️ workspace-manager**: 워크스페이스 전환 및 UI 조정
-5. **🗃️ state-manager**: 글로벌 상태 관리 및 데이터 동기화
-6. **📑 tab-manager**: 브라우저 탭 생명주기 관리
-
-### 사용 방법
-**Claude Code가 자동으로 적절한 에이전트를 선택합니다:**
-
+### 사용자 경험 시나리오
 ```markdown
-# 복잡한 요청 → orchestrator가 자동으로 여러 전문 에이전트들을 Task tool로 launch
-"브라우저 탭 다중 선택 기능을 구현해주세요"
-→ orchestrator가 즉시 browser-module-maintainer + tab-manager + state-manager 동시 실행
-
-# 특정 영역 작업 → 해당 전문 에이전트가 자동 선택됨
-"AI 채팅 인터페이스 개선해줘" → chat-manager 자동 선택
-"워크스페이스 레이아웃 변경" → workspace-manager 자동 선택
-"WordPress 연동 문제 해결" → content-system-manager 자동 선택
+사용자: "로고스키 코일에 대한 기술 블로그 글 작성해줘"
+↓
+1. Blog Content Agent가 전기센서 전문 지식으로 초안 작성
+2. SEO Optimization Agent가 한국어 키워드 최적화
+3. Visual Content Agent가 관련 다이어그램 생성
+4. WordPress Integration Agent가 자동으로 게시
+5. Analytics Agent가 성과 모니터링 시작
 ```
 
-**Manual Agent Selection (선택사항):**
-```bash
-# 특정 에이전트 강제 지정 (드물게 사용)
-/orchestrator "전체 아키텍처 리팩토링 계획"
-/browser-module-maintainer "WebContents API 성능 최적화"
-/state-manager "글로벌 상태 스키마 재설계"
-```
-
-### 핵심 특징
-- **아티팩트 기반 통신**: 에이전트 간 구조화된 데이터 교환
-- **병렬 작업 처리**: 독립적 작업의 동시 실행으로 개발 속도 60% 향상
-- **품질 자동 검증**: 각 단계별 코드 품질 및 통합 테스트 자동화
-- **진행 상황 투명성**: 실시간 작업 추적 및 상태 모니터링
-
-### 워크플로우 예시
-1. **오케스트레이터**가 복잡한 요청을 분석하여 작업 분해
-2. **전문 에이전트들**이 병렬/순차적으로 각자 영역의 작업 수행  
-3. **아티팩트 시스템**을 통해 결과물 공유 및 통합
-4. **자동 검증**을 통한 품질 보장 및 최종 배포
-
-이 시스템을 통해 "10x 엔지니어" 수준의 개발 생산성을 달성할 수 있습니다.
+### 에이전트 간 협업 패턴
+- **Context Sharing**: 모든 에이전트가 Taehwa Trans 제품 정보 공유
+- **Workflow Chaining**: 콘텐츠 생성 → SEO 최적화 → 게시 → 분석 자동 연계
+- **User Feedback Loop**: 사용자 피드백을 통한 에이전트 성능 개선
+- **Domain Expertise**: 전기센서 업계 특화 지식 베이스 활용
 
 ---
 

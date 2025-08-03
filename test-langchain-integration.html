@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain Multi-Provider Chat Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .chat-container {
+            height: 500px;
+            padding: 20px;
+        }
+        .test-controls {
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        .test-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .test-button:hover {
+            background: #5a6fd8;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .api-key-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+        }
+        .api-key-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .provider-status {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .provider-card {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .provider-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .provider-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .provider-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .provider-status-dot.connected { background: #28a745; }
+        .provider-status-dot.disconnected { background: #dc3545; }
+        .provider-status-dot.connecting { background: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 LangChain Multi-Provider Chat Test</h1>
+            <p>Test integration with Claude, OpenAI, and Gemini using LangChain</p>
+        </div>
+
+        <div class="test-controls">
+            <h3>API Key Configuration</h3>
+            <div class="api-key-section">
+                <label>Claude API Key:</label>
+                <input type="password" id="claude-key" class="api-key-input" placeholder="sk-ant-api03-...">
+                <button class="test-button" onclick="storeApiKey('claude')">Store Claude Key</button>
+            </div>
+            <div class="api-key-section">
+                <label>OpenAI API Key:</label>
+                <input type="password" id="openai-key" class="api-key-input" placeholder="sk-...">
+                <button class="test-button" onclick="storeApiKey('openai')">Store OpenAI Key</button>
+            </div>
+            <div class="api-key-section">
+                <label>Gemini API Key:</label>
+                <input type="password" id="gemini-key" class="api-key-input" placeholder="AIza...">
+                <button class="test-button" onclick="storeApiKey('gemini')">Store Gemini Key</button>
+            </div>
+
+            <h3>Provider Status</h3>
+            <div class="provider-status" id="provider-status">
+                <div class="provider-card">
+                    <div class="provider-icon">🤖</div>
+                    <div class="provider-name">Claude</div>
+                    <div>Status: <span id="claude-status">Unknown</span><span class="provider-status-dot disconnected"></span></div>
+                </div>
+                <div class="provider-card">
+                    <div class="provider-icon">🧠</div>
+                    <div class="provider-name">OpenAI</div>
+                    <div>Status: <span id="openai-status">Unknown</span><span class="provider-status-dot disconnected"></span></div>
+                </div>
+                <div class="provider-card">
+                    <div class="provider-icon">💎</div>
+                    <div class="provider-name">Gemini</div>
+                    <div>Status: <span id="gemini-status">Unknown</span><span class="provider-status-dot disconnected"></span></div>
+                </div>
+            </div>
+
+            <h3>Test Controls</h3>
+            <button class="test-button" onclick="testLangChainIntegration()">Test LangChain Integration</button>
+            <button class="test-button" onclick="testProviderSwitching()">Test Provider Switching</button>
+            <button class="test-button" onclick="testCostTracking()">Test Cost Tracking</button>
+            <button class="test-button" onclick="refreshProviderStatus()">Refresh Provider Status</button>
+
+            <div id="status-messages"></div>
+        </div>
+
+        <div class="chat-container">
+            <div id="chat-test-area">
+                <!-- Chat component will be initialized here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize status message area
+        const statusArea = document.getElementById('status-messages');
+
+        function addStatusMessage(message, type = 'info') {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            statusArea.appendChild(statusDiv);
+            statusArea.scrollTop = statusArea.scrollHeight;
+        }
+
+        // API Key Management
+        async function storeApiKey(provider) {
+            if (!window.electronAPI) {
+                addStatusMessage('Electron API not available', 'error');
+                return;
+            }
+
+            const keyInput = document.getElementById(`${provider}-key`);
+            const apiKey = keyInput.value.trim();
+
+            if (!apiKey) {
+                addStatusMessage(`Please enter ${provider} API key`, 'error');
+                return;
+            }
+
+            try {
+                const result = await window.electronAPI.aiProvider.storeKey(provider, { api_key: apiKey });
+                if (result) {
+                    addStatusMessage(`${provider} API key stored successfully`, 'success');
+                    keyInput.value = '';
+                    await refreshProviderStatus();
+                } else {
+                    addStatusMessage(`Failed to store ${provider} API key`, 'error');
+                }
+            } catch (error) {
+                addStatusMessage(`Error storing ${provider} API key: ${error.message}`, 'error');
+            }
+        }
+
+        // Provider Status Management
+        async function refreshProviderStatus() {
+            if (!window.electronAPI) {
+                addStatusMessage('Electron API not available', 'error');
+                return;
+            }
+
+            try {
+                const providers = await window.electronAPI.langchainGetProviders();
+                addStatusMessage(`Found ${providers.length} available providers`, 'info');
+
+                // Update provider status displays
+                const providerIds = ['claude', 'openai', 'gemini'];
+                
+                providerIds.forEach(providerId => {
+                    const statusElement = document.getElementById(`${providerId}-status`);
+                    const dotElement = statusElement.nextElementSibling;
+                    
+                    const provider = providers.find(p => p.id === providerId);
+                    if (provider) {
+                        statusElement.textContent = `Ready (${provider.models.length} models)`;
+                        dotElement.className = 'provider-status-dot connected';
+                    } else {
+                        statusElement.textContent = 'Not configured';
+                        dotElement.className = 'provider-status-dot disconnected';
+                    }
+                });
+
+                // Get current status
+                const currentStatus = await window.electronAPI.langchainGetCurrentStatus();
+                if (currentStatus.provider) {
+                    addStatusMessage(`Current provider: ${currentStatus.provider.name} (${currentStatus.provider.currentModel})`, 'success');
+                } else {
+                    addStatusMessage('No active provider', 'info');
+                }
+
+            } catch (error) {
+                addStatusMessage(`Error refreshing provider status: ${error.message}`, 'error');
+            }
+        }
+
+        // Test Functions
+        async function testLangChainIntegration() {
+            if (!window.electronAPI) {
+                addStatusMessage('Electron API not available', 'error');
+                return;
+            }
+
+            addStatusMessage('Testing LangChain integration...', 'info');
+
+            try {
+                const providers = await window.electronAPI.langchainGetProviders();
+                
+                if (providers.length === 0) {
+                    addStatusMessage('No providers configured. Please add API keys first.', 'error');
+                    return;
+                }
+
+                addStatusMessage(`Testing with ${providers[0].name}...`, 'info');
+
+                const result = await window.electronAPI.langchainSendMessage({
+                    message: 'Hello! This is a test message. Please respond with "Test successful" to confirm the integration is working.',
+                    conversationHistory: [],
+                    systemPrompt: null
+                });
+
+                if (result.success) {
+                    addStatusMessage(`✅ Integration test successful!`, 'success');
+                    addStatusMessage(`Provider: ${result.provider}, Cost: $${result.metadata.cost?.toFixed(4) || '0.0000'}`, 'info');
+                    addStatusMessage(`Response: ${result.message.substring(0, 100)}...`, 'info');
+                } else {
+                    addStatusMessage(`❌ Integration test failed: ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                addStatusMessage(`Error testing integration: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProviderSwitching() {
+            if (!window.electronAPI) {
+                addStatusMessage('Electron API not available', 'error');
+                return;
+            }
+
+            addStatusMessage('Testing provider switching...', 'info');
+
+            try {
+                const providers = await window.electronAPI.langchainGetProviders();
+                
+                if (providers.length < 2) {
+                    addStatusMessage('Need at least 2 providers configured for switching test', 'error');
+                    return;
+                }
+
+                // Switch to first provider
+                const firstProvider = providers[0];
+                const switchResult = await window.electronAPI.langchainSwitchProvider({
+                    providerId: firstProvider.id,
+                    modelId: firstProvider.models[0]?.id
+                });
+
+                addStatusMessage(`Switched to ${switchResult.config.name}`, 'success');
+
+                // Test message with first provider
+                const result1 = await window.electronAPI.langchainSendMessage({
+                    message: 'Provider switching test - Message 1',
+                    conversationHistory: [],
+                    systemPrompt: null
+                });
+
+                if (result1.success) {
+                    addStatusMessage(`✅ Message sent via ${result1.provider}`, 'success');
+
+                    // Switch to second provider if available
+                    if (providers.length > 1) {
+                        const secondProvider = providers[1];
+                        await window.electronAPI.langchainSwitchProvider({
+                            providerId: secondProvider.id,
+                            modelId: secondProvider.models[0]?.id
+                        });
+
+                        addStatusMessage(`Switched to ${secondProvider.name}`, 'success');
+
+                        const result2 = await window.electronAPI.langchainSendMessage({
+                            message: 'Provider switching test - Message 2',
+                            conversationHistory: [],
+                            systemPrompt: null
+                        });
+
+                        if (result2.success) {
+                            addStatusMessage(`✅ Provider switching test successful!`, 'success');
+                            addStatusMessage(`Sent messages via ${result1.provider} and ${result2.provider}`, 'info');
+                        } else {
+                            addStatusMessage(`❌ Second provider test failed: ${result2.error}`, 'error');
+                        }
+                    }
+                } else {
+                    addStatusMessage(`❌ First provider test failed: ${result1.error}`, 'error');
+                }
+
+            } catch (error) {
+                addStatusMessage(`Error testing provider switching: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCostTracking() {
+            if (!window.electronAPI) {
+                addStatusMessage('Electron API not available', 'error');
+                return;
+            }
+
+            addStatusMessage('Testing cost tracking...', 'info');
+
+            try {
+                // Get initial cost status
+                const initialStatus = await window.electronAPI.langchainGetCurrentStatus();
+                const initialCost = initialStatus.costTracker.session.total;
+
+                addStatusMessage(`Initial session cost: $${initialCost.toFixed(4)}`, 'info');
+
+                // Send a test message
+                const result = await window.electronAPI.langchainSendMessage({
+                    message: 'Cost tracking test message - please respond briefly.',
+                    conversationHistory: [],
+                    systemPrompt: null
+                });
+
+                if (result.success) {
+                    // Check updated cost
+                    const updatedStatus = await window.electronAPI.langchainGetCurrentStatus();
+                    const newCost = updatedStatus.costTracker.session.total;
+                    const costIncrease = newCost - initialCost;
+
+                    addStatusMessage(`✅ Cost tracking test successful!`, 'success');
+                    addStatusMessage(`Cost increase: $${costIncrease.toFixed(4)} (Total: $${newCost.toFixed(4)})`, 'info');
+
+                    // Test cost reset
+                    const resetResult = await window.electronAPI.langchainResetSessionCosts();
+                    if (resetResult) {
+                        const resetStatus = await window.electronAPI.langchainGetCurrentStatus();
+                        addStatusMessage(`Session costs reset. New total: $${resetStatus.costTracker.session.total.toFixed(4)}`, 'success');
+                    }
+
+                } else {
+                    addStatusMessage(`❌ Cost tracking test failed: ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                addStatusMessage(`Error testing cost tracking: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize chat component
+        function initializeChatComponent() {
+            if (window.ChatComponent && window.electronAPI) {
+                addStatusMessage('Initializing chat component...', 'info');
+                
+                const chatComponent = new ChatComponent('chat-test-area', {
+                    title: 'LangChain Multi-Provider Chat',
+                    enableProviderSelection: true,
+                    enableCostTracking: true,
+                    enableStreaming: true
+                });
+
+                chatComponent.initialize().then(() => {
+                    addStatusMessage('✅ Chat component initialized successfully!', 'success');
+                }).catch(error => {
+                    addStatusMessage(`❌ Chat component initialization failed: ${error.message}`, 'error');
+                });
+            } else {
+                addStatusMessage('ChatComponent or ElectronAPI not available', 'error');
+            }
+        }
+
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            addStatusMessage('LangChain Multi-Provider Chat Test initialized', 'info');
+            
+            if (window.electronAPI) {
+                addStatusMessage('✅ Electron API available', 'success');
+                refreshProviderStatus();
+                
+                // Initialize chat component after a short delay
+                setTimeout(initializeChatComponent, 1000);
+            } else {
+                addStatusMessage('❌ Electron API not available - running outside Electron', 'error');
+            }
+        });
+    </script>
+</body>
+</html>
