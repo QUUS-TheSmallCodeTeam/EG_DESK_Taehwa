@@ -34,6 +34,7 @@ const messages = require("@langchain/core/messages");
 const tools = require("@langchain/core/tools");
 const agents = require("langchain/agents");
 const prompts = require("@langchain/core/prompts");
+const OpenAI = require("openai");
 const fs = require("fs/promises");
 const crypto = require("crypto");
 class WebContentsManager extends events.EventEmitter {
@@ -4124,16 +4125,60 @@ class LangChainService {
           Theme: ${topic}`;
           const sectionImagePrompt = `Create a supporting illustration for a blog about: "${topic}".
           Style: Informative, technical diagram or conceptual illustration.`;
-          images.push({
-            type: "featured",
-            prompt: featuredImagePrompt,
-            placeholder: true
-          });
-          images.push({
-            type: "section",
-            prompt: sectionImagePrompt,
-            placeholder: true
-          });
+          try {
+            const openai2 = new OpenAI({
+              apiKey: this.providers.get("openai").apiKey
+            });
+            console.log("🎨 [BlogAutomationTool] Generating featured image with DALL-E...");
+            const featuredImageResponse = await openai2.images.generate({
+              model: "dall-e-3",
+              prompt: featuredImagePrompt,
+              n: 1,
+              size: "1024x1024",
+              // Use smaller size to reduce file size
+              quality: "standard",
+              response_format: "url"
+              // Get URL format
+            });
+            if (featuredImageResponse.data[0]?.url) {
+              images.push({
+                type: "featured",
+                prompt: featuredImagePrompt,
+                url: featuredImageResponse.data[0].url,
+                placeholder: false
+              });
+              console.log("✅ [BlogAutomationTool] Featured image generated");
+            }
+            console.log("🎨 [BlogAutomationTool] Generating section image with DALL-E...");
+            const sectionImageResponse = await openai2.images.generate({
+              model: "dall-e-3",
+              prompt: sectionImagePrompt,
+              n: 1,
+              size: "1024x1024",
+              quality: "standard"
+            });
+            if (sectionImageResponse.data[0]?.url) {
+              images.push({
+                type: "section",
+                prompt: sectionImagePrompt,
+                url: sectionImageResponse.data[0].url,
+                placeholder: false
+              });
+              console.log("✅ [BlogAutomationTool] Section image generated");
+            }
+          } catch (imageError) {
+            console.error("❌ [BlogAutomationTool] Image generation failed:", imageError);
+            images.push({
+              type: "featured",
+              prompt: featuredImagePrompt,
+              placeholder: true
+            });
+            images.push({
+              type: "section",
+              prompt: sectionImagePrompt,
+              placeholder: true
+            });
+          }
           sendProgress("✅ 이미지 생성 완료 (2개)");
           sendProgress("📐 최종 포맷팅 중...");
           const formattedContent = `
@@ -6830,7 +6875,7 @@ class EGDeskTaehwa {
       this.mainWindow.webContents.send("start-blog-automation-from-tool", data);
       return { success: true };
     });
-    electron.ipcMain.handle("wordpress-api-request", async (event, { method, endpoint, data, credentials, isFormData }) => {
+    electron.ipcMain.handle("wordpress-api-request", async (event, { method, endpoint, data, credentials, isFormData, isImageUpload }) => {
       const fetch = (await import("node-fetch")).default;
       const FormData = (await Promise.resolve().then(() => require("./chunks/form_data-TeScCFpF.js")).then((n) => n.form_data)).default;
       try {
@@ -6845,7 +6890,37 @@ class EGDeskTaehwa {
         if (data && method !== "GET") {
           if (isFormData) {
             const formData = new FormData();
-            if (data.file) {
+            if (isImageUpload && data.imageUrl) {
+              console.log(`📸 [Main] Downloading image from: ${data.imageUrl}`);
+              try {
+                const imageResponse = await fetch(data.imageUrl);
+                if (!imageResponse.ok) {
+                  throw new Error(`Failed to download image: ${imageResponse.status}`);
+                }
+                const imageBuffer = await imageResponse.buffer();
+                console.log(`✅ [Main] Image downloaded, size: ${imageBuffer.length} bytes`);
+                if (imageBuffer.length > 2 * 1024 * 1024) {
+                  console.log(`⚠️ [Main] Image is large (${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB), will be processed by WordPress`);
+                }
+                let contentType = "image/jpeg";
+                let filename = data.filename || "image.jpg";
+                if (data.imageUrl.includes(".png")) {
+                  contentType = "image/png";
+                  filename = filename.replace(".jpg", ".png");
+                }
+                formData.append("file", imageBuffer, {
+                  filename,
+                  contentType
+                });
+                if (data.title) {
+                  formData.append("title", data.title);
+                  formData.append("alt_text", data.title);
+                }
+              } catch (imageError) {
+                console.error("❌ [Main] Image download failed:", imageError);
+                throw imageError;
+              }
+            } else if (data.file) {
               const { buffer, filename, type } = data.file;
               formData.append("file", Buffer.from(buffer), {
                 filename,

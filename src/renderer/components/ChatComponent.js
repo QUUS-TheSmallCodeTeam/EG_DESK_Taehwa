@@ -1660,19 +1660,9 @@ class ChatComponent {
    * Add publish success message
    */
   addPublishSuccess(response) {
-    const successHTML = `
-      <div class="publish-success">
-        <h3>✅ 게시 완료!</h3>
-        <p>${response.message}</p>
-        <div class="publish-details">
-          <p><strong>제목:</strong> ${response.result.title}</p>
-          <p><strong>URL:</strong> <a href="${response.result.link}" target="_blank">${response.result.link}</a></p>
-          <p><strong>상태:</strong> ${response.result.status}</p>
-        </div>
-      </div>
-    `;
-    
-    this.addAssistantMessage(successHTML, true);
+    // Simple success message without URL
+    const successMessage = `✅ ${response.message || '블로그가 성공적으로 게시되었습니다!'}`;
+    this.addAssistantMessage(successMessage, false);
   }
 
   /**
@@ -1814,47 +1804,16 @@ class ChatComponent {
       if (data.images && data.images.length > 0) {
         terminalLog.log('[ChatComponent] Processing images for upload...');
         
+        // Temporarily skip image uploads due to WordPress 500 error
+        terminalLog.warn('[ChatComponent] Skipping image uploads due to WordPress server issues');
+        
+        // Add image URLs directly to content instead
         for (const image of data.images) {
-          try {
-            // Skip placeholder images
-            if (image.placeholder || !image.url || image.url.includes('[')) {
-              terminalLog.log('[ChatComponent] Skipping placeholder image');
-              continue;
-            }
-            
-            // Download image
-            const response = await fetch(image.url);
-            const blob = await response.blob();
-            
-            // Convert to array buffer for IPC
-            const arrayBuffer = await blob.arrayBuffer();
-            const filename = `blog-image-${Date.now()}-${image.type}.jpg`;
-            
-            // Upload to WordPress
-            const uploadResponse = await window.electronAPI.wordpress.request({
-              method: 'POST',
-              endpoint: '/media',
-              data: {
-                file: {
-                  buffer: Array.from(new Uint8Array(arrayBuffer)),
-                  filename: filename,
-                  type: 'image/jpeg'
-                }
-              },
-              credentials: credentials,
-              isFormData: true
+          if (!image.placeholder && image.url && !image.url.includes('[')) {
+            uploadedImages.push({
+              ...image,
+              wpUrl: image.url  // Use DALL-E URL directly
             });
-            
-            if (uploadResponse.success) {
-              uploadedImages.push({
-                ...image,
-                mediaId: uploadResponse.data.id,
-                wpUrl: uploadResponse.data.source_url
-              });
-              terminalLog.log('[ChatComponent] Image uploaded:', uploadResponse.data.id);
-            }
-          } catch (error) {
-            terminalLog.error('[ChatComponent] Image upload failed:', error);
           }
         }
       }

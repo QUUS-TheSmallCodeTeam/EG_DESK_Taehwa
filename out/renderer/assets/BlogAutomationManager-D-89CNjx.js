@@ -1,4 +1,4 @@
-import { E as EventEmitter } from "./index-BVKxRGvd.js";
+import { E as EventEmitter } from "./index-DTV90l4l.js";
 class BlogCommandParser {
   constructor() {
     this.commandPatterns = [

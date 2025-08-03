@@ -680,7 +680,7 @@ class EGDeskTaehwa {
     });
 
     // WordPress API proxy handlers
-    ipcMain.handle('wordpress-api-request', async (event, { method, endpoint, data, credentials, isFormData }) => {
+    ipcMain.handle('wordpress-api-request', async (event, { method, endpoint, data, credentials, isFormData, isImageUpload }) => {
       const fetch = (await import('node-fetch')).default;
       const FormData = (await import('form-data')).default;
       
@@ -700,8 +700,49 @@ class EGDeskTaehwa {
             // Handle FormData for file uploads
             const formData = new FormData();
             
+            // Handle image upload from URL
+            if (isImageUpload && data.imageUrl) {
+              console.log(`📸 [Main] Downloading image from: ${data.imageUrl}`);
+              try {
+                const imageResponse = await fetch(data.imageUrl);
+                if (!imageResponse.ok) {
+                  throw new Error(`Failed to download image: ${imageResponse.status}`);
+                }
+                const imageBuffer = await imageResponse.buffer();
+                console.log(`✅ [Main] Image downloaded, size: ${imageBuffer.length} bytes`);
+                
+                // Check if image is too large (>2MB)
+                if (imageBuffer.length > 2 * 1024 * 1024) {
+                  console.log(`⚠️ [Main] Image is large (${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB), will be processed by WordPress`);
+                }
+                
+                // Determine content type from URL or default to JPEG
+                let contentType = 'image/jpeg';
+                let filename = data.filename || 'image.jpg';
+                
+                if (data.imageUrl.includes('.png')) {
+                  contentType = 'image/png';
+                  filename = filename.replace('.jpg', '.png');
+                }
+                
+                formData.append('file', imageBuffer, {
+                  filename: filename,
+                  contentType: contentType
+                });
+                
+                // Add title and alt text for better WordPress handling
+                if (data.title) {
+                  formData.append('title', data.title);
+                  formData.append('alt_text', data.title);
+                }
+                
+              } catch (imageError) {
+                console.error('❌ [Main] Image download failed:', imageError);
+                throw imageError;
+              }
+            }
             // Extract file data from the transferred object
-            if (data.file) {
+            else if (data.file) {
               const { buffer, filename, type } = data.file;
               formData.append('file', Buffer.from(buffer), {
                 filename: filename,

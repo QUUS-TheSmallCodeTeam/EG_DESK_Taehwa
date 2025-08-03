@@ -13,6 +13,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+import OpenAI from "openai";
 
 class LangChainService {
   constructor(secureKeyManager) {
@@ -200,18 +201,66 @@ class LangChainService {
           const sectionImagePrompt = `Create a supporting illustration for a blog about: "${topic}".
           Style: Informative, technical diagram or conceptual illustration.`;
           
-          // Note: Actual image generation would require OpenAI DALL-E API integration
-          // For now, we'll simulate it
-          images.push({
-            type: 'featured',
-            prompt: featuredImagePrompt,
-            placeholder: true
-          });
-          images.push({
-            type: 'section',
-            prompt: sectionImagePrompt,
-            placeholder: true
-          });
+          // Generate images using DALL-E via OpenAI
+          try {
+            const openai = new OpenAI({ 
+              apiKey: this.providers.get('openai').apiKey 
+            });
+            
+            // Generate featured image
+            console.log('🎨 [BlogAutomationTool] Generating featured image with DALL-E...');
+            const featuredImageResponse = await openai.images.generate({
+              model: "dall-e-3",
+              prompt: featuredImagePrompt,
+              n: 1,
+              size: "1024x1024",  // Use smaller size to reduce file size
+              quality: "standard",
+              response_format: "url"  // Get URL format
+            });
+            
+            if (featuredImageResponse.data[0]?.url) {
+              images.push({
+                type: 'featured',
+                prompt: featuredImagePrompt,
+                url: featuredImageResponse.data[0].url,
+                placeholder: false
+              });
+              console.log('✅ [BlogAutomationTool] Featured image generated');
+            }
+            
+            // Generate section image
+            console.log('🎨 [BlogAutomationTool] Generating section image with DALL-E...');
+            const sectionImageResponse = await openai.images.generate({
+              model: "dall-e-3",
+              prompt: sectionImagePrompt,
+              n: 1,
+              size: "1024x1024",
+              quality: "standard"
+            });
+            
+            if (sectionImageResponse.data[0]?.url) {
+              images.push({
+                type: 'section',
+                prompt: sectionImagePrompt,
+                url: sectionImageResponse.data[0].url,
+                placeholder: false
+              });
+              console.log('✅ [BlogAutomationTool] Section image generated');
+            }
+          } catch (imageError) {
+            console.error('❌ [BlogAutomationTool] Image generation failed:', imageError);
+            // Fallback to placeholder if image generation fails
+            images.push({
+              type: 'featured',
+              prompt: featuredImagePrompt,
+              placeholder: true
+            });
+            images.push({
+              type: 'section',
+              prompt: sectionImagePrompt,
+              placeholder: true
+            });
+          }
           sendProgress('✅ 이미지 생성 완료 (2개)');
           
           // Step 4: Format and combine everything

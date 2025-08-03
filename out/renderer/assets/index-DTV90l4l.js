@@ -1766,18 +1766,8 @@ class ChatComponent {
    * Add publish success message
    */
   addPublishSuccess(response) {
-    const successHTML = `
-      <div class="publish-success">
-        <h3>✅ 게시 완료!</h3>
-        <p>${response.message}</p>
-        <div class="publish-details">
-          <p><strong>제목:</strong> ${response.result.title}</p>
-          <p><strong>URL:</strong> <a href="${response.result.link}" target="_blank">${response.result.link}</a></p>
-          <p><strong>상태:</strong> ${response.result.status}</p>
-        </div>
-      </div>
-    `;
-    this.addAssistantMessage(successHTML, true);
+    const successMessage = `✅ ${response.message || "블로그가 성공적으로 게시되었습니다!"}`;
+    this.addAssistantMessage(successMessage, false);
   }
   /**
    * Add credential prompt
@@ -1893,39 +1883,14 @@ class ChatComponent {
       const uploadedImages = [];
       if (data.images && data.images.length > 0) {
         terminalLog.log("[ChatComponent] Processing images for upload...");
+        terminalLog.warn("[ChatComponent] Skipping image uploads due to WordPress server issues");
         for (const image of data.images) {
-          try {
-            if (image.placeholder || !image.url || image.url.includes("[")) {
-              terminalLog.log("[ChatComponent] Skipping placeholder image");
-              continue;
-            }
-            const response = await fetch(image.url);
-            const blob = await response.blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            const filename = `blog-image-${Date.now()}-${image.type}.jpg`;
-            const uploadResponse = await window.electronAPI.wordpress.request({
-              method: "POST",
-              endpoint: "/media",
-              data: {
-                file: {
-                  buffer: Array.from(new Uint8Array(arrayBuffer)),
-                  filename,
-                  type: "image/jpeg"
-                }
-              },
-              credentials,
-              isFormData: true
+          if (!image.placeholder && image.url && !image.url.includes("[")) {
+            uploadedImages.push({
+              ...image,
+              wpUrl: image.url
+              // Use DALL-E URL directly
             });
-            if (uploadResponse.success) {
-              uploadedImages.push({
-                ...image,
-                mediaId: uploadResponse.data.id,
-                wpUrl: uploadResponse.data.source_url
-              });
-              terminalLog.log("[ChatComponent] Image uploaded:", uploadResponse.data.id);
-            }
-          } catch (error) {
-            terminalLog.error("[ChatComponent] Image upload failed:", error);
           }
         }
       }
@@ -4855,7 +4820,7 @@ class WorkspaceManager {
     this.initializeWorkspaceProviderMonitoring("blog");
     try {
       const { default: BlogAutomationManager } = await __vitePreload(async () => {
-        const { default: BlogAutomationManager2 } = await import("./BlogAutomationManager-CRcYr40Y.js");
+        const { default: BlogAutomationManager2 } = await import("./BlogAutomationManager-D-89CNjx.js");
         return { default: BlogAutomationManager2 };
       }, true ? [] : void 0, import.meta.url);
       if (!this.blogAutomationManager) {
