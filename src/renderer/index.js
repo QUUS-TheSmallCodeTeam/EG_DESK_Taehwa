@@ -45,8 +45,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await window.uiManager.initialize();
     
     // Set up UIManager event listeners
-    window.uiManager.addEventListener('workspace-switched', (event) => {
+    window.uiManager.addEventListener('workspace-switched', async (event) => {
         const data = event.detail;
+        console.log('[Index] workspace-switched event received:', data);
+        
+        // Call handleWorkspaceSpecificLogic to properly switch workspace
+        if (data.workspace && data.switchId) {
+            await handleWorkspaceSpecificLogic(data.workspace, data.switchId);
+        }
         
         // Trigger blog workspace initialization if needed
         if (data.workspace === 'blog') {
@@ -69,7 +75,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.egDeskCore.setWorkspaceManager(window.workspaceManager);
         
         await window.workspaceManager.initialize();
+        
+        // Check if we're already in blog workspace on initial load
+        const activeTab = document.querySelector('.workspace-tab.active');
+        const currentWorkspace = activeTab?.dataset?.workspace || 'start';
+        console.log('[Index] Current workspace on load:', currentWorkspace);
+        
+        // Only activate blog workspace if explicitly set
+        if (currentWorkspace === 'blog' && activeTab) {
+            console.log('[Index] Already in blog workspace, activating through WorkspaceManager');
+            setTimeout(async () => {
+                await window.workspaceManager.switchToWorkspace('blog');
+            }, 500);
+        }
     } else {
+        console.error('[Index] WorkspaceManager not available!');
     }
 
     // Enhanced workspace switching logic with improved logging and error handling
@@ -144,16 +164,21 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {string} switchId - Unique identifier for this switch operation
      */
     async function handleWorkspaceSpecificLogic(workspace, switchId) {
+        console.log('[Index] handleWorkspaceSpecificLogic called with:', workspace, switchId);
         
         if (workspace === 'start') {
+            console.log('[Index] Start workspace, returning early');
             return;
         }
         
         if (!window.workspaceManager) {
+            console.error('[Index] No workspaceManager found!');
             return;
         }
         
+        console.log('[Index] Calling workspaceManager.switchToWorkspace with:', workspace);
         await window.workspaceManager.switchToWorkspace(workspace);
+        console.log('[Index] switchToWorkspace completed');
         
         // Log component status for debugging
         await logWorkspaceComponentStatus(workspace, switchId);

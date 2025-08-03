@@ -70,6 +70,12 @@ class EGDeskTaehwa {
       }
       
       this.createMainWindow();
+      
+      // Set window reference for LangChain service after window is created
+      if (this.langChainService && this.mainWindow) {
+        await this.langChainService.setElectronWindow(this.mainWindow);
+      }
+      
       this.setupMenu();
       this.setupIPC();
     });
@@ -664,6 +670,88 @@ class EGDeskTaehwa {
 
     // Set up WebContentsManager events
     this.setupWebContentsEvents();
+
+    // Blog automation IPC from tools
+    ipcMain.handle('start-blog-automation-from-tool', async (event, data) => {
+      console.log('[Main] Received blog automation request from tool:', data);
+      // Forward to renderer process
+      this.mainWindow.webContents.send('start-blog-automation-from-tool', data);
+      return { success: true };
+    });
+
+    // WordPress API proxy handlers
+    ipcMain.handle('wordpress-api-request', async (event, { method, endpoint, data, credentials, isFormData }) => {
+      const fetch = (await import('node-fetch')).default;
+      const FormData = (await import('form-data')).default;
+      
+      try {
+        const url = `https://m8chaa.mycafe24.com/wp-json/wp/v2${endpoint}`;
+        const base64Auth = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+        
+        const options = {
+          method,
+          headers: {
+            'Authorization': `Basic ${base64Auth}`
+          }
+        };
+        
+        if (data && method !== 'GET') {
+          if (isFormData) {
+            // Handle FormData for file uploads
+            const formData = new FormData();
+            
+            // Extract file data from the transferred object
+            if (data.file) {
+              const { buffer, filename, type } = data.file;
+              formData.append('file', Buffer.from(buffer), {
+                filename: filename,
+                contentType: type
+              });
+            }
+            
+            options.body = formData;
+            // Let form-data set the Content-Type with boundary
+            Object.assign(options.headers, formData.getHeaders());
+          } else {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(data);
+          }
+        }
+        
+        console.log(`📡 [Main] WordPress API ${method} request to: ${url}`);
+        const response = await fetch(url, options);
+        
+        const responseData = await response.text();
+        let parsedData;
+        try {
+          parsedData = JSON.parse(responseData);
+        } catch {
+          parsedData = responseData;
+        }
+        
+        if (!response.ok) {
+          console.error(`❌ [Main] WordPress API error: ${response.status} - ${responseData}`);
+          return {
+            success: false,
+            status: response.status,
+            error: parsedData || response.statusText
+          };
+        }
+        
+        console.log(`✅ [Main] WordPress API request successful`);
+        return {
+          success: true,
+          data: parsedData,
+          status: response.status
+        };
+      } catch (error) {
+        console.error('❌ [Main] WordPress API request failed:', error);
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    });
   }
 }
 

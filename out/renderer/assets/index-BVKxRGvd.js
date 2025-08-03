@@ -433,6 +433,26 @@ class BrowserTabComponent {
     this.isInitialized = false;
   }
 }
+const terminalLog = {
+  log: (...args) => {
+    console.log(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.info(args.join(" "));
+    }
+  },
+  warn: (...args) => {
+    console.warn(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.warn(args.join(" "));
+    }
+  },
+  error: (...args) => {
+    console.error(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.error(args.join(" "));
+    }
+  }
+};
 class ChatComponent {
   constructor(containerId, options = {}) {
     this.containerId = containerId;
@@ -462,6 +482,8 @@ class ChatComponent {
     this.globalStateManager = null;
     this.eventBus = null;
     this.currentSessionId = null;
+    this.blogAutomationManager = null;
+    this.isInBlogWorkflow = false;
   }
   /**
    * Initialize the chat component
@@ -474,6 +496,7 @@ class ChatComponent {
     try {
       this.render();
       this.setupEventListeners();
+      this.setupBlogAutomationIPC();
       this.initializeProviders();
       this.displayWelcomeMessage();
       this.isInitialized = true;
@@ -698,6 +721,7 @@ class ChatComponent {
   async sendMessage() {
     const message = this.elements.messageInput.value.trim();
     if (!message || this.isStreaming) return;
+    terminalLog.log("💬 [ChatComponent] User message:", message);
     console.log("💬 ChatComponent: Attempting to send message...");
     console.log("📊 ChatComponent: Current state:", {
       currentProvider: this.currentProvider,
@@ -722,6 +746,11 @@ class ChatComponent {
         timestamp: Date.now()
       });
       const apiHistory = this.conversationHistory.slice(-20);
+      terminalLog.log("🤖 [ChatComponent] Sending to AI:", {
+        mode: this.options.enableStreaming ? "streaming" : "regular",
+        provider: this.currentProvider,
+        model: this.currentModel
+      });
       if (this.options.enableStreaming) {
         await this.sendStreamingMessage(message, apiHistory);
       } else {
@@ -745,14 +774,20 @@ class ChatComponent {
   async sendStreamingMessage(message, conversationHistory) {
     this.isStreaming = true;
     this.elements.typingIndicator.textContent = "AI가 입력 중...";
+    terminalLog.log("🌊 [ChatComponent] Starting streaming response...");
     this.currentStreamingMessageElement = this.addAssistantMessage("", true);
     try {
       const result = await window.electronAPI.langchainStreamMessage({
         message,
         conversationHistory,
-        systemPrompt: null
+        systemPrompt: this.getBlogAutomationSystemPrompt()
       });
       if (result.success) {
+        terminalLog.log("✅ [ChatComponent] AI streaming response complete:", {
+          length: result.message.length,
+          provider: result.provider,
+          cost: result.metadata.cost
+        });
         this.conversationHistory.push({
           role: "assistant",
           content: result.message,
@@ -763,6 +798,7 @@ class ChatComponent {
         });
         this.updateCostDisplay(result.metadata);
         this.finalizeStreamingMessage(result);
+        await this.checkForAIBlogAutomation(result.message);
       } else {
         if (result.metadata?.needsApiKey) {
           if (this.currentStreamingMessageElement) {
@@ -785,12 +821,18 @@ class ChatComponent {
    */
   async sendRegularMessage(message, conversationHistory) {
     this.elements.typingIndicator.textContent = "AI가 생각 중...";
+    terminalLog.log("📤 [ChatComponent] Sending regular message to AI...");
     const result = await window.electronAPI.langchainSendMessage({
       message,
       conversationHistory,
-      systemPrompt: null
+      systemPrompt: this.getBlogAutomationSystemPrompt()
     });
     if (result.success) {
+      terminalLog.log("✅ [ChatComponent] AI response received:", {
+        length: result.message.length,
+        provider: result.provider,
+        hasToolCalls: result.metadata?.toolCalls?.length > 0
+      });
       this.addAssistantMessage(result.message, false, result);
       this.conversationHistory.push({
         role: "assistant",
@@ -801,6 +843,22 @@ class ChatComponent {
         cost: result.metadata.cost
       });
       this.updateCostDisplay(result.metadata);
+      if (result.message && (result.message.includes("제목:") || result.message.includes("서론:") || result.message.includes("본문:") || result.message.includes("<h1>") || result.message.includes("<h2>") || result.message.length > 1e3)) {
+        terminalLog.warn("⚠️ AI wrote blog content in chat! Intercepting...");
+        result.message = "블로그 작성을 시작하겠습니다. 잠시만 기다려주세요.";
+        const topicMatch = result.message.match(/제목:\s*(.+?)[\n\r]/);
+        const topic = topicMatch ? topicMatch[1] : "요청하신 주제";
+        setTimeout(async () => {
+          if (this.blogAutomationManager) {
+            await this.blogAutomationManager.startAutomatedBlog({
+              topic,
+              originalInput: message
+            });
+          }
+        }, 500);
+      } else {
+        await this.checkForAIBlogAutomation(result.message);
+      }
     } else {
       if (result.metadata?.needsApiKey) {
         this.showError(`${result.provider} API 키가 설정되지 않았습니다. 설정에서 API 키를 추가해주세요.`);
@@ -813,12 +871,15 @@ class ChatComponent {
    * Handle streaming chunk
    */
   handleStreamChunk(chunk) {
-    if (this.currentStreamingMessageElement && chunk) {
-      const messageContent = this.currentStreamingMessageElement.querySelector(".message-content");
-      if (messageContent) {
-        messageContent.textContent += chunk;
-        this.scrollToBottom();
-      }
+    if (this.currentStreamingContent && chunk) {
+      this.currentStreamingContent.textContent += chunk;
+      this.scrollToBottom();
+    } else {
+      terminalLog.warn("[ChatComponent] handleStreamChunk called but missing:", {
+        hasStreamingContent: !!this.currentStreamingContent,
+        hasChunk: !!chunk,
+        chunkLength: chunk?.length
+      });
     }
   }
   /**
@@ -827,8 +888,10 @@ class ChatComponent {
   finalizeStreamingMessage(result) {
     if (this.currentStreamingMessageElement) {
       const messageContent = this.currentStreamingMessageElement.querySelector(".message-content");
-      if (messageContent && result.message) {
+      if (messageContent && result.message && result.message.trim() !== "") {
         messageContent.textContent = result.message;
+      } else if (messageContent && !result.message) {
+        result.message = messageContent.textContent;
       }
       const streamingIndicator = this.currentStreamingMessageElement.querySelector(".streaming-indicator");
       if (streamingIndicator) {
@@ -836,6 +899,7 @@ class ChatComponent {
       }
       this.addMessageMetadata(this.currentStreamingMessageElement, result);
       this.currentStreamingMessageElement = null;
+      this.currentStreamingContent = null;
     }
   }
   /**
@@ -856,6 +920,9 @@ class ChatComponent {
     const messageElement = this.createMessageElement("assistant", content, result, isStreaming);
     this.elements.messagesList.appendChild(messageElement);
     this.scrollToBottom();
+    if (isStreaming) {
+      this.currentStreamingContent = messageElement.querySelector(".message-content");
+    }
     return messageElement;
   }
   /**
@@ -883,7 +950,12 @@ class ChatComponent {
     bubble.className = "message-bubble";
     const messageContent = document.createElement("div");
     messageContent.className = "message-content";
-    messageContent.textContent = content;
+    if (content.includes("<") && content.includes(">")) {
+      messageContent.innerHTML = content;
+    } else {
+      messageContent.textContent = content;
+      messageContent.innerHTML = messageContent.innerHTML.replace(/\n/g, "<br>");
+    }
     bubble.appendChild(messageContent);
     if (isStreaming) {
       const streamingIndicator = document.createElement("div");
@@ -1235,6 +1307,64 @@ class ChatComponent {
     };
   }
   /**
+   * Setup IPC listeners for blog automation from tool
+   */
+  setupBlogAutomationIPC() {
+    window.electronAPI.removeAllListeners("start-blog-automation-from-tool");
+    window.electronAPI.on("start-blog-automation-from-tool", async (event, data) => {
+      terminalLog.log("[ChatComponent] Received blog automation from tool:", data);
+      if (!this.blogAutomationManager) {
+        terminalLog.error("[ChatComponent] BlogAutomationManager not initialized!");
+        terminalLog.log("[ChatComponent] Attempting direct WordPress publish without BlogAutomationManager");
+        try {
+          await this.directPublishToWordPress(data);
+          return;
+        } catch (error) {
+          terminalLog.error("[ChatComponent] Direct publish failed:", error);
+          this.showError("블로그 게시 중 오류가 발생했습니다: " + error.message);
+          return;
+        }
+      }
+      try {
+        terminalLog.log("[ChatComponent] Calling startAutomatedBlog with params:", {
+          topic: data.topic,
+          title: data.title,
+          hasContent: !!data.content,
+          contentLength: data.content?.length,
+          imagesCount: data.images?.length,
+          fromTool: true
+        });
+        const response = await this.blogAutomationManager.startAutomatedBlog({
+          topic: data.topic,
+          title: data.title,
+          content: data.content,
+          images: data.images,
+          metadata: data.metadata,
+          fromTool: true
+        });
+        terminalLog.log("[ChatComponent] Blog automation response:", response);
+        if (response) {
+          if (response.type === "automated_complete") {
+            this.addPublishSuccess({
+              message: response.result.message || "블로그가 성공적으로 게시되었습니다!",
+              result: response.result
+            });
+          } else if (response.type === "error") {
+            this.showError(response.message);
+          }
+        }
+      } catch (error) {
+        terminalLog.error("[ChatComponent] Blog automation from tool failed:", error);
+        terminalLog.error("[ChatComponent] Error stack:", error.stack);
+        this.showError("블로그 자동화 중 오류가 발생했습니다: " + error.message);
+      }
+    });
+    window.electronAPI.on("blog-automation-progress", (event, data) => {
+      terminalLog.log("[ChatComponent] Blog automation progress:", data);
+      this.addAssistantMessage(data.message, false);
+    });
+  }
+  /**
    * Set component state for restoration
    */
   async setState(state) {
@@ -1249,24 +1379,9 @@ class ChatComponent {
         this.currentSessionId = state.currentSessionId;
       }
       if (state.conversationHistory && Array.isArray(state.conversationHistory)) {
-        this.conversationHistory = state.conversationHistory;
+        this.conversationHistory = [];
         this.clearMessages();
-        for (const message of this.conversationHistory) {
-          if (message.role === "user") {
-            this.addUserMessage(message.content);
-          } else if (message.role === "assistant") {
-            this.addAssistantMessage(message.content, false, {
-              provider: message.provider,
-              model: message.model,
-              metadata: {
-                timestamp: message.timestamp,
-                cost: message.cost
-              }
-            });
-          } else if (message.role === "system") {
-            this.addSystemMessage(message.content);
-          }
-        }
+        terminalLog.log("[ChatComponent] Skipping conversation history restoration to prevent auto-generated messages");
       }
       if (state.costTracker) {
         this.costTracker = state.costTracker;
@@ -1380,15 +1495,573 @@ class ChatComponent {
     }
   }
   /**
+   * Set blog automation manager
+   */
+  setBlogAutomationManager(blogAutomationManager) {
+    this.blogAutomationManager = blogAutomationManager;
+    terminalLog.log("[ChatComponent] BlogAutomationManager set:", !!blogAutomationManager);
+    if (this.blogAutomationManager) {
+      this.blogAutomationManager.on("workflow_progress", (data) => {
+        this.handleWorkflowProgress(data);
+      });
+      this.blogAutomationManager.on("generation_progress", (data) => {
+        this.handleGenerationProgress(data);
+      });
+    }
+  }
+  /**
+   * Handle blog commands
+   */
+  async handleBlogCommand(message) {
+    if (!this.blogAutomationManager) return null;
+    try {
+      const response = await this.blogAutomationManager.handleChatMessage(message);
+      if (!response) return null;
+      switch (response.type) {
+        case "interactive":
+          this.isInBlogWorkflow = true;
+          this.addAssistantMessage(response.message, false);
+          break;
+        case "processing":
+          this.isInBlogWorkflow = true;
+          this.addAssistantMessage(response.message, false);
+          if (response.action) {
+            setTimeout(async () => {
+              try {
+                const result = await response.action();
+                this.handleBlogActionResult(result);
+              } catch (error) {
+                this.showError("처리 중 오류가 발생했습니다: " + error.message);
+              }
+            }, 100);
+          }
+          break;
+        case "review":
+          this.isInBlogWorkflow = true;
+          this.addBlogContentReview(response);
+          break;
+        case "confirmation":
+          this.isInBlogWorkflow = true;
+          this.addBlogConfirmation(response);
+          break;
+        case "published":
+          this.isInBlogWorkflow = false;
+          this.addPublishSuccess(response);
+          break;
+        case "credential_required":
+          this.addCredentialPrompt(response);
+          break;
+        case "help":
+          this.addAssistantMessage(response.message, false);
+          break;
+        case "error":
+          this.showError(response.message);
+          break;
+        case "success":
+          this.addAssistantMessage(response.message, false);
+          break;
+        default:
+          this.addAssistantMessage(response.message || "Command processed", false);
+      }
+      return response;
+    } catch (error) {
+      terminalLog.error("[ChatComponent] Blog command error:", error);
+      this.showError("블로그 명령 처리 중 오류가 발생했습니다.");
+      return null;
+    }
+  }
+  /**
+   * Handle blog workflow continuation
+   */
+  async handleBlogWorkflowContinuation(message) {
+    if (!this.blogAutomationManager) return;
+    try {
+      const response = await this.blogAutomationManager.continueWorkflow(message);
+      if (response) {
+        await this.handleBlogCommand(message);
+      }
+    } catch (error) {
+      terminalLog.error("[ChatComponent] Workflow continuation error:", error);
+      this.showError("워크플로우 진행 중 오류가 발생했습니다.");
+    }
+  }
+  /**
+   * Get blog automation system prompt
+   */
+  getBlogAutomationSystemPrompt() {
+    if (!this.blogAutomationManager) {
+      return null;
+    }
+    return `당신은 태화트랜스의 AI 블로그 어시스턴트입니다.
+
+🚨 핵심 규칙 🚨
+블로그 작성 요청을 받으면:
+1. create_blog_post tool을 사용하세요 (OpenAI 모델에서만 가능)
+2. 절대로 채팅창에 블로그 내용을 직접 쓰지 마세요
+3. Tool이 없다면 [BLOG_AUTO_START:주제] 형식을 사용하세요
+
+블로그 요청 예시:
+- "블로그 글 써줘"
+- "스마트그리드에 대한 블로그 작성해줘"
+- "로고스키 코일 관련 포스트 만들어줘"
+- "새로운 글 작성해줘"
+
+올바른 응답:
+✅ Tool 사용: create_blog_post 도구를 실행
+✅ Tool 없을 때: "[BLOG_AUTO_START:스마트그리드] 블로그 작성을 시작합니다."
+
+금지된 응답:
+❌ "제목: 스마트그리드의 미래..."
+❌ "서론: 현대 사회에서..."
+❌ 블로그 본문 내용 직접 작성
+
+일반 대화:
+- 친절하고 전문적인 톤 유지
+- 기술적 질문에 답변
+- 한국어로 자연스럽게 대화`;
+  }
+  /**
+   * Check if AI wants to initiate blog automation
+   */
+  async checkForAIBlogAutomation(aiResponse) {
+    if (!this.blogAutomationManager || !aiResponse) {
+      return;
+    }
+    const blogAutoPattern = /\[BLOG_AUTO_START\]\s*\n(.+)/;
+    const match = aiResponse.match(blogAutoPattern);
+    if (match) {
+      const suggestedTopic = match[1].trim();
+      terminalLog.log("[ChatComponent] AI initiated blog automation with topic:", suggestedTopic);
+      const cleanedResponse = aiResponse.replace(blogAutoPattern, "").trim();
+      const messages = this.elements.messagesList.querySelectorAll(".message.assistant");
+      if (messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        const messageContent = lastMessage.querySelector(".message-content");
+        if (messageContent) {
+          messageContent.textContent = cleanedResponse;
+        }
+      }
+      setTimeout(async () => {
+        try {
+          const response = await this.blogAutomationManager.startAutomatedBlog({
+            topic: suggestedTopic,
+            aiInitiated: true
+          });
+          if (response) {
+          }
+        } catch (error) {
+          terminalLog.error("[ChatComponent] AI blog automation failed:", error);
+          this.showError("블로그 자동화 중 오류가 발생했습니다: " + error.message);
+        }
+      }, 500);
+    }
+  }
+  /**
+   * Handle blog action result
+   */
+  handleBlogActionResult(result) {
+    switch (result.type) {
+      case "outline_generated":
+        this.addBlogOutline(result);
+        setTimeout(() => {
+          this.blogAutomationManager.runInteractiveWorkflow().then((response) => {
+            if (response) {
+              this.handleBlogCommand("");
+            }
+          });
+        }, 1e3);
+        break;
+      case "content_generated":
+        this.addAssistantMessage("콘텐츠가 생성되었습니다. 검토해주세요.", false);
+        break;
+      case "automated_complete":
+        this.addPublishSuccess({
+          message: result.result.message || "블로그가 자동으로 생성되고 게시되었습니다!",
+          result: result.result
+        });
+        this.isInBlogWorkflow = false;
+        setTimeout(() => {
+          this.blogAutomationManager.runInteractiveWorkflow().then((response) => {
+            if (response) {
+              this.handleBlogCommand("");
+            }
+          });
+        }, 1e3);
+        break;
+      default:
+        if (result.message) {
+          this.addAssistantMessage(result.message, false);
+        }
+    }
+  }
+  /**
+   * Add blog outline to chat
+   */
+  addBlogOutline(result) {
+    const outline = result.outline;
+    const outlineHTML = `
+      <div class="blog-outline">
+        <h3>${outline.title}</h3>
+        <p class="excerpt">${outline.excerpt}</p>
+        <div class="sections">
+          <h4>섹션 구성:</h4>
+          <ol>
+            ${outline.sections.map((section) => `
+              <li>
+                <strong>${section.title}</strong>
+                <p>${section.summary}</p>
+              </li>
+            `).join("")}
+          </ol>
+        </div>
+        <div class="metadata">
+          <span>대상 독자: ${outline.targetAudience}</span>
+          <span>예상 읽기 시간: ${outline.estimatedReadTime}분</span>
+        </div>
+      </div>
+    `;
+    this.addAssistantMessage(outlineHTML, true);
+  }
+  /**
+   * Add blog content review
+   */
+  addBlogContentReview(response) {
+    const content = response.content;
+    const reviewHTML = `
+      <div class="blog-review">
+        <h3>생성된 콘텐츠 검토</h3>
+        <div class="content-preview">
+          <h4>${content.title}</h4>
+          <div class="content-body">
+            ${content.html || content.plainText}
+          </div>
+        </div>
+        <p class="review-prompt">${response.message}</p>
+        <div class="review-actions">
+          <button onclick="window.chatComponent.approveBlogContent()">승인하고 계속</button>
+          <button onclick="window.chatComponent.requestBlogEdit()">수정 요청</button>
+        </div>
+      </div>
+    `;
+    this.addAssistantMessage(reviewHTML, true);
+  }
+  /**
+   * Add blog confirmation
+   */
+  addBlogConfirmation(response) {
+    const confirmHTML = `
+      <div class="blog-confirmation">
+        <h3>게시 준비 완료</h3>
+        <p>${response.message}</p>
+        <div class="confirmation-actions">
+          <button onclick="window.chatComponent.publishBlog()">게시하기</button>
+          <button onclick="window.chatComponent.saveDraft()">초안으로 저장</button>
+          <button onclick="window.chatComponent.cancelPublish()">취소</button>
+        </div>
+      </div>
+    `;
+    this.addAssistantMessage(confirmHTML, true);
+  }
+  /**
+   * Add publish success message
+   */
+  addPublishSuccess(response) {
+    const successHTML = `
+      <div class="publish-success">
+        <h3>✅ 게시 완료!</h3>
+        <p>${response.message}</p>
+        <div class="publish-details">
+          <p><strong>제목:</strong> ${response.result.title}</p>
+          <p><strong>URL:</strong> <a href="${response.result.link}" target="_blank">${response.result.link}</a></p>
+          <p><strong>상태:</strong> ${response.result.status}</p>
+        </div>
+      </div>
+    `;
+    this.addAssistantMessage(successHTML, true);
+  }
+  /**
+   * Add credential prompt
+   */
+  addCredentialPrompt(response) {
+    const promptHTML = `
+      <div class="credential-prompt">
+        <h3>WordPress 인증 정보 입력</h3>
+        <p>${response.message}</p>
+        <div class="credential-form">
+          <div class="form-group">
+            <label for="wp-username">사용자명:</label>
+            <input type="text" id="wp-username" placeholder="WordPress 사용자명">
+          </div>
+          <div class="form-group">
+            <label for="wp-password">비밀번호:</label>
+            <input type="password" id="wp-password" placeholder="Application Password 권장">
+          </div>
+          <div class="form-actions">
+            <button onclick="window.chatComponent.submitWordPressCredentials()">인증하기</button>
+            <button onclick="window.chatComponent.cancelCredentials()">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+    this.addAssistantMessage(promptHTML, true);
+  }
+  /**
+   * Handle workflow progress events
+   */
+  handleWorkflowProgress(data) {
+    const progressMessage = `워크플로우 진행 중: ${data.completedStep.name} 완료`;
+    this.showInfo(progressMessage);
+  }
+  /**
+   * Handle generation progress events
+   */
+  handleGenerationProgress(data) {
+    if (this.elements.typingIndicator) {
+      this.elements.typingIndicator.textContent = data.message || "AI가 생성 중...";
+    }
+  }
+  /**
+   * Blog action handlers (exposed for button clicks)
+   */
+  approveBlogContent() {
+    this.elements.messageInput.value = "승인";
+    this.sendMessage();
+  }
+  requestBlogEdit() {
+    this.elements.messageInput.value = "수정이 필요합니다.";
+    this.sendMessage();
+  }
+  publishBlog() {
+    this.elements.messageInput.value = "/blog publish";
+    this.sendMessage();
+  }
+  saveDraft() {
+    this.elements.messageInput.value = "/blog publish draft=true";
+    this.sendMessage();
+  }
+  cancelPublish() {
+    this.isInBlogWorkflow = false;
+    this.addAssistantMessage("게시가 취소되었습니다. 초안은 저장되어 있습니다.", false);
+  }
+  /**
+   * Submit WordPress credentials
+   */
+  async submitWordPressCredentials() {
+    const usernameInput = document.getElementById("wp-username");
+    const passwordInput = document.getElementById("wp-password");
+    if (!usernameInput || !passwordInput) {
+      this.showError("인증 정보 입력 필드를 찾을 수 없습니다.");
+      return;
+    }
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+    if (!username || !password) {
+      this.showError("사용자명과 비밀번호를 모두 입력해주세요.");
+      return;
+    }
+    try {
+      const result = await this.blogAutomationManager.setWordPressCredentials(username, password);
+      if (result.type === "success") {
+        this.addAssistantMessage(result.message, false);
+        setTimeout(() => {
+          this.publishBlog();
+        }, 1e3);
+      } else {
+        this.showError(result.message);
+      }
+    } catch (error) {
+      terminalLog.error("[ChatComponent] Credential submission error:", error);
+      this.showError("인증 정보 설정 중 오류가 발생했습니다.");
+    }
+  }
+  /**
+   * Cancel credential input
+   */
+  cancelCredentials() {
+    this.addAssistantMessage("인증이 취소되었습니다. WordPress에 게시하려면 인증 정보가 필요합니다.", false);
+  }
+  /**
+   * Direct publish to WordPress without BlogAutomationManager
+   */
+  async directPublishToWordPress(data) {
+    terminalLog.log("[ChatComponent] Direct publishing to WordPress...");
+    try {
+      const credentials = await window.electronAPI.store.get("wordpress.credentials");
+      if (!credentials) {
+        throw new Error("WordPress credentials not found");
+      }
+      const uploadedImages = [];
+      if (data.images && data.images.length > 0) {
+        terminalLog.log("[ChatComponent] Processing images for upload...");
+        for (const image of data.images) {
+          try {
+            if (image.placeholder || !image.url || image.url.includes("[")) {
+              terminalLog.log("[ChatComponent] Skipping placeholder image");
+              continue;
+            }
+            const response = await fetch(image.url);
+            const blob = await response.blob();
+            const arrayBuffer = await blob.arrayBuffer();
+            const filename = `blog-image-${Date.now()}-${image.type}.jpg`;
+            const uploadResponse = await window.electronAPI.wordpress.request({
+              method: "POST",
+              endpoint: "/media",
+              data: {
+                file: {
+                  buffer: Array.from(new Uint8Array(arrayBuffer)),
+                  filename,
+                  type: "image/jpeg"
+                }
+              },
+              credentials,
+              isFormData: true
+            });
+            if (uploadResponse.success) {
+              uploadedImages.push({
+                ...image,
+                mediaId: uploadResponse.data.id,
+                wpUrl: uploadResponse.data.source_url
+              });
+              terminalLog.log("[ChatComponent] Image uploaded:", uploadResponse.data.id);
+            }
+          } catch (error) {
+            terminalLog.error("[ChatComponent] Image upload failed:", error);
+          }
+        }
+      }
+      let finalContent = data.content;
+      if (uploadedImages.length > 0) {
+        for (const img of uploadedImages) {
+          if (img.type === "featured") {
+            finalContent = finalContent.replace("[FEATURED_IMAGE]", img.wpUrl);
+          } else if (img.type === "section") {
+            finalContent = finalContent.replace("[SECTION_IMAGE]", img.wpUrl);
+          }
+        }
+      }
+      const postData = {
+        title: data.title,
+        content: finalContent,
+        status: "publish",
+        format: "standard",
+        categories: [1]
+        // Default category
+      };
+      const featuredImage = uploadedImages.find((img) => img.type === "featured");
+      if (featuredImage) {
+        postData.featured_media = featuredImage.mediaId;
+      }
+      const postResponse = await window.electronAPI.wordpress.request({
+        method: "POST",
+        endpoint: "/posts",
+        data: postData,
+        credentials
+      });
+      if (postResponse.success) {
+        const post = postResponse.data;
+        terminalLog.log("[ChatComponent] Post published successfully:", post.id);
+        this.addPublishSuccess({
+          message: "블로그가 성공적으로 게시되었습니다!",
+          result: {
+            title: post.title.rendered,
+            link: post.link,
+            status: post.status
+          }
+        });
+      } else {
+        throw new Error("Failed to publish post");
+      }
+    } catch (error) {
+      terminalLog.error("[ChatComponent] Direct publish error:", error);
+      throw error;
+    }
+  }
+  /**
+   * Show info message
+   */
+  showInfo(message) {
+    const infoElement = document.createElement("div");
+    infoElement.className = "chat-info-message";
+    infoElement.textContent = message;
+    this.elements.messagesContainer.appendChild(infoElement);
+    this.scrollToBottom();
+    setTimeout(() => {
+      infoElement.remove();
+    }, 3e3);
+  }
+  /**
    * Cleanup and destroy
    */
   destroy() {
+    window.electronAPI.removeAllListeners("start-blog-automation-from-tool");
     if (this.container) {
       this.container.innerHTML = "";
     }
     this.isInitialized = false;
   }
 }
+const scriptRel = /* @__PURE__ */ function detectScriptRel() {
+  const relList = typeof document !== "undefined" && document.createElement("link").relList;
+  return relList && relList.supports && relList.supports("modulepreload") ? "modulepreload" : "preload";
+}();
+const assetsURL = function(dep, importerUrl) {
+  return new URL(dep, importerUrl).href;
+};
+const seen = {};
+const __vitePreload = function preload(baseModule, deps, importerUrl) {
+  let promise = Promise.resolve();
+  if (deps && deps.length > 0) {
+    let allSettled = function(promises$2) {
+      return Promise.all(promises$2.map((p$1) => Promise.resolve(p$1).then((value$1) => ({
+        status: "fulfilled",
+        value: value$1
+      }), (reason) => ({
+        status: "rejected",
+        reason
+      }))));
+    };
+    const links = document.getElementsByTagName("link");
+    const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+    const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+    promise = allSettled(deps.map((dep) => {
+      dep = assetsURL(dep, importerUrl);
+      if (dep in seen) return;
+      seen[dep] = true;
+      const isCss = dep.endsWith(".css");
+      const cssSelector = isCss ? '[rel="stylesheet"]' : "";
+      const isBaseRelative = !!importerUrl;
+      if (isBaseRelative) for (let i$1 = links.length - 1; i$1 >= 0; i$1--) {
+        const link$1 = links[i$1];
+        if (link$1.href === dep && (!isCss || link$1.rel === "stylesheet")) return;
+      }
+      else if (document.querySelector(`link[href="${dep}"]${cssSelector}`)) return;
+      const link = document.createElement("link");
+      link.rel = isCss ? "stylesheet" : scriptRel;
+      if (!isCss) link.as = "script";
+      link.crossOrigin = "";
+      link.href = dep;
+      if (cspNonce) link.setAttribute("nonce", cspNonce);
+      document.head.appendChild(link);
+      if (isCss) return new Promise((res, rej) => {
+        link.addEventListener("load", res);
+        link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
+      });
+    }));
+  }
+  function handlePreloadError(err$2) {
+    const e$1 = new Event("vite:preloadError", { cancelable: true });
+    e$1.payload = err$2;
+    window.dispatchEvent(e$1);
+    if (!e$1.defaultPrevented) throw err$2;
+  }
+  return promise.then((res) => {
+    for (const item of res || []) {
+      if (item.status !== "rejected") continue;
+      handlePreloadError(item.reason);
+    }
+    return baseModule().catch(handlePreloadError);
+  });
+};
 class ChatHistoryPanel {
   constructor(containerId, options = {}) {
     this.containerId = containerId;
@@ -3868,9 +4541,11 @@ class WorkspaceManager {
    * Switch to a workspace with animation coordination
    */
   async switchToWorkspace(workspaceId) {
+    console.log("[WorkspaceManager] switchToWorkspace called with:", workspaceId);
     if (!this.workspaces.has(workspaceId)) {
       throw new Error(`Workspace "${workspaceId}" not found`);
     }
+    console.log("[WorkspaceManager] Workspace found, starting switch...");
     try {
       this.pauseComponentAnimations();
       if (this.currentWorkspace) {
@@ -3892,14 +4567,23 @@ class WorkspaceManager {
    * Activate a workspace
    */
   async activateWorkspace(workspaceId) {
+    console.log("[WorkspaceManager] activateWorkspace called with:", workspaceId);
     const workspace = this.workspaces.get(workspaceId);
-    if (!workspace) return;
+    if (!workspace) {
+      console.log("[WorkspaceManager] No workspace found for:", workspaceId);
+      return;
+    }
+    console.log("[WorkspaceManager] Found workspace, initializing components...");
     try {
       await this.initializeWorkspaceComponents(workspaceId);
+      console.log("[WorkspaceManager] Checking onActivate callback...", !!workspace.onActivate);
       if (workspace.onActivate) {
+        console.log("[WorkspaceManager] Calling onActivate callback...");
         await workspace.onActivate();
+        console.log("[WorkspaceManager] onActivate callback completed");
       }
     } catch (error) {
+      console.error("[WorkspaceManager] Error in activateWorkspace:", error);
       throw error;
     }
   }
@@ -4126,10 +4810,21 @@ class WorkspaceManager {
    */
   getChatComponent(workspaceId = null) {
     const targetWorkspace = workspaceId || this.currentWorkspace;
-    if (!targetWorkspace) return null;
+    if (!targetWorkspace) {
+      console.warn("[WorkspaceManager] No target workspace for getChatComponent");
+      return null;
+    }
     const workspaceKey = `workspace_${targetWorkspace}`;
     const workspaceComponents = this.components.get(workspaceKey);
-    return workspaceComponents?.get("chat-component-container") || null;
+    const chatComponent = workspaceComponents?.get("chat-component-container");
+    console.log("[WorkspaceManager] getChatComponent:", {
+      targetWorkspace,
+      workspaceKey,
+      hasComponents: !!workspaceComponents,
+      componentKeys: workspaceComponents ? Array.from(workspaceComponents.keys()) : [],
+      chatComponentFound: !!chatComponent
+    });
+    return chatComponent || null;
   }
   /**
    * Get chat history panel from specific or current workspace
@@ -4145,8 +4840,11 @@ class WorkspaceManager {
    * Blog workspace specific activation
    */
   async activateBlogWorkspace() {
+    console.log("[WorkspaceManager] Activating blog workspace...");
     const historyPanel = this.getChatHistoryPanel();
     const chatComponent = this.getChatComponent();
+    console.log("[WorkspaceManager] Chat component found:", !!chatComponent);
+    console.log("[WorkspaceManager] History panel found:", !!historyPanel);
     if (historyPanel && chatComponent) {
       const currentSession = historyPanel.getCurrentConversation();
       if (currentSession && chatComponent.loadSession) {
@@ -4155,11 +4853,48 @@ class WorkspaceManager {
       this.syncProviderStateWithComponents(chatComponent, historyPanel);
     }
     this.initializeWorkspaceProviderMonitoring("blog");
+    try {
+      const { default: BlogAutomationManager } = await __vitePreload(async () => {
+        const { default: BlogAutomationManager2 } = await import("./BlogAutomationManager-CRcYr40Y.js");
+        return { default: BlogAutomationManager2 };
+      }, true ? [] : void 0, import.meta.url);
+      if (!this.blogAutomationManager) {
+        this.blogAutomationManager = new BlogAutomationManager();
+        await this.blogAutomationManager.initialize({
+          globalState: this.globalStateManager,
+          chatComponent
+        });
+        console.log("[WorkspaceManager] Blog automation initialized");
+      }
+      if (chatComponent && chatComponent.setBlogAutomationManager) {
+        chatComponent.setBlogAutomationManager(this.blogAutomationManager);
+        console.log("[WorkspaceManager] Blog automation connected to chat");
+      } else {
+        console.error("[WorkspaceManager] ChatComponent not found or setBlogAutomationManager method missing!", {
+          chatComponent: !!chatComponent,
+          hasSetMethod: chatComponent ? !!chatComponent.setBlogAutomationManager : false
+        });
+      }
+      window.chatComponent = chatComponent;
+    } catch (error) {
+      console.error("[WorkspaceManager] Failed to initialize blog automation:", error);
+    }
   }
   /**
    * Blog workspace specific deactivation
    */
   async deactivateBlogWorkspace() {
+    if (this.blogAutomationManager) {
+      try {
+        await this.blogAutomationManager.destroy();
+        console.log("[WorkspaceManager] Blog automation cleaned up");
+      } catch (error) {
+        console.error("[WorkspaceManager] Error cleaning up blog automation:", error);
+      }
+    }
+    if (window.chatComponent) {
+      delete window.chatComponent;
+    }
   }
   /**
    * Get available workspaces
@@ -11098,7 +11833,7 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    let updateUIForWorkspace2 = function(workspace) {
+    let updateUIForWorkspace = function(workspace) {
       document.querySelectorAll(".tab").forEach((tab) => {
         tab.classList.toggle("active", tab.dataset.workspace === workspace);
       });
@@ -11123,7 +11858,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
     };
-    var updateUIForWorkspace = updateUIForWorkspace2;
     if (!window.electronAPI) {
       return;
     }
@@ -11138,8 +11872,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       animations: true
     });
     await window.uiManager.initialize();
-    window.uiManager.addEventListener("workspace-switched", (event) => {
+    window.uiManager.addEventListener("workspace-switched", async (event) => {
       const data = event.detail;
+      console.log("[Index] workspace-switched event received:", data);
+      if (data.workspace && data.switchId) {
+        await handleWorkspaceSpecificLogic(data.workspace, data.switchId);
+      }
       if (data.workspace === "blog") {
         setTimeout(() => {
           initializeBlogWorkspace();
@@ -11151,7 +11889,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       window.workspaceManager = new WorkspaceManager(webContentsManager);
       window.egDeskCore.setWorkspaceManager(window.workspaceManager);
       await window.workspaceManager.initialize();
+      const activeTab = document.querySelector(".workspace-tab.active");
+      const currentWorkspace = activeTab?.dataset?.workspace || "start";
+      console.log("[Index] Current workspace on load:", currentWorkspace);
+      if (currentWorkspace === "blog" && activeTab) {
+        console.log("[Index] Already in blog workspace, activating through WorkspaceManager");
+        setTimeout(async () => {
+          await window.workspaceManager.switchToWorkspace("blog");
+        }, 500);
+      }
     } else {
+      console.error("[Index] WorkspaceManager not available!");
     }
     window.switchWorkspace = async function(workspace) {
       const switchId = `switch-${Date.now()}`;
@@ -11174,10 +11922,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             const mainContent = document.getElementById("main-content");
           }
         } catch (error) {
-          updateUIForWorkspace2(workspace);
+          updateUIForWorkspace(workspace);
         }
       } else {
-        updateUIForWorkspace2(workspace);
+        updateUIForWorkspace(workspace);
       }
     }
     async function notifyMainProcessWorkspaceSwitch(workspace, switchId) {
@@ -11187,13 +11935,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
     async function handleWorkspaceSpecificLogic(workspace, switchId) {
+      console.log("[Index] handleWorkspaceSpecificLogic called with:", workspace, switchId);
       if (workspace === "start") {
+        console.log("[Index] Start workspace, returning early");
         return;
       }
       if (!window.workspaceManager) {
+        console.error("[Index] No workspaceManager found!");
         return;
       }
+      console.log("[Index] Calling workspaceManager.switchToWorkspace with:", workspace);
       await window.workspaceManager.switchToWorkspace(workspace);
+      console.log("[Index] switchToWorkspace completed");
       await logWorkspaceComponentStatus(workspace, switchId);
     }
     async function logWorkspaceComponentStatus(workspace, switchId) {
@@ -11246,7 +11999,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
     });
-    updateUIForWorkspace2("start");
+    updateUIForWorkspace("start");
     setTimeout(() => {
       if (window.uiManager) {
         window.uiManager.showNotification("EG-Desk:태화 시스템 준비 완료", "success", 2e3);
@@ -11409,3 +12162,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 200);
   }
 });
+export {
+  EventEmitter as E
+};

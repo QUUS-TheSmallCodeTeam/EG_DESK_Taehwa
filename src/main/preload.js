@@ -144,6 +144,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // LangChain streaming events
   onLangChainStreamChunk: (callback) => ipcRenderer.on('langchain-stream-chunk', callback),
 
+  // WordPress API proxy
+  wordpress: {
+    request: async (params) => {
+      // If FormData is passed, convert it to a transferable format
+      if (params.isFormData && params.data instanceof FormData) {
+        const file = params.data.get('file');
+        if (file) {
+          const buffer = await file.arrayBuffer();
+          params.data = {
+            file: {
+              buffer: Array.from(new Uint8Array(buffer)),
+              filename: file.name,
+              type: file.type
+            }
+          };
+        }
+      }
+      return ipcRenderer.invoke('wordpress-api-request', params);
+    }
+  },
+
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);

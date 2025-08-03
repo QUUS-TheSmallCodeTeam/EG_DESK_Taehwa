@@ -42,6 +42,7 @@
     "electron-store": "^8.1.0",
     "electron-tabs": "^1.0.4",
     "langchain": "^0.3.2",
+    "node-fetch": "^2.7.0",
     "which": "^5.0.0"
   },
   "build": {

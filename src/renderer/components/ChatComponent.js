@@ -5,6 +5,28 @@
  * for multi-provider AI conversations with real-time cost tracking.
  */
 
+// Terminal logger helper
+const terminalLog = {
+  log: (...args) => {
+    console.log(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.info(args.join(' '));
+    }
+  },
+  warn: (...args) => {
+    console.warn(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.warn(args.join(' '));
+    }
+  },
+  error: (...args) => {
+    console.error(...args);
+    if (window.electronAPI && window.electronAPI.log) {
+      window.electronAPI.log.error(args.join(' '));
+    }
+  }
+};
+
 class ChatComponent {
   constructor(containerId, options = {}) {
     this.containerId = containerId;
@@ -42,6 +64,10 @@ class ChatComponent {
     this.globalStateManager = null;
     this.eventBus = null;
     this.currentSessionId = null;
+    
+    // Blog automation integration
+    this.blogAutomationManager = null;
+    this.isInBlogWorkflow = false;
   }
 
   /**
@@ -56,6 +82,7 @@ class ChatComponent {
     try {
       this.render();
       this.setupEventListeners();
+      this.setupBlogAutomationIPC();
       this.initializeProviders();
       this.displayWelcomeMessage();
       
@@ -321,6 +348,7 @@ class ChatComponent {
     const message = this.elements.messageInput.value.trim();
     if (!message || this.isStreaming) return;
 
+    terminalLog.log('💬 [ChatComponent] User message:', message);
     console.log('💬 ChatComponent: Attempting to send message...');
     console.log('📊 ChatComponent: Current state:', {
       currentProvider: this.currentProvider,
@@ -354,8 +382,18 @@ class ChatComponent {
         timestamp: Date.now()
       });
 
+      // Skip all pattern checking - let AI decide what to do with tools
+      // This is an AI chat app! LLM should decide whether to use blog tool or not
+
+      // Regular AI chat message
       // Prepare conversation history for API
       const apiHistory = this.conversationHistory.slice(-20); // Last 20 messages
+      
+      terminalLog.log('🤖 [ChatComponent] Sending to AI:', {
+        mode: this.options.enableStreaming ? 'streaming' : 'regular',
+        provider: this.currentProvider,
+        model: this.currentModel
+      });
 
       if (this.options.enableStreaming) {
         await this.sendStreamingMessage(message, apiHistory);
@@ -384,6 +422,8 @@ class ChatComponent {
     this.isStreaming = true;
     this.elements.typingIndicator.textContent = 'AI가 입력 중...';
     
+    terminalLog.log('🌊 [ChatComponent] Starting streaming response...');
+    
     // Add placeholder assistant message
     this.currentStreamingMessageElement = this.addAssistantMessage('', true);
 
@@ -391,10 +431,16 @@ class ChatComponent {
       const result = await window.electronAPI.langchainStreamMessage({
         message,
         conversationHistory,
-        systemPrompt: null
+        systemPrompt: this.getBlogAutomationSystemPrompt()
       });
 
       if (result.success) {
+        terminalLog.log('✅ [ChatComponent] AI streaming response complete:', {
+          length: result.message.length,
+          provider: result.provider,
+          cost: result.metadata.cost
+        });
+        
         // Update conversation history
         this.conversationHistory.push({
           role: 'assistant',
@@ -410,6 +456,9 @@ class ChatComponent {
         
         // Finalize streaming message
         this.finalizeStreamingMessage(result);
+        
+        // Check if AI wants to initiate blog automation
+        await this.checkForAIBlogAutomation(result.message);
       } else {
         // Check if API key is needed
         if (result.metadata?.needsApiKey) {
@@ -437,14 +486,22 @@ class ChatComponent {
    */
   async sendRegularMessage(message, conversationHistory) {
     this.elements.typingIndicator.textContent = 'AI가 생각 중...';
+    
+    terminalLog.log('📤 [ChatComponent] Sending regular message to AI...');
 
     const result = await window.electronAPI.langchainSendMessage({
       message,
       conversationHistory,
-      systemPrompt: null
+      systemPrompt: this.getBlogAutomationSystemPrompt()
     });
 
     if (result.success) {
+      terminalLog.log('✅ [ChatComponent] AI response received:', {
+        length: result.message.length,
+        provider: result.provider,
+        hasToolCalls: result.metadata?.toolCalls?.length > 0
+      });
+      
       // Add assistant message to UI
       this.addAssistantMessage(result.message, false, result);
       
@@ -461,6 +518,37 @@ class ChatComponent {
       // Update cost tracking
       this.updateCostDisplay(result.metadata);
       
+      // Check if AI wants to initiate blog automation
+      // Also check if AI mistakenly wrote blog content in chat
+      if (result.message && (
+        result.message.includes('제목:') || 
+        result.message.includes('서론:') || 
+        result.message.includes('본문:') ||
+        result.message.includes('<h1>') ||
+        result.message.includes('<h2>') ||
+        result.message.length > 1000
+      )) {
+        terminalLog.warn('⚠️ AI wrote blog content in chat! Intercepting...');
+        // Replace the message with a proper response
+        result.message = '블로그 작성을 시작하겠습니다. 잠시만 기다려주세요.';
+        
+        // Extract topic from the mistaken content
+        const topicMatch = result.message.match(/제목:\s*(.+?)[\n\r]/);
+        const topic = topicMatch ? topicMatch[1] : '요청하신 주제';
+        
+        // Force blog automation
+        setTimeout(async () => {
+          if (this.blogAutomationManager) {
+            await this.blogAutomationManager.startAutomatedBlog({
+              topic: topic,
+              originalInput: message
+            });
+          }
+        }, 500);
+      } else {
+        await this.checkForAIBlogAutomation(result.message);
+      }
+      
     } else {
       // Check if API key is needed
       if (result.metadata?.needsApiKey) {
@@ -475,12 +563,15 @@ class ChatComponent {
    * Handle streaming chunk
    */
   handleStreamChunk(chunk) {
-    if (this.currentStreamingMessageElement && chunk) {
-      const messageContent = this.currentStreamingMessageElement.querySelector('.message-content');
-      if (messageContent) {
-        messageContent.textContent += chunk;
-        this.scrollToBottom();
-      }
+    if (this.currentStreamingContent && chunk) {
+      this.currentStreamingContent.textContent += chunk;
+      this.scrollToBottom();
+    } else {
+      terminalLog.warn('[ChatComponent] handleStreamChunk called but missing:', {
+        hasStreamingContent: !!this.currentStreamingContent,
+        hasChunk: !!chunk,
+        chunkLength: chunk?.length
+      });
     }
   }
 
@@ -489,10 +580,15 @@ class ChatComponent {
    */
   finalizeStreamingMessage(result) {
     if (this.currentStreamingMessageElement) {
-      // Update final message content
+      // Don't overwrite the streamed content if result.message is empty
+      // The content was already streamed chunk by chunk
       const messageContent = this.currentStreamingMessageElement.querySelector('.message-content');
-      if (messageContent && result.message) {
+      if (messageContent && result.message && result.message.trim() !== '') {
+        // Only update if we have actual content
         messageContent.textContent = result.message;
+      } else if (messageContent && !result.message) {
+        // If no result.message, use the streamed content
+        result.message = messageContent.textContent;
       }
 
       // Remove streaming indicator
@@ -505,6 +601,7 @@ class ChatComponent {
       this.addMessageMetadata(this.currentStreamingMessageElement, result);
       
       this.currentStreamingMessageElement = null;
+      this.currentStreamingContent = null;
     }
   }
 
@@ -530,6 +627,11 @@ class ChatComponent {
     
     this.elements.messagesList.appendChild(messageElement);
     this.scrollToBottom();
+    
+    // Store reference to streaming content element
+    if (isStreaming) {
+      this.currentStreamingContent = messageElement.querySelector('.message-content');
+    }
     
     return messageElement;
   }
@@ -565,7 +667,17 @@ class ChatComponent {
 
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    messageContent.textContent = content;
+    
+    // Support both plain text and HTML content
+    if (content.includes('<') && content.includes('>')) {
+      // Seems like HTML content
+      messageContent.innerHTML = content;
+    } else {
+      // Plain text - preserve line breaks and formatting
+      messageContent.textContent = content;
+      // Convert line breaks to <br> for proper display
+      messageContent.innerHTML = messageContent.innerHTML.replace(/\n/g, '<br>');
+    }
 
     bubble.appendChild(messageContent);
 
@@ -983,6 +1095,79 @@ class ChatComponent {
   }
 
   /**
+   * Setup IPC listeners for blog automation from tool
+   */
+  setupBlogAutomationIPC() {
+    // Remove any existing listeners first to prevent duplicates
+    window.electronAPI.removeAllListeners('start-blog-automation-from-tool');
+    
+    // Listen for blog automation from tool calling
+    window.electronAPI.on('start-blog-automation-from-tool', async (event, data) => {
+      terminalLog.log('[ChatComponent] Received blog automation from tool:', data);
+      
+      if (!this.blogAutomationManager) {
+        terminalLog.error('[ChatComponent] BlogAutomationManager not initialized!');
+        terminalLog.log('[ChatComponent] Attempting direct WordPress publish without BlogAutomationManager');
+        
+        // Directly publish to WordPress without BlogAutomationManager
+        try {
+          await this.directPublishToWordPress(data);
+          return;
+        } catch (error) {
+          terminalLog.error('[ChatComponent] Direct publish failed:', error);
+          this.showError('블로그 게시 중 오류가 발생했습니다: ' + error.message);
+          return;
+        }
+      }
+      
+      try {
+        terminalLog.log('[ChatComponent] Calling startAutomatedBlog with params:', {
+          topic: data.topic,
+          title: data.title,
+          hasContent: !!data.content,
+          contentLength: data.content?.length,
+          imagesCount: data.images?.length,
+          fromTool: true
+        });
+        
+        // Start automated blog with the data from tool
+        const response = await this.blogAutomationManager.startAutomatedBlog({
+          topic: data.topic,
+          title: data.title,
+          content: data.content,
+          images: data.images,
+          metadata: data.metadata,
+          fromTool: true
+        });
+        
+        terminalLog.log('[ChatComponent] Blog automation response:', response);
+        
+        if (response) {
+          // Handle completion
+          if (response.type === 'automated_complete') {
+            this.addPublishSuccess({
+              message: response.result.message || '블로그가 성공적으로 게시되었습니다!',
+              result: response.result
+            });
+          } else if (response.type === 'error') {
+            this.showError(response.message);
+          }
+        }
+      } catch (error) {
+        terminalLog.error('[ChatComponent] Blog automation from tool failed:', error);
+        terminalLog.error('[ChatComponent] Error stack:', error.stack);
+        this.showError('블로그 자동화 중 오류가 발생했습니다: ' + error.message);
+      }
+    });
+    
+    // Listen for progress updates from tool
+    window.electronAPI.on('blog-automation-progress', (event, data) => {
+      terminalLog.log('[ChatComponent] Blog automation progress:', data);
+      this.addAssistantMessage(data.message, false);
+    });
+  }
+
+  /**
    * Set component state for restoration
    */
   async setState(state) {
@@ -1001,26 +1186,14 @@ class ChatComponent {
       }
       
       if (state.conversationHistory && Array.isArray(state.conversationHistory)) {
-        this.conversationHistory = state.conversationHistory;
+        // Don't restore conversation history on initial load to prevent auto-generated messages
+        // Only set the history without rendering
+        this.conversationHistory = [];
         
-        // Re-render conversation history
+        // Clear any existing messages
         this.clearMessages();
-        for (const message of this.conversationHistory) {
-          if (message.role === 'user') {
-            this.addUserMessage(message.content);
-          } else if (message.role === 'assistant') {
-            this.addAssistantMessage(message.content, false, {
-              provider: message.provider,
-              model: message.model,
-              metadata: {
-                timestamp: message.timestamp,
-                cost: message.cost
-              }
-            });
-          } else if (message.role === 'system') {
-            this.addSystemMessage(message.content);
-          }
-        }
+        
+        terminalLog.log('[ChatComponent] Skipping conversation history restoration to prevent auto-generated messages');
       }
       
       if (state.costTracker) {
@@ -1163,9 +1336,610 @@ class ChatComponent {
   }
 
   /**
+   * Set blog automation manager
+   */
+  setBlogAutomationManager(blogAutomationManager) {
+    this.blogAutomationManager = blogAutomationManager;
+    terminalLog.log('[ChatComponent] BlogAutomationManager set:', !!blogAutomationManager);
+    
+    // Listen for blog automation events
+    if (this.blogAutomationManager) {
+      this.blogAutomationManager.on('workflow_progress', (data) => {
+        this.handleWorkflowProgress(data);
+      });
+      
+      this.blogAutomationManager.on('generation_progress', (data) => {
+        this.handleGenerationProgress(data);
+      });
+    }
+  }
+
+  /**
+   * Handle blog commands
+   */
+  async handleBlogCommand(message) {
+    if (!this.blogAutomationManager) return null;
+    
+    try {
+      const response = await this.blogAutomationManager.handleChatMessage(message);
+      
+      if (!response) return null; // Not a blog command
+      
+      // Handle different response types
+      switch (response.type) {
+        case 'interactive':
+          this.isInBlogWorkflow = true;
+          this.addAssistantMessage(response.message, false);
+          break;
+          
+        case 'processing':
+          this.isInBlogWorkflow = true;
+          this.addAssistantMessage(response.message, false);
+          if (response.action) {
+            // Execute async action
+            setTimeout(async () => {
+              try {
+                const result = await response.action();
+                this.handleBlogActionResult(result);
+              } catch (error) {
+                this.showError('처리 중 오류가 발생했습니다: ' + error.message);
+              }
+            }, 100);
+          }
+          break;
+          
+        case 'review':
+          this.isInBlogWorkflow = true;
+          this.addBlogContentReview(response);
+          break;
+          
+        case 'confirmation':
+          this.isInBlogWorkflow = true;
+          this.addBlogConfirmation(response);
+          break;
+          
+        case 'published':
+          this.isInBlogWorkflow = false;
+          this.addPublishSuccess(response);
+          break;
+          
+        case 'credential_required':
+          this.addCredentialPrompt(response);
+          break;
+          
+        case 'help':
+          this.addAssistantMessage(response.message, false);
+          break;
+          
+        case 'error':
+          this.showError(response.message);
+          break;
+          
+        case 'success':
+          this.addAssistantMessage(response.message, false);
+          break;
+          
+        default:
+          this.addAssistantMessage(response.message || 'Command processed', false);
+      }
+      
+      return response;
+    } catch (error) {
+      terminalLog.error('[ChatComponent] Blog command error:', error);
+      this.showError('블로그 명령 처리 중 오류가 발생했습니다.');
+      return null;
+    }
+  }
+
+  /**
+   * Handle blog workflow continuation
+   */
+  async handleBlogWorkflowContinuation(message) {
+    if (!this.blogAutomationManager) return;
+    
+    try {
+      const response = await this.blogAutomationManager.continueWorkflow(message);
+      
+      // Handle response same as blog command
+      if (response) {
+        await this.handleBlogCommand(message);
+      }
+    } catch (error) {
+      terminalLog.error('[ChatComponent] Workflow continuation error:', error);
+      this.showError('워크플로우 진행 중 오류가 발생했습니다.');
+    }
+  }
+
+  /**
+   * Get blog automation system prompt
+   */
+  getBlogAutomationSystemPrompt() {
+    if (!this.blogAutomationManager) {
+      return null;
+    }
+    
+    return `당신은 태화트랜스의 AI 블로그 어시스턴트입니다.
+
+🚨 핵심 규칙 🚨
+블로그 작성 요청을 받으면:
+1. create_blog_post tool을 사용하세요 (OpenAI 모델에서만 가능)
+2. 절대로 채팅창에 블로그 내용을 직접 쓰지 마세요
+3. Tool이 없다면 [BLOG_AUTO_START:주제] 형식을 사용하세요
+
+블로그 요청 예시:
+- "블로그 글 써줘"
+- "스마트그리드에 대한 블로그 작성해줘"
+- "로고스키 코일 관련 포스트 만들어줘"
+- "새로운 글 작성해줘"
+
+올바른 응답:
+✅ Tool 사용: create_blog_post 도구를 실행
+✅ Tool 없을 때: "[BLOG_AUTO_START:스마트그리드] 블로그 작성을 시작합니다."
+
+금지된 응답:
+❌ "제목: 스마트그리드의 미래..."
+❌ "서론: 현대 사회에서..."
+❌ 블로그 본문 내용 직접 작성
+
+일반 대화:
+- 친절하고 전문적인 톤 유지
+- 기술적 질문에 답변
+- 한국어로 자연스럽게 대화`;
+  }
+
+  /**
+   * Check if AI wants to initiate blog automation
+   */
+  async checkForAIBlogAutomation(aiResponse) {
+    if (!this.blogAutomationManager || !aiResponse) {
+      return;
+    }
+    
+    // Check if AI response contains blog automation trigger
+    const blogAutoPattern = /\[BLOG_AUTO_START\]\s*\n(.+)/;
+    const match = aiResponse.match(blogAutoPattern);
+    
+    if (match) {
+      const suggestedTopic = match[1].trim();
+      terminalLog.log('[ChatComponent] AI initiated blog automation with topic:', suggestedTopic);
+      
+      // Remove the marker from the displayed message
+      const cleanedResponse = aiResponse.replace(blogAutoPattern, '').trim();
+      
+      // Update the last assistant message to remove the marker
+      const messages = this.elements.messagesList.querySelectorAll('.message.assistant');
+      if (messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        const messageContent = lastMessage.querySelector('.message-content');
+        if (messageContent) {
+          messageContent.textContent = cleanedResponse;
+        }
+      }
+      
+      // Start automated blog creation in background
+      // No need for additional system message - BlogAutomationManager will handle all notifications
+      setTimeout(async () => {
+        try {
+          const response = await this.blogAutomationManager.startAutomatedBlog({
+            topic: suggestedTopic,
+            aiInitiated: true
+          });
+          
+          if (response) {
+            // The automation manager will emit events that are already handled by event listeners
+            // No need to call handleBlogActionResult for automated flow
+          }
+        } catch (error) {
+          terminalLog.error('[ChatComponent] AI blog automation failed:', error);
+          this.showError('블로그 자동화 중 오류가 발생했습니다: ' + error.message);
+        }
+      }, 500); // Small delay to let the UI update first
+    }
+  }
+
+  /**
+   * Handle blog action result
+   */
+  handleBlogActionResult(result) {
+    switch (result.type) {
+      case 'outline_generated':
+        this.addBlogOutline(result);
+        // Continue workflow
+        setTimeout(() => {
+          this.blogAutomationManager.runInteractiveWorkflow().then(response => {
+            if (response) {
+              this.handleBlogCommand('');
+            }
+          });
+        }, 1000);
+        break;
+        
+      case 'content_generated':
+        this.addAssistantMessage('콘텐츠가 생성되었습니다. 검토해주세요.', false);
+        break;
+        
+      case 'automated_complete':
+        // Blog was automatically created and published
+        this.addPublishSuccess({
+          message: result.result.message || '블로그가 자동으로 생성되고 게시되었습니다!',
+          result: result.result
+        });
+        this.isInBlogWorkflow = false;
+        // Continue workflow
+        setTimeout(() => {
+          this.blogAutomationManager.runInteractiveWorkflow().then(response => {
+            if (response) {
+              this.handleBlogCommand('');
+            }
+          });
+        }, 1000);
+        break;
+        
+      default:
+        if (result.message) {
+          this.addAssistantMessage(result.message, false);
+        }
+    }
+  }
+
+  /**
+   * Add blog outline to chat
+   */
+  addBlogOutline(result) {
+    const outline = result.outline;
+    const outlineHTML = `
+      <div class="blog-outline">
+        <h3>${outline.title}</h3>
+        <p class="excerpt">${outline.excerpt}</p>
+        <div class="sections">
+          <h4>섹션 구성:</h4>
+          <ol>
+            ${outline.sections.map(section => `
+              <li>
+                <strong>${section.title}</strong>
+                <p>${section.summary}</p>
+              </li>
+            `).join('')}
+          </ol>
+        </div>
+        <div class="metadata">
+          <span>대상 독자: ${outline.targetAudience}</span>
+          <span>예상 읽기 시간: ${outline.estimatedReadTime}분</span>
+        </div>
+      </div>
+    `;
+    
+    this.addAssistantMessage(outlineHTML, true);
+  }
+
+  /**
+   * Add blog content review
+   */
+  addBlogContentReview(response) {
+    const content = response.content;
+    const reviewHTML = `
+      <div class="blog-review">
+        <h3>생성된 콘텐츠 검토</h3>
+        <div class="content-preview">
+          <h4>${content.title}</h4>
+          <div class="content-body">
+            ${content.html || content.plainText}
+          </div>
+        </div>
+        <p class="review-prompt">${response.message}</p>
+        <div class="review-actions">
+          <button onclick="window.chatComponent.approveBlogContent()">승인하고 계속</button>
+          <button onclick="window.chatComponent.requestBlogEdit()">수정 요청</button>
+        </div>
+      </div>
+    `;
+    
+    this.addAssistantMessage(reviewHTML, true);
+  }
+
+  /**
+   * Add blog confirmation
+   */
+  addBlogConfirmation(response) {
+    const confirmHTML = `
+      <div class="blog-confirmation">
+        <h3>게시 준비 완료</h3>
+        <p>${response.message}</p>
+        <div class="confirmation-actions">
+          <button onclick="window.chatComponent.publishBlog()">게시하기</button>
+          <button onclick="window.chatComponent.saveDraft()">초안으로 저장</button>
+          <button onclick="window.chatComponent.cancelPublish()">취소</button>
+        </div>
+      </div>
+    `;
+    
+    this.addAssistantMessage(confirmHTML, true);
+  }
+
+  /**
+   * Add publish success message
+   */
+  addPublishSuccess(response) {
+    const successHTML = `
+      <div class="publish-success">
+        <h3>✅ 게시 완료!</h3>
+        <p>${response.message}</p>
+        <div class="publish-details">
+          <p><strong>제목:</strong> ${response.result.title}</p>
+          <p><strong>URL:</strong> <a href="${response.result.link}" target="_blank">${response.result.link}</a></p>
+          <p><strong>상태:</strong> ${response.result.status}</p>
+        </div>
+      </div>
+    `;
+    
+    this.addAssistantMessage(successHTML, true);
+  }
+
+  /**
+   * Add credential prompt
+   */
+  addCredentialPrompt(response) {
+    const promptHTML = `
+      <div class="credential-prompt">
+        <h3>WordPress 인증 정보 입력</h3>
+        <p>${response.message}</p>
+        <div class="credential-form">
+          <div class="form-group">
+            <label for="wp-username">사용자명:</label>
+            <input type="text" id="wp-username" placeholder="WordPress 사용자명">
+          </div>
+          <div class="form-group">
+            <label for="wp-password">비밀번호:</label>
+            <input type="password" id="wp-password" placeholder="Application Password 권장">
+          </div>
+          <div class="form-actions">
+            <button onclick="window.chatComponent.submitWordPressCredentials()">인증하기</button>
+            <button onclick="window.chatComponent.cancelCredentials()">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    this.addAssistantMessage(promptHTML, true);
+  }
+
+  /**
+   * Handle workflow progress events
+   */
+  handleWorkflowProgress(data) {
+    // Show progress in UI
+    const progressMessage = `워크플로우 진행 중: ${data.completedStep.name} 완료`;
+    this.showInfo(progressMessage);
+  }
+
+  /**
+   * Handle generation progress events
+   */
+  handleGenerationProgress(data) {
+    // Update typing indicator with progress
+    if (this.elements.typingIndicator) {
+      this.elements.typingIndicator.textContent = data.message || 'AI가 생성 중...';
+    }
+  }
+
+  /**
+   * Blog action handlers (exposed for button clicks)
+   */
+  approveBlogContent() {
+    this.elements.messageInput.value = '승인';
+    this.sendMessage();
+  }
+
+  requestBlogEdit() {
+    this.elements.messageInput.value = '수정이 필요합니다.';
+    this.sendMessage();
+  }
+
+  publishBlog() {
+    this.elements.messageInput.value = '/blog publish';
+    this.sendMessage();
+  }
+
+  saveDraft() {
+    this.elements.messageInput.value = '/blog publish draft=true';
+    this.sendMessage();
+  }
+
+  cancelPublish() {
+    this.isInBlogWorkflow = false;
+    this.addAssistantMessage('게시가 취소되었습니다. 초안은 저장되어 있습니다.', false);
+  }
+
+  /**
+   * Submit WordPress credentials
+   */
+  async submitWordPressCredentials() {
+    const usernameInput = document.getElementById('wp-username');
+    const passwordInput = document.getElementById('wp-password');
+    
+    if (!usernameInput || !passwordInput) {
+      this.showError('인증 정보 입력 필드를 찾을 수 없습니다.');
+      return;
+    }
+    
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+    
+    if (!username || !password) {
+      this.showError('사용자명과 비밀번호를 모두 입력해주세요.');
+      return;
+    }
+    
+    try {
+      // Set credentials in blog automation manager
+      const result = await this.blogAutomationManager.setWordPressCredentials(username, password);
+      
+      if (result.type === 'success') {
+        this.addAssistantMessage(result.message, false);
+        // Retry publishing
+        setTimeout(() => {
+          this.publishBlog();
+        }, 1000);
+      } else {
+        this.showError(result.message);
+      }
+    } catch (error) {
+      terminalLog.error('[ChatComponent] Credential submission error:', error);
+      this.showError('인증 정보 설정 중 오류가 발생했습니다.');
+    }
+  }
+
+  /**
+   * Cancel credential input
+   */
+  cancelCredentials() {
+    this.addAssistantMessage('인증이 취소되었습니다. WordPress에 게시하려면 인증 정보가 필요합니다.', false);
+  }
+
+  /**
+   * Direct publish to WordPress without BlogAutomationManager
+   */
+  async directPublishToWordPress(data) {
+    terminalLog.log('[ChatComponent] Direct publishing to WordPress...');
+    
+    try {
+      // Get stored credentials
+      const credentials = await window.electronAPI.store.get('wordpress.credentials');
+      if (!credentials) {
+        throw new Error('WordPress credentials not found');
+      }
+      
+      // Process images first
+      const uploadedImages = [];
+      if (data.images && data.images.length > 0) {
+        terminalLog.log('[ChatComponent] Processing images for upload...');
+        
+        for (const image of data.images) {
+          try {
+            // Skip placeholder images
+            if (image.placeholder || !image.url || image.url.includes('[')) {
+              terminalLog.log('[ChatComponent] Skipping placeholder image');
+              continue;
+            }
+            
+            // Download image
+            const response = await fetch(image.url);
+            const blob = await response.blob();
+            
+            // Convert to array buffer for IPC
+            const arrayBuffer = await blob.arrayBuffer();
+            const filename = `blog-image-${Date.now()}-${image.type}.jpg`;
+            
+            // Upload to WordPress
+            const uploadResponse = await window.electronAPI.wordpress.request({
+              method: 'POST',
+              endpoint: '/media',
+              data: {
+                file: {
+                  buffer: Array.from(new Uint8Array(arrayBuffer)),
+                  filename: filename,
+                  type: 'image/jpeg'
+                }
+              },
+              credentials: credentials,
+              isFormData: true
+            });
+            
+            if (uploadResponse.success) {
+              uploadedImages.push({
+                ...image,
+                mediaId: uploadResponse.data.id,
+                wpUrl: uploadResponse.data.source_url
+              });
+              terminalLog.log('[ChatComponent] Image uploaded:', uploadResponse.data.id);
+            }
+          } catch (error) {
+            terminalLog.error('[ChatComponent] Image upload failed:', error);
+          }
+        }
+      }
+      
+      // Update content with uploaded image URLs
+      let finalContent = data.content;
+      if (uploadedImages.length > 0) {
+        for (const img of uploadedImages) {
+          if (img.type === 'featured') {
+            finalContent = finalContent.replace('[FEATURED_IMAGE]', img.wpUrl);
+          } else if (img.type === 'section') {
+            finalContent = finalContent.replace('[SECTION_IMAGE]', img.wpUrl);
+          }
+        }
+      }
+      
+      // Create post
+      const postData = {
+        title: data.title,
+        content: finalContent,
+        status: 'publish',
+        format: 'standard',
+        categories: [1] // Default category
+      };
+      
+      // Set featured image if available
+      const featuredImage = uploadedImages.find(img => img.type === 'featured');
+      if (featuredImage) {
+        postData.featured_media = featuredImage.mediaId;
+      }
+      
+      const postResponse = await window.electronAPI.wordpress.request({
+        method: 'POST',
+        endpoint: '/posts',
+        data: postData,
+        credentials: credentials
+      });
+      
+      if (postResponse.success) {
+        const post = postResponse.data;
+        terminalLog.log('[ChatComponent] Post published successfully:', post.id);
+        
+        this.addPublishSuccess({
+          message: '블로그가 성공적으로 게시되었습니다!',
+          result: {
+            title: post.title.rendered,
+            link: post.link,
+            status: post.status
+          }
+        });
+      } else {
+        throw new Error('Failed to publish post');
+      }
+      
+    } catch (error) {
+      terminalLog.error('[ChatComponent] Direct publish error:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Show info message
+   */
+  showInfo(message) {
+    // Create temporary info element
+    const infoElement = document.createElement('div');
+    infoElement.className = 'chat-info-message';
+    infoElement.textContent = message;
+    
+    this.elements.messagesContainer.appendChild(infoElement);
+    this.scrollToBottom();
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      infoElement.remove();
+    }, 3000);
+  }
+
+  /**
    * Cleanup and destroy
    */
   destroy() {
+    // Remove IPC listeners
+    window.electronAPI.removeAllListeners('start-blog-automation-from-tool');
+    
     if (this.container) {
       this.container.innerHTML = '';
     }

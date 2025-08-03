@@ -121,11 +121,12 @@ class WorkspaceManager {
    * Switch to a workspace with animation coordination
    */
   async switchToWorkspace(workspaceId) {
+    console.log('[WorkspaceManager] switchToWorkspace called with:', workspaceId);
     if (!this.workspaces.has(workspaceId)) {
       throw new Error(`Workspace "${workspaceId}" not found`);
     }
 
-
+    console.log('[WorkspaceManager] Workspace found, starting switch...');
     try {
       // Pause any component-level animations during workspace switch
       this.pauseComponentAnimations();
@@ -159,19 +160,28 @@ class WorkspaceManager {
    * Activate a workspace
    */
   async activateWorkspace(workspaceId) {
+    console.log('[WorkspaceManager] activateWorkspace called with:', workspaceId);
     const workspace = this.workspaces.get(workspaceId);
-    if (!workspace) return;
+    if (!workspace) {
+      console.log('[WorkspaceManager] No workspace found for:', workspaceId);
+      return;
+    }
 
+    console.log('[WorkspaceManager] Found workspace, initializing components...');
     try {
       // Initialize workspace components
       await this.initializeWorkspaceComponents(workspaceId);
 
       // Call workspace-specific activation logic
+      console.log('[WorkspaceManager] Checking onActivate callback...', !!workspace.onActivate);
       if (workspace.onActivate) {
+        console.log('[WorkspaceManager] Calling onActivate callback...');
         await workspace.onActivate();
+        console.log('[WorkspaceManager] onActivate callback completed');
       }
 
     } catch (error) {
+      console.error('[WorkspaceManager] Error in activateWorkspace:', error);
       throw error;
     }
   }
@@ -477,11 +487,24 @@ class WorkspaceManager {
    */
   getChatComponent(workspaceId = null) {
     const targetWorkspace = workspaceId || this.currentWorkspace;
-    if (!targetWorkspace) return null;
+    if (!targetWorkspace) {
+      console.warn('[WorkspaceManager] No target workspace for getChatComponent');
+      return null;
+    }
     
     const workspaceKey = `workspace_${targetWorkspace}`;
     const workspaceComponents = this.components.get(workspaceKey);
-    return workspaceComponents?.get('chat-component-container') || null;
+    const chatComponent = workspaceComponents?.get('chat-component-container');
+    
+    console.log('[WorkspaceManager] getChatComponent:', {
+      targetWorkspace,
+      workspaceKey,
+      hasComponents: !!workspaceComponents,
+      componentKeys: workspaceComponents ? Array.from(workspaceComponents.keys()) : [],
+      chatComponentFound: !!chatComponent
+    });
+    
+    return chatComponent || null;
   }
 
   /**
@@ -500,10 +523,14 @@ class WorkspaceManager {
    * Blog workspace specific activation
    */
   async activateBlogWorkspace() {
+    console.log('[WorkspaceManager] Activating blog workspace...');
     
     // Initialize chat history integration
     const historyPanel = this.getChatHistoryPanel();
     const chatComponent = this.getChatComponent();
+    
+    console.log('[WorkspaceManager] Chat component found:', !!chatComponent);
+    console.log('[WorkspaceManager] History panel found:', !!historyPanel);
     
     if (historyPanel && chatComponent) {
       // Set up bidirectional communication between history panel and chat component
@@ -521,8 +548,40 @@ class WorkspaceManager {
     // Initialize provider monitoring for this workspace
     this.initializeWorkspaceProviderMonitoring('blog');
     
-    // Could add blog-specific initialization here
-    // e.g., checking WordPress connection, loading saved drafts, etc.
+    // Initialize blog automation
+    try {
+      // Dynamically import BlogAutomationManager to avoid circular dependencies
+      const { default: BlogAutomationManager } = await import('./blog-automation/BlogAutomationManager.js');
+      
+      if (!this.blogAutomationManager) {
+        this.blogAutomationManager = new BlogAutomationManager();
+        
+        // Initialize with dependencies
+        await this.blogAutomationManager.initialize({
+          globalState: this.globalStateManager,
+          chatComponent: chatComponent
+        });
+        
+        console.log('[WorkspaceManager] Blog automation initialized');
+      }
+      
+      // Set blog automation manager in chat component
+      if (chatComponent && chatComponent.setBlogAutomationManager) {
+        chatComponent.setBlogAutomationManager(this.blogAutomationManager);
+        console.log('[WorkspaceManager] Blog automation connected to chat');
+      } else {
+        console.error('[WorkspaceManager] ChatComponent not found or setBlogAutomationManager method missing!', {
+          chatComponent: !!chatComponent,
+          hasSetMethod: chatComponent ? !!chatComponent.setBlogAutomationManager : false
+        });
+      }
+      
+      // Make chat component globally accessible for button clicks
+      window.chatComponent = chatComponent;
+      
+    } catch (error) {
+      console.error('[WorkspaceManager] Failed to initialize blog automation:', error);
+    }
   }
 
   /**
@@ -530,8 +589,20 @@ class WorkspaceManager {
    */
   async deactivateBlogWorkspace() {
     
-    // Could add blog-specific cleanup here
-    // e.g., saving drafts, closing WordPress connections, etc.
+    // Clean up blog automation
+    if (this.blogAutomationManager) {
+      try {
+        await this.blogAutomationManager.destroy();
+        console.log('[WorkspaceManager] Blog automation cleaned up');
+      } catch (error) {
+        console.error('[WorkspaceManager] Error cleaning up blog automation:', error);
+      }
+    }
+    
+    // Remove global chat component reference
+    if (window.chatComponent) {
+      delete window.chatComponent;
+    }
   }
 
   /**
