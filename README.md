@@ -13,9 +13,10 @@ git clone https://github.com/QUUS-TheSmallCodeTeam/EG_DESK_Taehwa.git
 ```bash
 # 개발 모드 실행
 npm install && npm start
-
+```
+```bash
 # 또는 디버깅 모드
-npm run dev
+npm install && npm run dev
 ```
 
 ## 테스트 가능 시나리오
