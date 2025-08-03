@@ -2,14 +2,17 @@
 
 AI 기반 자동 블로그 워크플로우 시스템의 첫 번째 단계입니다.
 
+## 다운로드
+```bash
+# 터미널 앱 열고 
+git clone https://github.com/QUUS-TheSmallCodeTeam/EG_DESK_Taehwa.git
+```
+
 ## 실행 방법
 
 ```bash
-# 의존성 설치
-npm install
-
 # 개발 모드 실행
-npm start
+npm install && npm start
 
 # 또는 디버깅 모드
 npm run dev
