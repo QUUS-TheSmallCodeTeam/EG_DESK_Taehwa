@@ -18,24 +18,31 @@
 - **메인 프로세스**: `src/main/index.js` - Electron 애플리케이션 컨트롤러, WebContents 관리
 - **렌더러 프로세스**: `src/renderer/index.html` + `src/renderer/index.js` - UI 및 사용자 상호작용
 - **프리로드 스크립트**: `src/main/preload.js` - 보안 IPC 통신 (contextIsolation: true)
-- **모듈 시스템**: 엄격한 ES6 imports/exports (.js 확장자 필수, CommonJS 없음)
+- **모듈 시스템**: 메인/렌더러는 ES modules, `preload.js`는 보안상 CommonJS로 유지 (ESM 전환 시 주의)
 
 ### 의존성 패키지 (현재 버전)
 ```json
 {
-  "electron": "^37.2.4",                    // 최신 Electron
-  "electron-vite": "^4.0.0",                // 현대적 빌드 시스템
-  "vite": "^7.0.6",                         // 고성능 번들러
-  "axios": "^1.6.0",                        // WordPress REST API 호출
-  "electron-store": "^8.1.0",               // 로컬 데이터 저장
-  "electron-tabs": "^1.0.4",                // 탭 관리
-  "@langchain/anthropic": "^0.3.25",        // Claude AI 통합
-  "@langchain/openai": "^0.6.3",            // OpenAI GPT 통합
-  "@langchain/google-genai": "^0.2.16",     // Google Gemini 통합
-  "@langchain/core": "^0.3.66",             // LangChain 핵심 라이브러리
-  "langchain": "^0.3.2",                    // 통합 AI 인터페이스
-  "dotenv": "^16.4.5",                      // 환경 변수 관리
-  "which": "^5.0.0"                         // 시스템 유틸리티
+  "devDependencies": {
+    "electron": "^37.2.4",                 // 현재 개발용 Electron 버전 (WebContentsView: Electron 30+ 호환)
+    "electron-builder": "^24.6.4",        // 배포 빌더
+    "electron-vite": "^4.0.0",           // 현대적 빌드 시스템
+    "vite": "^7.0.6"                      // 고성능 번들러
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.25",    // Anthropic 통합 (Claude)
+    "@langchain/core": "^0.3.66",         // LangChain 코어
+    "@langchain/google-genai": "^0.2.16", // Google Gemini 통합
+    "@langchain/openai": "^0.6.3",        // OpenAI 통합
+    "axios": "^1.6.0",                    // (일부 모듈에서 사용)
+    "dotenv": "^16.4.5",                  // 환경 변수 관리
+    "electron-store": "^8.1.0",           // 로컬 데이터 저장 (chat-history)
+    "electron-tabs": "^1.0.4",            // 탭 관리 (UI 일부에서 사용)
+    "langchain": "^0.3.2",                // 통합 AI 인터페이스
+    "node-fetch": "^2.7.0",               // WP 통신 보조
+    "openai": "^5.11.0",                  // 이미지 생성 등 OpenAI 직접 사용
+    "which": "^5.0.0"                     // 시스템 유틸리티
+  }
 }
 ```
 
@@ -43,6 +50,7 @@
 - **개발 서버**: `yarn dev` (포트 5173, HMR 지원)
 - **빌드**: `yarn build` (프로덕션)
 - **미리보기**: `yarn preview` (빌드된 앱 테스트)
+- **실행**: `npm start` 또는 `electron .` (package.json scripts에 정의)
 
 ### 다중 AI 프로바이더 통합 시스템
 - **LangChain 기반**: 통합된 인터페이스로 여러 AI 모델 지원
@@ -75,14 +83,6 @@
 4. **전문성**: 전기센서 업계 특화 콘텐츠 생성으로 차별화
 5. **AI 통합**: Claude Code CLI 기반 다중 AI 에이전트 시스템 구축으로 사용자 경험 극대화
 
-### Stage 1 목표 (현재 단계)
-📋 **상세 요구사항**: `docs/EG-Desk-Taehwa-Stage1-Blog-Automation-PRD-v2.md` 참조
-- 기본 Electron 앱 UI 완성 (✅ 완료)
-- 다중 AI 프로바이더 통합 (✅ 완료 - Claude, OpenAI, Gemini)
-- 채팅 히스토리 시스템 (✅ 완료)
-- 2-컬럼 레이아웃 (브라우저 + 채팅) (✅ 완료)
-- 현대적 UI/UX (Google Material Design) (✅ 완료)
-- WordPress API 연동 준비 (🔄 진행중)
 
 ### 장기 비전
 📋 **전체 로드맵**: `docs/EG-Desk-Taehwa-PRD.md` 참조
@@ -164,7 +164,7 @@ taehwa_project/
 ## ⚡ 개발 원칙 및 아키텍처 가이드라인
 
 ### 🔒 필수 준수 사항
-1. **ES6 모듈 엄격 사용**: 모든 import/export에 .js 확장자 필수, CommonJS 금지
+1. **ES6 모듈 엄격 사용**: 메인/렌더러는 .js 확장자 ESM, `preload.js`는 CommonJS 예외
 2. **보안 우선**: contextIsolation: true, nodeIntegration: false 유지
 3. **모듈 경계 존중**: 각 모듈은 명확한 책임 범위와 인터페이스 유지
 4. **IPC 통신 패턴**: 메인-렌더러 간 데이터 교환은 preload.js를 통해서만
@@ -266,45 +266,38 @@ class TabController {
 ### 2. WordPress 통합 모듈
 
 ```javascript
-// Blog-Automation-Modules/
-class WordPressApiClient {
+// Renderer: WPApiClient (fetch + Basic Auth)
+class WPApiClient {
   constructor(siteUrl, credentials) {
-    this.baseUrl = `${siteUrl}/wp-json/wp/v2`;
-    this.auth = credentials;
-    this.webContents = null;
+    this.siteUrl = siteUrl.replace(/\/$/, '');
+    this.credentials = credentials; // { username, password } (Application Password 권장)
   }
-  
-  // REST API 호출
+
   async createPost(postData) {
-    return axios.post(`${this.baseUrl}/posts`, postData, {
-      headers: { Authorization: `Bearer ${this.auth.token}` }
+    return await window.electronAPI.wordpress.request({
+      method: 'POST',
+      endpoint: '/posts',
+      data: postData,
+      credentials: this.credentials
     });
   }
-  
-  // webContents를 통한 실시간 미리보기
-  async loadPreview(webContents) {
-    this.webContents = webContents;
-    await webContents.loadURL(`${this.siteUrl}/wp-admin`);
-  }
-  
-  // 브라우저 자동화를 통한 콘텐츠 확인
-  async executeJavaScript(script) {
-    if (this.webContents) {
-      return await this.webContents.executeJavaScript(script);
-    }
+
+  async uploadMedia(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return await window.electronAPI.wordpress.request({
+      method: 'POST',
+      endpoint: '/media',
+      data: formData,
+      credentials: this.credentials,
+      isFormData: true
+    });
   }
 }
 
-class PreviewController {
-  // 실시간 WordPress 미리보기 관리
-  constructor(webContentsManager) {
-    this.webContentsManager = webContentsManager;
-  }
-  
-  async showPreview(postData) {
-    // 실시간 프리뷰 표시
-  }
-}
+// Main: IPC 프록시 (preload -> main)
+// - 구현 위치: `src/main/index.js` (ipcMain.handle('wordpress-api-request', ...))
+// - 렌더러는 `window.electronAPI.wordpress.request(params)`로 호출
 ```
 
 ### 3. 브라우저 자동화 모듈
@@ -370,27 +363,6 @@ class ContentInjector {
 - [ ] 자동 게시 워크플로우
 - [ ] 성과 추적 및 모니터링
 
-## 현재 구현 상태 분석
-
-### ✅ 완료된 부분
-1. **다중 AI 프로바이더 시스템**: LangChain 기반 Claude, OpenAI, Gemini 통합
-2. **채팅 히스토리 관리**: 완전한 대화 저장, 검색, 세션 관리 시스템
-3. **현대적 UI/UX**: 2-컬럼 레이아웃, Google Material Design 영감 스타일
-4. **보안 시스템**: API 키 암호화 저장 및 관리
-5. **비용 추적**: 실시간 토큰 사용량 및 API 비용 모니터링
-6. **세션 분석**: 사용 패턴 추적 및 성과 측정
-7. **외부 CSS**: Vite 호환 스타일시트 구조
-8. **WebContentsView**: 현대적 브라우저 탭 관리 (BrowserView 대체)
-
-### 🔄 진행 중인 부분  
-1. **WordPress 통합**: REST API 클라이언트 개선
-2. **콘텐츠 파이프라인**: 자동화된 블로그 작성 워크플로우
-3. **전기센서 특화**: 업계 전문 지식 베이스 구축
-
-### ❌ 구현 필요한 핵심 기능
-1. **전기센서 업계 특화 콘텐츠 생성**: 도메인 전문 템플릿 시스템
-2. **한국어 SEO 최적화**: 키워드 분석 및 최적화 엔진
-3. **자동 게시 워크플로우**: WordPress 완전 자동화
 
 ## 태화트랜스 기존 웹사이트 구조
 
@@ -424,27 +396,23 @@ npm run dev           # 개발 모드 (디버거 포함)
 
 ### 빌드 & 배포
 ```bash
-npm run build         # Electron 앱 빌드
-npm run dist          # 배포용 패키지 생성
+yarn build            # Electron 앱 빌드 (electron-vite)
+# 패키징은 electron-builder 설정으로 진행 (별도 스크립트 없음)
 ```
 
 ## AI 시스템 통합 계획
 
-### Claude Code CLI 활용 예시
+### LangChain 기반 AI 통합 (현재 구현)
+- 메인 프로세스 `LangChainService`가 OpenAI/Claude/Gemini를 통합하고, 툴 콜 기반 블로그 자동화를 수행합니다.
+- OpenAI 모델에서 `create_blog_post` 툴을 직접 바인딩하여 LLM 스스로 도구 사용을 결정합니다.
+- 렌더러의 `ChatComponent`는 `electronAPI.langchain*` IPC를 호출해 대화를 수행합니다.
+
 ```javascript
-// ClaudeIntegration.js 구현 예시
-class ClaudeIntegration {
-  async generateBlogContent(prompt, context = {}) {
-    const command = `claude "${prompt}"`;
-    const response = await this.executeCommand(command);
-    return this.parseResponse(response);
-  }
-  
-  async optimizeForSEO(content, keywords) {
-    const prompt = `이 콘텐츠를 ${keywords} 키워드로 SEO 최적화해줘: ${content}`;
-    return await this.generateBlogContent(prompt);
-  }
-}
+// src/main/modules/LangChainService.js 주요 포인트
+// - providerConfigs: { openai: gpt-4o, claude: claude-3-5-sonnet-20241022, gemini: gemini-2.5-flash }
+// - initializeProviders(): SecureKeyManager에서 키를 읽어 활성화
+// - initializeBlogTool(): create_blog_post 툴 정의 및 agent executor/툴 바인딩
+// - sendMessage(): OpenAI 사용 시 툴 사용 여부를 모델이 스스로 결정하도록 처리
 ```
 
 ### 사용자 자연어 명령 처리 예시 (Claude Code CLI)
@@ -458,14 +426,14 @@ class ClaudeIntegration {
 ```javascript
 // Application Passwords 방식 (권장)
 const auth = {
-  username: 'admin',
-  password: 'application-password-token'  // WordPress에서 생성
+  username: 'your-wp-user',
+  password: 'your-wp-application-password'
 };
 
-// JWT 토큰 방식 (대안)
-const jwtAuth = {
-  token: 'jwt-token-here'
-};
+// 본 프로젝트의 기본 클라이언트
+// - 렌더러: `src/renderer/modules/blog-automation/wordpress/WPApiClient.js` (fetch + Basic Auth)
+// - 서비스: `src/renderer/modules/blog-automation/wordpress/WPPublishingService.js` (electronAPI 프록시 사용)
+// - 메인 프록시: `src/main/preload.js` 내 `electronAPI.wordpress.request()`를 통해 안전하게 호출
 ```
 
 ### 로컬 데이터 저장
@@ -479,21 +447,10 @@ store.set('blog.drafts', draftPosts);
 store.set('seo.keywords', koreanKeywords);
 ```
 
-## 성공 지표 (Stage 1)
-
-### UI/UX 성과 목표
-- ✅ 한국어 UI 완성도: 시작 화면 완료
-- ⏳ AI 시스템 응답 시간: 3초 이내 (미구현)
-- ⏳ 연속 8시간 안정성 운영 (테스트 필요)
-
-### 자동화 성과 목표  
-- ⏳ 1일 1개 고품질 블로그 글 자동 생성
-- ⏳ WordPress API 게시 성공률 95% 이상
-- ⏳ 생성 콘텐츠 평균 SEO 점수 80점 이상
 
 ## 완성된 다중 AI 통합 아키텍처 (2025년 업데이트)
 
-### ✅ 구현 완료된 핵심 모듈
+### 핵심 모듈 개요
 
 #### 1. 다중 AI 통합 + Electron-Vite 기반 구조
 ```
@@ -687,35 +644,15 @@ class WorkspaceManager {
 }
 ```
 
-### 🚀 현재 구현 상태 요약
-
-#### ✅ 완료된 기능
-1. **다중 AI 프로바이더 통합**: LangChain 기반 Claude, OpenAI, Gemini 통합
-2. **채팅 히스토리 시스템**: 완전한 대화 저장, 검색, 세션 관리
-3. **보안 시스템**: API 키 암호화 저장 및 관리 (SecureKeyManager)
-4. **비용 추적**: 실시간 토큰 사용량 및 API 비용 모니터링
-5. **세션 분석**: 사용 패턴 추적 및 성과 측정 (SessionAnalytics)
-6. **현대적 UI/UX**: 2-컬럼 레이아웃, Google Material Design 영감 스타일
-7. **외부 CSS 구조**: Vite 호환성을 위한 app.css 분리
-8. **브라우저 제어**: WebContentsView 기반 현대적 탭 관리
-9. **모듈러 아키텍처**: electron-vite 기반 완전 분리된 모듈 구조
-10. **상태 관리**: 글로벌 상태, 이벤트 버스, 반응형 상태 업데이트
-
-#### 🔄 다음 개발 단계
-1. **전기센서 특화 콘텐츠**: 태화트랜스 제품 전문 지식 베이스 구축
-2. **한국어 SEO 최적화**: 키워드 분석 및 최적화 엔진 완성
-3. **WordPress 자동화**: 완전 자동화된 블로그 게시 워크플로우
-4. **성능 최적화**: 다중 AI 모델 메모리 사용량 및 응답 시간 개선
-5. **에러 처리 강화**: AI 프로바이더 장애 시 복구 메커니즘
-6. **사용자 테스트**: 실제 블로그 자동화 시나리오 테스트
 
 ## 개발 시 주의사항
 
 ### Electron 보안 모범 사례
-- `nodeIntegration: false` 유지
-- `contextIsolation: true` 설정  
-- preload 스크립트를 통한 안전한 IPC 통신
-- webContents.executeJavaScript() 사용 시 입력 검증
+- `nodeIntegration: false` 유지 (메인/탭 모두)
+- `contextIsolation: true` 설정
+- preload 스크립트를 통한 안전한 IPC 통신 (현재 `src/main/preload.js`는 CommonJS로 구현되어 있으므로 ESM 전환시 주의)
+- `WebContentsView`는 개발 과정에서 `webSecurity:false`가 설정되어 있음. 배포 시 반드시 `true`로 전환 권장
+- webContents.executeJavaScript() 사용 시 입력 검증 및 신뢰 도메인만 허용
 
 ### 한국어 지원 최적화
 - 폰트: Noto Sans KR, Nanum Gothic 적용
@@ -761,4 +698,48 @@ EG-Desk:Taehwa 앱은 **사용자가 활용할 수 있는 다중 AI 에이전트
 
 ---
 
-**개발 문의**: 이 문서는 Claude Code 개발 시 참조 자료로 활용해주세요. 구체적인 구현 질문이나 코드 리뷰가 필요한 경우 이 컨텍스트를 바탕으로 요청해주시면 됩니다.
+## 부록: Doc/Code Alignment 체크리스트 (2025-08)
+
+- 의존성 및 버전
+  - Electron: code=`^37.2.4` 사용 중, 문서/락파일 일치
+  - electron-vite: ^4.0.0, vite: ^7.0.6 일치
+  - LangChain 패키지군/`openai`/`node-fetch` 등 문서에 반영 완료
+- 실행/빌드 스크립트
+  - 개발: `yarn dev`, 빌드: `yarn build`, 미리보기: `yarn preview`, 실행: `npm start` 문서 반영
+  - 패키징: electron-builder 설정 존재, 별도 스크립트 미정 (문서 갱신)
+- 보안/프리로드
+  - `nodeIntegration:false`, `contextIsolation:true` 확인
+  - `preload.js`는 CommonJS 구현 (ESM 전환 주의) 문서 명시
+  - 개발 중 `WebContentsView`의 `webSecurity:false` 설정 존재 → 배포 시 true 권장 명시
+- 환경변수/키 관리
+  - 표준: `ANTHROPIC_API_KEY` (호환: `CLAUDE_API_KEY`), 그 외 `OPENAI_API_KEY`, `GEMINI_API_KEY`
+  - 안전 저장: `SecureKeyManager` + safeStorage 문서 반영
+- AI 통합
+  - LangChain 기반 멀티 프로바이더 구현 (OpenAI/Claude/Gemini) 명시
+  - OpenAI 모델에 `create_blog_post` 툴 바인딩 및 에이전트 실행 플로우 설명 추가
+- WordPress 연동
+  - 기본 인증: Application Passwords + Basic Auth, 렌더러 `WPApiClient`/`WPPublishingService` 및 `electronAPI.wordpress.request` 경로 문서화
+- UI/레이아웃
+  - 2-컬럼(브라우저+채팅) 구현 확인, 스타일은 `src/renderer/styles/app.css`/`index.html`에 존재 명시
+
+## 운영 모드와 보안 기본값
+
+### 모드 개념
+- **브라우저 모드**: 사용자가 일반 웹사이트를 탐색. 트리거=사용자(UI), 실행=WebContentsView
+- **자동화 모드**: 에이전트가 특정 신뢰 도메인(예: WordPress)에서 DOM 자동화. 트리거=에이전트/메인, 실행=WebContentsView
+
+### 브라우저처럼 사용할 때 권장 설정
+- `webSecurity: true` (SOP 유지, 혼합 콘텐츠 차단)
+- `contextIsolation: true` (페이지 JS와 브리지 격리)
+- `nodeIntegration: false` (렌더러에서 Node API 차단)
+- `sandbox: true` 권장(호환성 확인 후), 불가 시 다른 보안 옵션 엄격 유지
+- `allowRunningInsecureContent: false` (HTTPS 페이지 내 HTTP 리소스 차단)
+- IPC: 범용 `invoke` 노출 지양, 채널 화이트리스트 + 파라미터 스키마 검증
+- executeJavaScript: 브라우저 모드에서는 비활성/차단 권장. 자동화 모드에서만 신뢰 도메인 + 사전 정의 스니펫 허용
+- 네트워크: HTTPS 강제, 인증서 예외 허용 금지(개발 전용 코드 제거)
+
+## 확정된 컨벤션(요약)
+- 패키지 매니저: Yarn 고정, 단일 락파일(`yarn.lock`)
+- Electron 기준: 37.x (현재 37.2.4)
+- 환경변수 표준: `ANTHROPIC_API_KEY` (호환: `CLAUDE_API_KEY`)
+- `preload.js`: CommonJS 유지 (보안 브리지)

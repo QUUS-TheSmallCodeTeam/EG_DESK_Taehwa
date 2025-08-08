@@ -1,9 +1,21 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import dotenv from 'dotenv'
+
+// Load environment variables
+dotenv.config()
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      // Inject environment variables at build time
+      'process.env.OPENAI_API_KEY': JSON.stringify(process.env.OPENAI_API_KEY),
+      'process.env.ANTHROPIC_API_KEY': JSON.stringify(process.env.ANTHROPIC_API_KEY),
+      'process.env.GOOGLE_API_KEY': JSON.stringify(process.env.GOOGLE_API_KEY),
+      'process.env.WORDPRESS_USERNAME': JSON.stringify(process.env.WORDPRESS_USERNAME),
+      'process.env.WORDPRESS_APP_PASSWORD': JSON.stringify(process.env.WORDPRESS_APP_PASSWORD)
+    },
     build: {
       rollupOptions: {
         input: {
@@ -65,4 +77,4 @@ export default defineConfig({
     },
     publicDir: resolve(__dirname, 'static')
   }
-}) 
+})

@@ -82,6 +82,14 @@ EG-Desk:Taehwa is a specialized AI-powered bilingual content automation system f
 
 ### 4. Browser Control and Configuration (Electron-Powered)
 
+**Security Defaults (for production)**
+- webSecurity: true
+- contextIsolation: true
+- nodeIntegration: false
+- sandbox: true (if compatible; otherwise keep other flags strict)
+- allowRunningInsecureContent: false
+- executeJavaScript: restricted to trusted domains and predefined snippets only
+
 **Automated Navigation with Electron webContents**
 - webContents.loadURL() for programmatic page navigation
 - webContents.executeJavaScript() for DOM interaction and form automation
@@ -164,7 +172,7 @@ EG-Desk:Taehwa (electron-vite + ESM)
 **Local Application Stack**
 - Electron 37.2.4 (main application framework - single executable)
   - webContents API for browser automation
-  - webView tags for embedded web content
+  - WebContentsView for embedded web content
   - BrowserWindow management for window control
   - Session API for authentication and cookies
 - electron-vite 4.0.0 (modern build system with HMR and ESM support)
@@ -174,6 +182,7 @@ EG-Desk:Taehwa (electron-vite + ESM)
 
 **Local Automation & Integration**
 - Claude Code CLI (primary AI assistant - local execution)
+- LangChain (multi-provider integration: Claude/OpenAI/Gemini)
 - Axios 1.6.0 (WordPress REST API calls)
 - electron-store 8.1.0 (local settings and data storage)
 - Electron Browser APIs:
@@ -186,7 +195,7 @@ EG-Desk:Taehwa (electron-vite + ESM)
 **Local Development Environment**
 - Git (local version control integration)
 - electron-vite development server (port 5173, HMR support)
-- Strict ES6 module system (.js extensions required, no CommonJS)
+- Strict ES6 module system (.js extensions required); `preload.js` uses CommonJS as a secure IPC bridge
 - yarn package manager for dependency management
 - No external server infrastructure required
 
@@ -228,7 +237,7 @@ EG-Desk:Taehwa (electron-vite + ESM)
 - webContents.session.webRequest for image optimization workflows
 - Automated form filling using webContents.insertCSS() and executeJavaScript()
 - webContents.findInPage() for link validation and broken link detection
-- Real-time content preview using embedded webView components
+- Real-time content preview using embedded WebContentsView
 
 **SEO Operations with Browser Integration**
 - executeJavaScript() for meta tag analysis and optimization
@@ -267,7 +276,7 @@ EG-Desk:Taehwa (electron-vite + ESM)
 **Main Dashboard (Electron-Optimized Layout)**
 - Chat interface (left panel, 40% width)
 - Code editor/browser view (center panel, 45% width):
-  - Embedded webView for live WordPress preview
+  - Embedded WebContentsView for live WordPress preview
   - Multiple webContents tabs for parallel operations
   - webContents DevTools integration panel
 - Task status and logs (right panel, 15% width)
