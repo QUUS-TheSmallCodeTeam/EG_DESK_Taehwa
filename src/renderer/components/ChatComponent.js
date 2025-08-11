@@ -382,10 +382,25 @@ class ChatComponent {
         timestamp: Date.now()
       });
 
-      // Skip all pattern checking - let AI decide what to do with tools
-      // This is an AI chat app! LLM should decide whether to use blog tool or not
+      // Convert /blog commands to natural language for Tool Calling
+      let processedMessage = message;
+      if (message.startsWith('/blog')) {
+        // Convert /blog commands to natural language that triggers Tool Calling
+        const blogCommand = message.replace('/blog', '').trim();
+        if (blogCommand === 'auto' || blogCommand === '') {
+          processedMessage = '블로그 글을 자동으로 작성해줘';
+        } else if (blogCommand.startsWith('auto ')) {
+          const topic = blogCommand.replace('auto ', '');
+          processedMessage = `${topic}에 대한 블로그 글을 작성해줘`;
+        } else if (blogCommand === 'help') {
+          processedMessage = '블로그 작성 기능에 대해 설명해줘';
+        } else {
+          processedMessage = `${blogCommand} 관련 블로그 글을 작성해줘`;
+        }
+        terminalLog.log('🔄 [ChatComponent] Converted /blog command to:', processedMessage);
+      }
 
-      // Regular AI chat message
+      // All messages go through AI with Tool Calling enabled
       // Prepare conversation history for API
       const apiHistory = this.conversationHistory.slice(-20); // Last 20 messages
       
@@ -396,9 +411,9 @@ class ChatComponent {
       });
 
       if (this.options.enableStreaming) {
-        await this.sendStreamingMessage(message, apiHistory);
+        await this.sendStreamingMessage(processedMessage, apiHistory);
       } else {
-        await this.sendRegularMessage(message, apiHistory);
+        await this.sendRegularMessage(processedMessage, apiHistory);
       }
 
     } catch (error) {
@@ -1355,80 +1370,14 @@ class ChatComponent {
   }
 
   /**
-   * Handle blog commands
+   * Handle blog commands (DEPRECATED - Now using Tool Calling)
+   * @deprecated All blog automation now goes through Tool Calling
    */
   async handleBlogCommand(message) {
-    if (!this.blogAutomationManager) return null;
-    
-    try {
-      const response = await this.blogAutomationManager.handleChatMessage(message);
-      
-      if (!response) return null; // Not a blog command
-      
-      // Handle different response types
-      switch (response.type) {
-        case 'interactive':
-          this.isInBlogWorkflow = true;
-          this.addAssistantMessage(response.message, false);
-          break;
-          
-        case 'processing':
-          this.isInBlogWorkflow = true;
-          this.addAssistantMessage(response.message, false);
-          if (response.action) {
-            // Execute async action
-            setTimeout(async () => {
-              try {
-                const result = await response.action();
-                this.handleBlogActionResult(result);
-              } catch (error) {
-                this.showError('처리 중 오류가 발생했습니다: ' + error.message);
-              }
-            }, 100);
-          }
-          break;
-          
-        case 'review':
-          this.isInBlogWorkflow = true;
-          this.addBlogContentReview(response);
-          break;
-          
-        case 'confirmation':
-          this.isInBlogWorkflow = true;
-          this.addBlogConfirmation(response);
-          break;
-          
-        case 'published':
-          this.isInBlogWorkflow = false;
-          this.addPublishSuccess(response);
-          break;
-          
-        case 'credential_required':
-          this.addCredentialPrompt(response);
-          break;
-          
-        case 'help':
-          this.addAssistantMessage(response.message, false);
-          break;
-          
-        case 'error':
-          this.showError(response.message);
-          break;
-          
-        case 'success':
-          this.addAssistantMessage(response.message, false);
-          break;
-          
-        default:
-          this.addAssistantMessage(response.message || 'Command processed', false);
-      }
-      
-      return response;
-    } catch (error) {
-      terminalLog.error('[ChatComponent] Blog command error:', error);
-      this.showError('블로그 명령 처리 중 오류가 발생했습니다.');
-      return null;
-    }
+    // This method is deprecated. All blog automation is now handled through Tool Calling.
+    // /blog commands are converted to natural language in sendMessage()
+    terminalLog.warn('[ChatComponent] handleBlogCommand called but is deprecated. Use Tool Calling instead.');
+    return null;
   }
 
   /**
@@ -1787,6 +1736,108 @@ class ChatComponent {
   }
 
   /**
+   * Generate dynamic image prompts based on blog content
+   */
+  async generateDynamicImagePrompts(blogContent, blogTitle, topic) {
+    try {
+      terminalLog.log('[ChatComponent] Generating dynamic image prompts for topic:', topic);
+      
+      const promptGenerationMessage = `
+Analyze this blog content and generate 2 specific image prompts for DALL-E:
+
+BLOG TITLE: "${blogTitle}"
+BLOG TOPIC: "${topic}"
+BLOG CONTENT PREVIEW: ${blogContent.substring(0, 1000)}...
+
+Generate 2 image prompts:
+1. FEATURED_IMAGE: A header illustration specific to this blog topic
+2. SECTION_IMAGE: A supporting illustration for the content
+
+CRITICAL REQUIREMENTS:
+- NO TEXT, LABELS, NUMBERS, or WRITTEN WORDS in either image
+- Must be visually relevant to the specific blog topic "${topic}"
+- Professional technical aesthetic
+- Clean, modern, minimalist design
+- Use visual symbols and abstract representations only
+- Color scheme: Professional blues, silvers, technical tones
+
+For electrical sensor topics, include relevant visual elements like:
+- Circuit patterns, sensor shapes, electrical connections
+- For Rogowski coils: circular/toroidal shapes, electromagnetic field patterns
+- For current transformers: rectangular/square transformer shapes
+- For smart grid: network patterns, grid connections
+- For measurement: gauge-like elements, waveforms
+
+Respond in this exact format:
+FEATURED_IMAGE:
+[Your contextual featured image prompt here]
+
+SECTION_IMAGE:
+[Your contextual section image prompt here]
+      `.trim();
+
+      // Use current AI provider to generate prompts
+      const response = await window.electronAPI.langchainSendMessage({
+        message: promptGenerationMessage,
+        conversationHistory: [],
+        systemPrompt: 'You are a technical visual design expert specializing in creating DALL-E prompts for electrical engineering blog content. Focus on visual symbolism and technical aesthetics.'
+      });
+
+      if (response.success) {
+        const responseText = response.message;
+        
+        // Parse the response to extract prompts
+        const featuredMatch = responseText.match(/FEATURED_IMAGE:\s*([\s\S]*?)(?=SECTION_IMAGE:|$)/i);
+        const sectionMatch = responseText.match(/SECTION_IMAGE:\s*([\s\S]*?)$/i);
+        
+        if (featuredMatch && sectionMatch) {
+          const dynamicPrompts = {
+            featured: featuredMatch[1].trim(),
+            section: sectionMatch[1].trim()
+          };
+          
+          terminalLog.log('[ChatComponent] Generated dynamic prompts:', {
+            featuredLength: dynamicPrompts.featured.length,
+            sectionLength: dynamicPrompts.section.length
+          });
+          
+          return dynamicPrompts;
+        } else {
+          terminalLog.warn('[ChatComponent] Failed to parse dynamic prompts from AI response');
+        }
+      }
+      
+      // Fallback to default prompts if generation fails
+      terminalLog.warn('[ChatComponent] Using fallback prompts due to generation failure');
+      return this.getDefaultImagePrompts();
+      
+    } catch (error) {
+      terminalLog.error('[ChatComponent] Dynamic prompt generation error:', error);
+      return this.getDefaultImagePrompts();
+    }
+  }
+
+  /**
+   * Get default image prompts as fallback
+   */
+  getDefaultImagePrompts() {
+    return {
+      featured: `Create a professional abstract header illustration for a technical blog.
+Style: Clean, modern, minimalist design with technical aesthetic.
+Visual elements: Abstract circuit patterns, geometric shapes, technology symbols.
+Color scheme: Professional blue and silver tones.
+IMPORTANT: No text, labels, numbers, or written words in the image.
+Focus on abstract visual elements only.`,
+      section: `Create a supporting technical illustration.
+Visual elements: Geometric shapes, technical symbols, flow diagrams, abstract patterns.
+Style: Minimalist technical diagram with clean lines.
+Color scheme: Professional, muted colors.
+IMPORTANT: Avoid any text, labels, numbers, or written elements.
+Pure visual representation only.`
+    };
+  }
+
+  /**
    * Direct publish to WordPress without BlogAutomationManager
    */
   async directPublishToWordPress(data) {
@@ -1906,6 +1957,15 @@ class ChatComponent {
     // No dynamic styles to remove since CSS is defined in index.html
     
     this.isInitialized = false;
+  }
+
+  /**
+   * Expose generateDynamicImagePrompts for use by other components
+   */
+  static async generateDynamicImagePromptsStatic(blogContent, blogTitle, topic) {
+    // Create a temporary instance to use the method
+    const tempComponent = new ChatComponent('temp');
+    return await tempComponent.generateDynamicImagePrompts(blogContent, blogTitle, topic);
   }
 }
 

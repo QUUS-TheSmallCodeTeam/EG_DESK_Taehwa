@@ -333,13 +333,87 @@ class BlogAutomationManager extends EventEmitter {
     const images = [];
     
     try {
-      // Generate featured image
-      const featuredImagePrompt = `
-Create a professional technical illustration for a blog post about "${content.title}".
-The image should be clean, modern, and suitable for an electrical sensor manufacturing company.
-Include technical elements but keep it visually appealing.
-Style: Technical diagram, clean lines, professional color scheme.
-      `.trim();
+      // Generate dynamic image prompts based on blog content
+      let imagePrompts;
+      try {
+        terminalLogger.log('[BlogAutomationManager] Generating dynamic image prompts');
+        
+        const promptGenerationMessage = `
+Analyze this blog content and generate 2 specific image prompts for DALL-E:
+
+BLOG TITLE: "${content.title}"
+BLOG CONTENT: ${content.content?.substring(0, 1000) || content.html?.substring(0, 1000)}...
+
+Generate 2 image prompts:
+1. FEATURED_IMAGE: A header illustration specific to this blog topic
+2. SECTION_IMAGE: A supporting illustration for the content
+
+CRITICAL REQUIREMENTS:
+- NO TEXT, LABELS, NUMBERS, or WRITTEN WORDS in either image
+- Must be visually relevant to the specific blog topic
+- Professional technical aesthetic for electrical sensor industry
+- Clean, modern, minimalist design
+- Use visual symbols and abstract representations only
+- Color scheme: Professional blues, silvers, technical tones
+
+For electrical sensor topics, include relevant visual elements like:
+- Circuit patterns, sensor shapes, electrical connections
+- For Rogowski coils: circular/toroidal shapes, electromagnetic field patterns
+- For current transformers: rectangular/square transformer shapes
+- For smart grid: network patterns, grid connections
+- For measurement: gauge-like elements, waveforms
+
+Respond in this exact format:
+FEATURED_IMAGE:
+[Your contextual featured image prompt here]
+
+SECTION_IMAGE:
+[Your contextual section image prompt here]
+        `.trim();
+
+        const promptResponse = await this.langChainAPI.langchainSendMessage({
+          message: promptGenerationMessage,
+          conversationHistory: [],
+          systemPrompt: 'You are a technical visual design expert specializing in creating DALL-E prompts for electrical engineering blog content. Focus on visual symbolism and technical aesthetics.'
+        });
+        
+        if (promptResponse.success && promptResponse.message) {
+          // Parse the response to extract prompts
+          const featuredMatch = promptResponse.message.match(/FEATURED_IMAGE:\s*([\s\S]*?)(?=SECTION_IMAGE:|$)/i);
+          const sectionMatch = promptResponse.message.match(/SECTION_IMAGE:\s*([\s\S]*?)$/i);
+          
+          if (featuredMatch && sectionMatch) {
+            imagePrompts = {
+              featured: featuredMatch[1].trim(),
+              section: sectionMatch[1].trim()
+            };
+            terminalLogger.log('[BlogAutomationManager] Generated dynamic image prompts');
+          }
+        }
+      } catch (promptError) {
+        terminalLogger.error('[BlogAutomationManager] Dynamic prompt generation failed:', promptError);
+      }
+      
+      // Fallback to default prompts if dynamic generation failed
+      if (!imagePrompts) {
+        terminalLogger.log('[BlogAutomationManager] Using fallback image prompts');
+        imagePrompts = {
+          featured: `Create a professional abstract illustration representing electrical sensor technology.
+Style: Clean, modern, minimalist design with technical aesthetic.
+Visual elements: Circuit patterns, sensor components, electrical connections, abstract waves.
+Color scheme: Professional blue and silver tones.
+IMPORTANT: No text, labels, numbers, or written words in the image.
+Focus on visual symbolism and technical imagery only.`,
+          section: `Create a clean technical illustration showing electrical measurement concepts.
+Visual elements: Geometric shapes, circuit symbols, measurement indicators, flow diagrams.
+Style: Minimalist technical diagram with clean lines and abstract representations.
+Color scheme: Professional, muted colors with emphasis on clarity.
+IMPORTANT: Avoid any text, labels, numbers, or written elements.
+Pure visual representation only.`
+        };
+      }
+      
+      const featuredImagePrompt = imagePrompts.featured;
       
       // Check if image generation is available
       if (this.langChainAPI.generateImage) {
@@ -363,11 +437,7 @@ Style: Technical diagram, clean lines, professional color scheme.
       if (content.sections && content.sections.length > 2) {
         // Generate an image for a key section
         const keySection = content.sections[Math.floor(content.sections.length / 2)];
-        const sectionImagePrompt = `
-Create a technical diagram illustrating "${keySection.title}".
-Focus on electrical sensor technology and measurement principles.
-Style: Clean technical illustration, minimalist, professional.
-        `.trim();
+        const sectionImagePrompt = imagePrompts.section;
         
         if (this.langChainAPI.generateImage) {
           const sectionImage = await this.langChainAPI.generateImage({

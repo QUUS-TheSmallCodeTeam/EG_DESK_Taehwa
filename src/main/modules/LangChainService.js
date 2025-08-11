@@ -44,11 +44,20 @@ class LangChainService {
         costPer1k: { input: 0.003, output: 0.015 }
       },
       openai: {
-        name: 'ChatGPT (GPT-4o)',
+        name: 'OpenAI GPT Models',
         models: [
-          { id: 'gpt-4o', name: 'GPT-4o', context: 128000 }
+          { id: 'gpt-5', name: 'GPT-5 (Latest)', context: 128000 },
+          { id: 'gpt-5-mini', name: 'GPT-5 Mini', context: 128000 },
+          { id: 'gpt-5-nano', name: 'GPT-5 Nano', context: 128000 },
+          { id: 'gpt-4.1', name: 'GPT-4.1', context: 1000000 },
+          { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', context: 1000000 },
+          { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', context: 1000000 },
+          { id: 'gpt-4o', name: 'GPT-4o (Multimodal)', context: 128000 },
+          { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', context: 128000 },
+          { id: 'o3', name: 'O3 (Reasoning)', context: 128000 },
+          { id: 'o4-mini', name: 'O4 Mini (Reasoning)', context: 128000 }
         ],
-        defaultModel: 'gpt-4o',
+        defaultModel: 'gpt-5',
         costPer1k: { input: 0.005, output: 0.015 }
       },
       gemini: {
@@ -151,7 +160,7 @@ class LangChainService {
           const contentModel = new ChatOpenAI({
             apiKey: (await this.secureKeyManager.getProviderKey('openai')).api_key,
             model: 'gpt-4o',
-            temperature: 0.7
+            temperature: 1  // GPT-5 only supports default temperature
           });
           
           const titleResponse = await contentModel.invoke(titleMessages);
@@ -188,18 +197,92 @@ class LangChainService {
           const content = contentResponse.content;
           sendProgress('✅ 본문 작성 완료');
           
-          // Step 3: Generate 2 images
+          // Step 3: Generate 2 images with dynamic prompts
           sendProgress('🎨 이미지를 생성하고 있습니다...');
           const images = [];
           
-          // Featured image
-          const featuredImagePrompt = `Create a professional blog header image for: "${title}". 
-          Style: Clean, modern, professional. 
-          Theme: ${topic}`;
+          // Generate dynamic image prompts based on blog content
+          let imagePrompts;
+          try {
+            sendProgress('🎯 블로그 내용에 맞는 이미지 프롬프트를 생성하고 있습니다...');
+            
+            const promptGenerationMessage = `
+Analyze this blog content and generate 2 specific image prompts for DALL-E:
+
+BLOG TITLE: "${title}"
+BLOG TOPIC: "${topic}"
+BLOG CONTENT: ${content.substring(0, 1000)}...
+
+Generate 2 image prompts:
+1. FEATURED_IMAGE: A header illustration specific to this blog topic
+2. SECTION_IMAGE: A supporting illustration for the content
+
+CRITICAL REQUIREMENTS:
+- NO TEXT, LABELS, NUMBERS, or WRITTEN WORDS in either image
+- Must be visually relevant to the specific blog topic "${topic}"
+- Professional technical aesthetic for electrical sensor industry
+- Clean, modern, minimalist design
+- Use visual symbols and abstract representations only
+- Color scheme: Professional blues, silvers, technical tones
+
+For electrical sensor topics, include relevant visual elements like:
+- Circuit patterns, sensor shapes, electrical connections
+- For Rogowski coils: circular/toroidal shapes, electromagnetic field patterns
+- For current transformers: rectangular/square transformer shapes
+- For smart grid: network patterns, grid connections
+- For measurement: gauge-like elements, waveforms
+
+Respond in this exact format:
+FEATURED_IMAGE:
+[Your contextual featured image prompt here]
+
+SECTION_IMAGE:
+[Your contextual section image prompt here]
+            `.trim();
+
+            const promptResponse = await contentModel.invoke([
+              new SystemMessage('You are a technical visual design expert specializing in creating DALL-E prompts for electrical engineering blog content. Focus on visual symbolism and technical aesthetics.'),
+              new HumanMessage(promptGenerationMessage)
+            ]);
+            
+            if (promptResponse.content) {
+              // Parse the response to extract prompts
+              const featuredMatch = promptResponse.content.match(/FEATURED_IMAGE:\s*([\s\S]*?)(?=SECTION_IMAGE:|$)/i);
+              const sectionMatch = promptResponse.content.match(/SECTION_IMAGE:\s*([\s\S]*?)$/i);
+              
+              if (featuredMatch && sectionMatch) {
+                imagePrompts = {
+                  featured: featuredMatch[1].trim(),
+                  section: sectionMatch[1].trim()
+                };
+                console.log('✅ [BlogAutomationTool] Generated dynamic image prompts');
+              }
+            }
+          } catch (promptError) {
+            console.error('❌ [BlogAutomationTool] Dynamic prompt generation failed:', promptError);
+          }
           
-          // Section image
-          const sectionImagePrompt = `Create a supporting illustration for a blog about: "${topic}".
-          Style: Informative, technical diagram or conceptual illustration.`;
+          // Fallback to default prompts if dynamic generation failed
+          if (!imagePrompts) {
+            console.log('📝 [BlogAutomationTool] Using fallback image prompts');
+            imagePrompts = {
+              featured: `Create a professional abstract header illustration for a technical blog about ${topic}.
+              Style: Clean, modern, minimalist design with technical aesthetic.
+              Visual elements: Abstract circuit patterns, geometric shapes, technology symbols relevant to ${topic}.
+              Color scheme: Professional blue and silver tones.
+              IMPORTANT: No text, labels, numbers, or written words in the image.
+              Focus on abstract visual elements only.`,
+              section: `Create a supporting technical illustration for ${topic}.
+              Visual elements: Geometric shapes, technical symbols, flow diagrams, abstract patterns related to ${topic}.
+              Style: Minimalist technical diagram with clean lines.
+              Color scheme: Professional, muted colors.
+              IMPORTANT: Avoid any text, labels, numbers, or written elements.
+              Pure visual representation only.`
+            };
+          }
+          
+          const featuredImagePrompt = imagePrompts.featured;
+          const sectionImagePrompt = imagePrompts.section;
           
           // Generate images using DALL-E via OpenAI
           try {
@@ -555,8 +638,8 @@ Examples:
           provider = new ChatOpenAI({
             apiKey: apiKey,
             model: this.providerConfigs.openai.defaultModel,
-            temperature: 0.7,
-            maxTokens: 4000
+            temperature: 1,  // GPT-5 only supports default temperature
+            max_completion_tokens: 4000
           });
           break;
           
@@ -802,7 +885,7 @@ Examples:
   /**
    * Stream a chat message (for real-time responses)
    */
-  async streamMessage(message, conversationHistory = [], systemPrompt = null, onChunk = null) {
+  async streamMessage(message, conversationHistory = [], systemPrompt = null) {
     console.log('🌊 [LangChainService] Starting streaming for:', message.substring(0, 50) + '...');
     
     if (!this.isInitialized) {
@@ -824,7 +907,6 @@ Examples:
     }
     
     try {
-      const provider = this.providers.get(this.currentProvider);
       const messages = this.buildMessageHistory(message, conversationHistory, systemPrompt);
       
       // Store current conversation history for tool context
@@ -834,54 +916,6 @@ Examples:
       // LLM will determine if it should use tools based on the message intent
       console.log('🔄 [LangChainService] Redirecting streaming to regular message for tool decision');
       return await this.sendMessage(message, conversationHistory, systemPrompt);
-      
-      const startTime = Date.now();
-      let fullResponse = '';
-      
-      const stream = await provider.instance.stream(messages);
-      
-      for await (const chunk of stream) {
-        const content = chunk.content;
-        if (content) {
-          fullResponse += content;
-          if (onChunk) {
-            onChunk(content);
-          }
-        }
-      }
-      
-      const endTime = Date.now();
-      
-      console.log('✅ [LangChainService] Streaming complete:', {
-        responseLength: fullResponse.length,
-        responseTime: endTime - startTime,
-        preview: fullResponse.substring(0, 100) + '...'
-      });
-      
-      // Calculate costs and tokens (approximate)
-      const inputTokens = this.estimateTokens(messages);
-      const outputTokens = this.estimateTokens([{ content: fullResponse }]);
-      const cost = this.calculateCost(inputTokens, outputTokens);
-      
-      // Update cost tracking
-      this.updateCostTracking(inputTokens, outputTokens, cost);
-      
-      const result = {
-        success: true,
-        message: fullResponse,
-        provider: this.currentProvider,
-        model: this.currentModel,
-        metadata: {
-          inputTokens,
-          outputTokens,
-          cost,
-          responseTime: endTime - startTime,
-          timestamp: Date.now(),
-          streamed: true
-        }
-      };
-      
-      return result;
       
     } catch (error) {
       
